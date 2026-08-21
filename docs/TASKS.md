@@ -214,11 +214,15 @@ lại của [DISPLAY_API.md](DISPLAY_API.md)), và xác nhận `isComplete` củ
 ## M4 — Dashboard (dùng data thật từ M3)
 
 **Làm trước khi vào task Dashboard (quyết định 21/08/2026):**
-- [ ] **Đưa code vào Git + đẩy GitHub** — dự án hiện **chưa có git repo**, toàn bộ M0-M3 làm không qua
-      version control (không có lịch sử, không rollback được). Không có lý do kỹ thuật để trì hoãn
-      thêm, chỉ là trước giờ chưa ai đề xuất. `git init`, commit trạng thái hiện tại, tạo repo GitHub,
-      push. Từ đây làm việc có commit — tối thiểu để có lịch sử/rollback, chưa cần quy trình PR review
-      cầu kỳ cho 1 người
+- [x] **Đưa code vào Git + đẩy GitHub** (21/08/2026) — repo **private**
+      `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, 1 commit gốc gồm 148 file.
+      Đã quét secret trước khi push: `.env.local`, `tools/m0-display-api-probe/out/tokens.json` và
+      các zip dữ liệu thật trong `data/` đều **không** lên remote (`.gitignore` chặn đúng). Thêm
+      `.claude/settings.local.json` vào `.gitignore` — cấu hình riêng từng máy, khác với
+      `.claude/settings.json` là quy ước chung nên vẫn commit. Từ đây làm việc có commit
+- [ ] ⚠️ **Chưa có `.github/workflows/` (CI)** — build/lint/test hiện chỉ chạy tay dưới local. Cân
+      nhắc thêm workflow chạy `npm run lint && npm test && npm run build` trên mỗi push. Chưa làm vì
+      chưa bàn, không chặn M4
 - [ ] **Tắt Docker Desktop** nếu đang chạy — chỉ cần cho `./scripts/dryrun/run.sh` (chạy trước mỗi lần
       thêm migration mới). M4 chỉ đọc bảng đã có từ M1-M3, không cần migration mới → tắt an toàn ngay
       bây giờ, không cần đợi tới lúc bắt đầu M4. Bật lại nếu M4 hoá ra cần đổi schema

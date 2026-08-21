@@ -127,6 +127,7 @@ Authorize trên TikTok cho ít nhất 1 kênh (sau khi sửa `TOKEN_ENCRYPTION_K
 sau khi kết nối kênh đầu tiên).
 
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`).
+Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main` (21/08/2026).
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo.
 **Function region: `hkg1` (Hong Kong), đặt ở Vercel Project Settings → Functions.** Không có trong
 code — đừng tìm trong repo, kiểm bằng `npx vercel inspect <url>` (cột `[hkg1]`) hoặc header
