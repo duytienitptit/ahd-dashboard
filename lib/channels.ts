@@ -122,6 +122,23 @@ async function getChannelById(supabase: SupabaseServerClient, id: string): Promi
   return channel;
 }
 
+/** `Chi tiết kênh`'s "Creator phụ trách từ ngày X" — the currently-open
+ *  `channel_ownership_history` row (`to_date IS NULL`), maintained entirely by the DB trigger
+ *  (docs/DATABASE_ERD.md). `null` for a channel that has never had a Creator assigned. */
+export async function getCurrentOwnershipStart(
+  supabase: SupabaseServerClient,
+  channelId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("channel_ownership_history")
+    .select("from_date")
+    .eq("channel_id", channelId)
+    .is("to_date", null)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.from_date ?? null;
+}
+
 export async function createChannel(
   supabase: SupabaseServerClient,
   input: CreateChannelInput,

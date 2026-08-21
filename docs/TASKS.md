@@ -140,10 +140,28 @@ test ngay), tầng API sau khi M0 kiểm chứng xong.
       duyệt chặn set giá trị `<input type="file">` bằng script) — đã xác nhận UI render đúng qua
       screenshot, và toàn bộ pipeline phía sau qua chạy thật ở trên
 
-**3c — Nhập tay dự phòng (nhỏ, làm sau 3a/3b)**
-- [ ] `POST /api/channels/:id/manual-entry` — **chỉ Manager**, ghi `source = manual_entry` + `audit_log`
-- [ ] Resolver chọn nguồn theo thứ tự ưu tiên → `manual_entry` tự bị thay khi `studio_import` về
-- [ ] UI: hiển thị số `manual_entry` khác biệt rõ (nhãn "chưa xác thực")
+**3c — Nhập tay dự phòng — xong 21/08/2026 (làm sớm hơn dự kiến, theo yêu cầu khi vừa xong M4)**
+- [x] `POST /api/channels/:id/manual-entry` — **chỉ Manager**, ghi `source = manual_entry` + `audit_log`
+- [x] Resolver chọn nguồn theo thứ tự ưu tiên → `manual_entry` tự bị thay khi `studio_import` về
+- [x] UI: hiển thị số `manual_entry` khác biệt rõ (nhãn "chưa xác thực")
+
+`lib/manual-entry.ts` (`createManualEntry`) là hàm dùng chung cho cả route handler
+(`app/api/channels/:id/manual-entry/route.ts`) và Server Action UI
+(`app/(app)/channels/[id]/actions.ts` → `manual-entry-form.tsx`, nút "+ Nhập tay" Manager-only trên
+Chi tiết kênh, ngay trên bảng "Số liệu đã lưu theo ngày"). 3 trường `videoViews`/`followers`/
+`videoCount` đều optional nhưng bắt buộc có ít nhất 1 — không có trường "lý do", cố tình hẹp đúng như
+docs/DATA_SOURCES.md mô tả ("miếng vá tạm", không phải màn nhập liệu thoải mái). Không cần logic
+"nhường chỗ" cho `studio_import` — `source_rank()` đã lo, chỉ set cột nào Manager thực sự nhập (upsert
+bỏ qua cột vắng mặt thay vì ghi `null` đè).
+
+**Kiểm chứng 21/08/2026 trên DB thật** (không phải fake/dry-run): tạo qua UI thật 1 manual_entry cho
+ngày chưa có số nào (kênh hiện lên đúng với nhãn "chưa xác thực", stat/trend cập nhật đúng) và 1
+manual_entry cho ngày **đã có `studio_import`** — xác nhận UI vẫn hiển thị số Studio gốc, không bị
+đè, đúng thứ tự ưu tiên. Xác nhận `audit_log` có đúng 1 row mỗi lần, `actor` = uuid Manager, `note` mô
+tả đủ số đã nhập. Sau khi xác nhận, xoá cả 2 row test (`data_snapshot` + `audit_log` liên quan) bằng
+script service-role tạm — không để lại dữ liệu QA trong DB thật. `audit_log` bình thường append-only
+(RLS không cho Manager sửa/xoá), xoá lần này chỉ vì đây là dữ liệu QA tự tạo trong phiên, không phải
+thao tác nghiệp vụ thật.
 
 **3b — Display API hằng ngày (số tạm tính) — code xong 20/08/2026, chờ bạn OAuth thật để kiểm chứng
 cuối** — xem [DISPLAY_API.md](DISPLAY_API.md)
@@ -227,16 +245,131 @@ lại của [DISPLAY_API.md](DISPLAY_API.md)), và xác nhận `isComplete` củ
       thêm migration mới). M4 chỉ đọc bảng đã có từ M1-M3, không cần migration mới → tắt an toàn ngay
       bây giờ, không cần đợi tới lúc bắt đầu M4. Bật lại nếu M4 hoá ra cần đổi schema
 
-- [ ] `GET /api/dashboard` — một endpoint, server rẽ nhánh theo `role` (xem [API_SPEC.md](API_SPEC.md))
-- [ ] UI Tổng quan: **một route, một component**, rẽ nhánh theo vai trò — không tạo 2 trang song song
-- [ ] Tab Kênh: bảng + bộ lọc (tìm kiếm, dropdown, chip lọc nhanh, sắp xếp, sparkline)
-- [ ] Trang Chi tiết kênh: biểu đồ + bảng số liệu lưu theo ngày + danh sách video
-- [ ] Tab Creator: thẻ hiệu suất từng người
-- [ ] **Engagement rate** `(like+comment+share)/view` — chỉ số dẫn báo, hiện cùng cấp với view/follower
-- [ ] Tỷ lệ khán giả mới `newViewers/totalViewers` — trên trang chi tiết kênh
-- [ ] Biểu đồ giờ vàng đăng bài từ `follower_activity` (heatmap giờ × ngày)
-- [ ] Bảng hiệu quả theo hashtag — tách `#(\w+)` từ tiêu đề, gộp view trung bình
-- [ ] Trạng thái rỗng / loading / lỗi — quan trọng vì ban đầu chỉ có 2/8 kênh có data
+- [x] `GET /api/dashboard` — một endpoint, server rẽ nhánh theo `role` (xem [API_SPEC.md](API_SPEC.md))
+- [x] UI Tổng quan: **một route, một component**, rẽ nhánh theo vai trò — không tạo 2 trang song song
+- [x] Tab Kênh: bảng + bộ lọc (tìm kiếm, dropdown, chip lọc nhanh, sắp xếp, sparkline)
+- [x] Trang Chi tiết kênh: biểu đồ + bảng số liệu lưu theo ngày + danh sách video
+- [x] Tab Creator: thẻ hiệu suất từng người
+- [x] **Engagement rate** `(like+comment+share)/view` — chỉ số dẫn báo, hiện cùng cấp với view/follower
+- [x] Tỷ lệ khán giả mới `newViewers/totalViewers` — trên trang chi tiết kênh
+- [x] Biểu đồ giờ vàng đăng bài từ `follower_activity` (heatmap giờ × ngày)
+- [x] Bảng hiệu quả theo hashtag — tách `#(\w+)` từ tiêu đề, gộp view trung bình
+- [x] Trạng thái rỗng / loading / lỗi — quan trọng vì ban đầu chỉ có 2/8 kênh có data
+
+**M4 xong 21/08/2026 — có gì dùng được ngay**
+
+- **`lib/dashboard.ts`** — module trung tâm của M4, dùng chung cho cả 4 màn: hàm thuần có test
+  (`pctChange`, `isoWeekStart/Label`, `bucketWeekly*`, `aggregateHashtagStats`, `buildActivityHeatmap`,
+  `rankCreatorPerformance`, `latestViewerRatio`) + lớp gọi Supabase (`getChannelPeriodStats` — 1 hàm
+  per-channel dùng lại ở cả Tổng quan/Kênh/Chi tiết kênh/Creator, `getDashboard`,
+  `fetchChannelVideos`, `fetchActivityHeatmap`, `fetchDataFreshness`). Theo đúng mẫu M3a/M3b
+  (thuần tách khỏi I/O, test hàm thuần bằng data giả, không cần DB).
+- **Mốc "N ngày qua" neo theo hôm nay** (`nowVnDateString()`), không neo theo ngày mới nhất có data —
+  quyết định 21/08/2026 khi bắt đầu code M4 (đã hỏi, xem CLAUDE.md). Nghĩa là lúc chưa kênh nào nối
+  Display API, các ô gần đây sẽ trống thay vì đẹp giả — đúng chủ đích, không phải bug.
+- ⚠️ **Content.csv giờ được parse đủ `Total views/likes/comments/shares`** (`lib/import/content.ts`,
+  `lib/import/run-import.ts`) — M3a chỉ lấy title/link/hashtags vì lúc đó chưa có tính năng nào cần
+  số view. Bảng hiệu quả hashtag (M4) cần số này; ghi vào `video_snapshot` giống hệt cách M3b ghi từ
+  Display API. **15 video/kênh đã import trước khi có đổi này (M3a) không có `video_snapshot`** —
+  bảng hashtag hiện trống thật (không phải lỗi), sẽ tự có số ở lần import Studio kế tiếp (thứ Tư) hoặc
+  ngay khi kênh nối Display API (kéo lại toàn bộ video kèm view). Cố tình không viết script backfill
+  tạm để dồn dữ liệu cho đẹp — không phải việc của phiên code, và dữ liệu trống là trạng thái đúng đắn
+  cần xử lý tốt (xem mục "Trạng thái rỗng" ở trên), không phải thứ cần che đi.
+- **`GET /api/channels/:id/oauth/status` không đổi** — Tổng quan/Kênh/Chi tiết kênh/Creator đều đọc số
+  liệu qua `v_channel_daily`/`data_snapshot`/`content_video`/`video_snapshot`/`follower_activity`,
+  không đụng `channel_oauth` (bảng đó không role đăng nhập nào đọc được, kể cả từ M4).
+  Trạng thái kết nối vẫn chỉ xem ở `/connections` (M3b), không lặp lại ở đây.
+- **`app/(app)/channels/channel-form.tsx`** — `ChannelRow` đổi hẳn layout: từ
+  Kênh/Creator/Trạng thái/Ngày thêm/Sửa (M2) sang
+  Kênh/Follower/Lượt xem/Video/View-per-video/Sparkline/Tiến độ KPI/Sửa, đúng như ghi chú "để M4" lúc
+  M2 đóng. `CHANNEL_TABLE_COLUMNS` export dùng chung giữa header (`channels-table.tsx`), row, và
+  skeleton (`loading.tsx`) — 1 nguồn layout duy nhất. **"Tiến độ KPI" luôn hiện chip "Chưa đặt KPI"**
+  (chưa có `kpi_cycle` nào) thay vì phần trăm giả.
+- **Cột lọc nhanh KHÔNG theo trạng thái KPI** (mockup gốc: Vượt tiến độ/Ổn định/Cần tăng tốc) — đổi
+  thành lọc theo dữ liệu thật (Đang giảm view / Chưa gán Creator / Ngừng hoạt động), đúng nguyên tắc ở
+  đầu CLAUDE.md "đừng lấy % KPI làm trục sắp xếp mặc định". Tương tự nhãn "rank" ở thẻ Creator
+  (`rankCreatorPerformance`) đổi từ dựa-KPI sang dựa-view-share/xu-hướng.
+- **`app/(app)/channels/[id]/`** — trang mới, chưa có trong `design/ChannelDetail.dc.html` gốc:
+  heatmap giờ vàng (`detail-widgets.tsx` → `ActivityHeatmapCard`, tô màu bằng `color-mix()`, không
+  cần thư viện chart) và bảng hashtag (`HashtagTable`) là 2 khối **không có mockup nguồn** — tự thiết
+  kế theo đúng token màu/bo góc/spacing của [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), chưa cập nhật lại
+  file đó với 2 mẫu mới (xem ghi chú trong DESIGN_SYSTEM.md). Card "KPI tuần này"/"Các kỳ đã chốt" của
+  mockup gốc **bỏ hẳn** khỏi M4 (thay bằng "Tỷ lệ khán giả mới") — đúng phạm vi M5, không dựng UI cho
+  bảng rỗng.
+- **Biểu đồ xu hướng dùng SVG tay** (`app/(app)/trend-chart.tsx`), không thêm thư viện chart — đúng
+  mẫu `design/*.dc.html`. Tab Lượt xem/Follower/Video chuyển ngay trên client vì `trend` trả sẵn cả 3
+  chuỗi (xem lệch #2 trong [API_SPEC.md](API_SPEC.md)); **bài học khi code**: hàm `formatValue` ban
+  đầu truyền thẳng như prop function từ Server Component → Client Component, Next.js chặn ngay
+  ("Functions cannot be passed directly to Client Components") — sửa bằng cách format bên trong
+  `trend-chart.tsx` (client) theo key `"compact" | "count"`, không truyền function qua props.
+- ⚠️ **Bug thật bắt được lúc kiểm chứng bằng browser, không phải lúc review code**: hàm gộp follower
+  theo tuần ban đầu lấy "row cuối cùng theo ngày" trên danh sách **gộp nhiều kênh** — với 2 kênh trở
+  lên, kết quả là follower của 1 kênh bất kỳ (tuỳ thứ tự sort), không phải tổng cả team. Biểu đồ
+  "Follower" lúc đó vẽ ra hình răng cưa vô lý dù số liệu nguồn đúng. Sửa: gộp theo từng kênh trước
+  (giá trị mới nhất mỗi kênh mỗi tuần), rồi mới cộng — `bucketWeeklyLastFollowers()` trong
+  `lib/dashboard.ts`, có test riêng cho ca nhiều kênh. Bài học: build/lint/test xanh không phát hiện
+  được lỗi này vì hàm vẫn chạy đúng kiểu dữ liệu, chỉ sai theo nghĩa nghiệp vụ — **chỉ lộ ra khi nhìn
+  đồ thị thật với ≥2 kênh có data**, giống 2 lỗi P1 đã ghi lại ở M3b.
+- **Kiểm chứng bằng browser thật** (không chỉ build/lint/test) — tạo 2 tài khoản QA tạm qua service
+  role (`manager` + `creator`), **không đọc `.env.local`** (script tự `process.loadEnvFile` như
+  `scripts/seed.mjs`), đăng nhập thật, click qua cả 4 màn ở cả 2 vai trò, gán tạm 1 Creator test vào
+  `nong.nghiep.xanh.17` để kiểm chứng nhánh Creator (UI role-branching, "Kênh của tôi", nhãn "Chỉ
+  xem") rồi **gán lại đúng Creator cũ (`sukai`)** trước khi xoá 2 tài khoản tạm — không để lại thay
+  đổi nào trên dữ liệu thật. Phát hiện lúc đó: **`sukai` đã được gán cho cả 2 kênh thật** — khác với
+  ghi chú "chưa kênh nào được gán Creator" chốt ngày 21/08/2026 đầu phiên này; trạng thái đã đổi ở đâu
+  đó ngoài phiên này, CLAUDE.md đã cập nhật lại theo thực tế quan sát được.
+- `npm run build && npm run lint && npm test` xanh (11 test file, xem thêm ở `lib/dashboard.test.ts`,
+  `lib/format.test.ts`, `lib/import/content.test.ts`).
+
+**Bổ sung 21/08/2026 sau khi xem bản đầu — 3 phản hồi, làm ngay trong cùng phiên:**
+- **Chọn khoảng thời gian tuỳ ý** ở Tổng quan + Kênh — trước đó cố định "7 ngày qua", không đổi được.
+  `app/(app)/date-range-picker.tsx` (client, đọc/ghi `?from=&to=` trên URL — page vẫn là Server
+  Component đọc `searchParams`, không chuyển sang client-fetch). Preset 7/14/30 ngày + tuỳ chỉnh 2
+  input ngày. Kéo theo: "so với kỳ trước" phải tổng quát hoá theo **độ dài kỳ đang chọn** thay vì luôn
+  cố định 7 ngày — `previousPeriod()` mới trong `lib/dashboard.ts` (có test), thay hết
+  `addDaysToDateString(from, -7)` ở 4 trang. `lib/time.ts` thêm `resolvePeriodParams()` (parse
+  `?from=&to=` an toàn, sai định dạng thì rơi về mặc định thay vì crash trang) + `daysBetweenDateStrings()`.
+- **Lọc theo Creator ở Tổng quan** — trước đó chỉ Kênh lọc được. `getDashboard()` nhận thêm
+  `creatorId` (optional), lọc `channel` trước khi tính mọi thứ khác — không phải trường riêng trong
+  response, chỉ là tham số lọc đầu vào. `app/(app)/creator-filter.tsx` (client, cùng cơ chế URL param
+  `?creatorId=` như DateRangePicker). Không đổi `myChannels` (luôn là kênh của chính người đang xem,
+  không phụ thuộc bộ lọc này).
+- **Xuất CSV** — 3 chỗ: Tổng quan ("Xuất dữ liệu" — tóm tắt `teamStats`), Kênh ("Xuất CSV" — đúng các
+  dòng đang hiển thị sau khi lọc/sắp xếp), Chi tiết kênh ("Xuất CSV" trên bảng "Số liệu đã lưu theo
+  ngày" — toàn bộ lịch sử, không chỉ trang đang xem). `app/(app)/download-csv.ts` (hàm thuần
+  client-only, dựng CSV bằng tay — không thêm thư viện, có BOM để Excel mở tiếng Việt không lỗi dấu)
+  + `app/(app)/export-csv-button.tsx` (component dùng chung, nhận `rows` đã tính sẵn qua props —
+  **không truyền function qua props Server→Client**, bài học lặp lại từ lỗi TrendChart ở M4 gốc).
+- **Kiểm chứng cả 3 bằng browser thật** cùng lượt với M3c ở trên (tài khoản QA tạo/xoá y hệt quy
+  trình M4 gốc): lọc theo Creator có 0 kênh ra đúng trạng thái rỗng toàn trang; khoảng ngày tuỳ ý cho
+  kết quả khớp với `data_snapshot` thật (đối chiếu trực tiếp qua `GET /api/channels/:id/snapshots`
+  khi số nhìn bất thường — hoá ra đúng, chỉ là tuần đó dữ liệu gốc thật sự bằng 0); export CSV không
+  lỗi console (không kiểm được nội dung file tải về qua công cụ tự động, chỉ xác nhận không crash).
+
+**Sửa tiếp 21/08/2026 — phản hồi thứ 2 cùng ngày: bấm filter không có phản hồi gì, "giật giật khó
+chịu".** Nguyên nhân thật: `loading.tsx` **không tự hiện khi chỉ đổi `searchParams` trên cùng route**
+— kể cả bọc `router.replace()` trong `startTransition`. Đã kiểm chứng bằng `MutationObserver` thật
+(không phải đoán): `isPending` từ `useTransition` lên đúng và tức thời (~7-9ms), nhưng route Suspense
+không ăn theo nó, nên UI đứng im tới khi RSC payload mới về (~1-1.5s thật, query Supabase Tokyo từ xa)
+rồi mới nhảy — đúng cảm giác "giật". Sửa bằng cơ chế riêng, không dựa `loading.tsx`:
+`app/(app)/filter-transition.tsx` (`FilterTransitionProvider` giữ 1 `useTransition` dùng chung cho
+mọi filter trong trang, `useFilterTransition()` cho control gọi `setParams()`,
+`FilterPendingOverlay` tự làm mờ `opacity-40 pointer-events-none` vùng nội dung khi `isPending`) — áp
+vào cả `app/(app)/page.tsx` và `channels/page.tsx`. Đã đo lại bằng `MutationObserver`: mờ ở
+7-9ms, sáng lại đúng lúc data mới về (~1.4-1.5s). Ghi lại đầy đủ + lý do kỹ thuật ở
+[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) mục "Trạng thái chờ" — route mới có filter kiểu `searchParams`
+sau này phải theo mẫu này, không giả định `loading.tsx` tự lo được.
+
+**Phản hồi thứ 3 cùng ngày: chú thích rõ cơ chế chọn nguồn ngay trên UI, không chỉ trong docs.** Thêm
+`app/(app)/source-priority-info.tsx` — icon ⓘ cạnh nhãn "đã đối chiếu"/"tạm tính" ở
+`DataFreshnessLine` (Tổng quan) và cạnh tiêu đề bảng ở `DailyTable` (Chi tiết kênh), bấm ra popup giải
+thích thứ tự ưu tiên + ý nghĩa từng nhãn. **Sửa lại ngay sau đó theo yêu cầu**: bản đầu liệt kê đủ 5
+nguồn kỹ thuật trong `source_rank()` (kể cả `business_api`/`vendor_scraping` — 2 nguồn chưa có code
+nào từng ghi vào `data_snapshot`, `business_api` là "V2 nếu được duyệt", `vendor_scraping` là dự phòng
+M7 chưa cần tới vì Display API đã khả thi) — quá chi tiết, gây rối. Rút gọn UI xuống đúng
+**3 nguồn thật đang hoạt động: Studio import → Display API → Nhập tay**. `source_rank()` trong DB
+**giữ nguyên 5 bậc** — không đổi business rule đã chốt từ M1, chỉ đổi phần **giải thích cho người
+dùng** để khớp với thực tế đang chạy.
 
 ## M5 — KPI Cycle
 

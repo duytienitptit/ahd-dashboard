@@ -178,8 +178,39 @@ export async function runStudioImport(input: {
       // video_link and tiktok_video_id are unique, but picking different conflict targets in the
       // two importers risks a 23505 crash if a video's share_url from Display API ever differs from
       // the video_link Content.csv recorded for the same tiktok_video_id.
-      const { error } = await supabase.from("content_video").upsert(rows, { onConflict: "tiktok_video_id" });
+      const { data: upserted, error } = await supabase
+        .from("content_video")
+        .upsert(rows, { onConflict: "tiktok_video_id" })
+        .select("id, tiktok_video_id");
       if (error) throw error;
+
+      // Content.csv's "Total views/likes/comments/shares" are cumulative as of the export — same
+      // shape as lib/tiktok/sync.ts's video_snapshot rows from Display API, dated at exportDate
+      // (Content.csv has no per-row date, only the shared export "Time" column). Not settle-windowed
+      // like data_snapshot: a video_snapshot row is a point-in-time reading, not a value that gets
+      // reconciled later, so there's nothing to protect by holding back the 3 most recent days.
+      const idByTiktokId = new Map((upserted ?? []).map((r) => [r.tiktok_video_id as string, r.id as string]));
+      const snapshotRows = contentRows
+        .map((r) => {
+          const contentVideoId = idByTiktokId.get(r.tiktokVideoId);
+          if (!contentVideoId) return null;
+          return {
+            content_video_id: contentVideoId,
+            date: exportDate,
+            view_count: r.viewCount,
+            like_count: r.likeCount,
+            comment_count: r.commentCount,
+            share_count: r.shareCount,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+
+      if (snapshotRows.length > 0) {
+        const { error: snapshotError } = await supabase
+          .from("video_snapshot")
+          .upsert(snapshotRows, { onConflict: "content_video_id,date" });
+        if (snapshotError) throw snapshotError;
+      }
     }
 
     for (const file of input.files) {

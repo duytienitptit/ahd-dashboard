@@ -3,6 +3,8 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import type { CreatorSummary } from "@/lib/creators";
+import type { CreatorRank } from "@/lib/dashboard";
+import { formatCompact, formatDeltaPct, formatRatePct, formatSignedNumber } from "@/lib/format";
 
 import {
   createCreatorAction,
@@ -10,6 +12,24 @@ import {
   type CreatorFormState,
   type UpdateCreatorFormState,
 } from "./actions";
+
+/** Computed in creators/page.tsx from `getChannelPeriodStats`, grouped by Creator — see there for
+ *  the aggregation. Kept as a plain data type here so this file doesn't need to know about
+ *  Supabase. */
+export type CreatorPerformance = {
+  totalViews: number;
+  viewsDeltaPct: number | null;
+  followerGain: number;
+  engagementRate: number | null;
+  channels: { id: string; name: string; tiktokHandle: string; views: number; viewsDeltaPct: number | null }[];
+};
+
+const RANK_STYLE: Record<CreatorRank, { label: string; bg: string; fg: string } | null> = {
+  leader: { label: "Dẫn đầu view", bg: "bg-cyan-bg", fg: "text-cyan-ink" },
+  growth: { label: "Tăng trưởng tốt", bg: "bg-green-bg", fg: "text-green-dark" },
+  attention: { label: "Cần chú ý", bg: "bg-red-bg", fg: "text-red-dark" },
+  stable: null,
+};
 
 const createInitialState: CreatorFormState = { error: null, created: null, tempPassword: null };
 const updateInitialState: UpdateCreatorFormState = { error: null };
@@ -154,11 +174,22 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-export function CreatorCard({ creator, isManager }: { creator: CreatorSummary; isManager: boolean }) {
+export function CreatorCard({
+  creator,
+  isManager,
+  performance,
+  rank,
+}: {
+  creator: CreatorSummary;
+  isManager: boolean;
+  performance?: CreatorPerformance;
+  rank?: CreatorRank;
+}) {
   const [editing, setEditing] = useState(false);
   const boundAction = updateCreatorAction.bind(null, creator.id);
   const [state, formAction, pending] = useActionState(boundAction, updateInitialState);
   const wasPending = useRef(false);
+  const rankStyle = rank ? RANK_STYLE[rank] : null;
 
   useEffect(() => {
     if (wasPending.current && !pending && !state.error) setEditing(false);
@@ -177,15 +208,42 @@ export function CreatorCard({ creator, isManager }: { creator: CreatorSummary; i
             <div className="mt-0.5 text-[12.5px] text-ink-3">{creator.email}</div>
           </div>
         </div>
-        <span
-          className={`flex shrink-0 items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-semibold ${
-            creator.isActive ? "bg-green-bg text-green-dark" : "bg-line-soft text-ink-2"
-          }`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-pill ${creator.isActive ? "bg-green" : "bg-ink-3"}`} />
-          {creator.isActive ? "Đang hoạt động" : "Đã vô hiệu hoá"}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span
+            className={`flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-semibold ${
+              creator.isActive ? "bg-green-bg text-green-dark" : "bg-line-soft text-ink-2"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-pill ${creator.isActive ? "bg-green" : "bg-ink-3"}`} />
+            {creator.isActive ? "Đang hoạt động" : "Đã vô hiệu hoá"}
+          </span>
+          {rankStyle ? (
+            <span className={`rounded-pill px-2.5 py-1 text-[11.5px] font-semibold ${rankStyle.bg} ${rankStyle.fg}`}>
+              {rankStyle.label}
+            </span>
+          ) : null}
+        </div>
       </div>
+
+      {performance ? (
+        <div className="grid grid-cols-3 divide-x divide-line-soft border-b border-line-soft">
+          <div className="px-4 py-3.5">
+            <div className="mb-1.5 text-[11.5px] font-semibold text-ink-3">Lượt xem</div>
+            <div className="text-lg font-extrabold tracking-[-0.4px]">{formatCompact(performance.totalViews)}</div>
+            <div className="mt-0.5 text-[11px] text-ink-3">{formatDeltaPct(performance.viewsDeltaPct)} so với kỳ trước</div>
+          </div>
+          <div className="px-4 py-3.5">
+            <div className="mb-1.5 text-[11.5px] font-semibold text-ink-3">Follower +</div>
+            <div className="text-lg font-extrabold tracking-[-0.4px] text-green-dark">{formatSignedNumber(performance.followerGain)}</div>
+            <div className="mt-0.5 text-[11px] text-ink-3">trong 7 ngày qua</div>
+          </div>
+          <div className="px-4 py-3.5">
+            <div className="mb-1.5 text-[11.5px] font-semibold text-ink-3">Tương tác</div>
+            <div className="text-lg font-extrabold tracking-[-0.4px]">{formatRatePct(performance.engagementRate)}</div>
+            <div className="mt-0.5 text-[11px] text-ink-3">chỉ số dẫn báo</div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="px-5 py-4">
         <div className="mb-3 text-[11.5px] font-bold text-ink-3">
@@ -193,6 +251,40 @@ export function CreatorCard({ creator, isManager }: { creator: CreatorSummary; i
         </div>
         {creator.channels.length === 0 ? (
           <p className="text-[12.5px] text-ink-3">Chưa phụ trách kênh nào.</p>
+        ) : performance ? (
+          <div className="flex flex-col gap-3">
+            {performance.channels.map((channel) => {
+              const maxViews = Math.max(1, ...performance.channels.map((c) => c.views));
+              return (
+                <div key={channel.id}>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-semibold">{channel.name}</span>
+                      <span className="text-[11.5px] text-ink-3">{channel.tiktokHandle}</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[12.5px] text-ink-3">{formatCompact(channel.views)} view</span>
+                      <span
+                        className={`text-[12.5px] font-bold ${
+                          channel.viewsDeltaPct !== null && channel.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"
+                        }`}
+                      >
+                        {formatDeltaPct(channel.viewsDeltaPct)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-[5px] overflow-hidden rounded-pill bg-line-soft">
+                    <div
+                      className={`h-[5px] rounded-pill ${
+                        channel.viewsDeltaPct !== null && channel.viewsDeltaPct < 0 ? "bg-red" : "bg-cyan"
+                      }`}
+                      style={{ width: `${(channel.views / maxViews) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {creator.channels.map((channel) => (

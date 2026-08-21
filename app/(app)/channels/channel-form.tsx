@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import type { ChannelSummary } from "@/lib/channels";
+import type { ChannelPeriodStat } from "@/lib/dashboard";
+import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromStart } from "@/lib/format";
 
 import { createChannelAction, updateChannelAction, type ChannelFormState } from "./actions";
 
@@ -10,16 +13,37 @@ const initialState: ChannelFormState = { error: null };
 
 type CreatorOption = { id: string; name: string };
 
-/** First two words' initials — matches design/Channels.dc.html's row avatar rule (people avatars
- *  in design/Creators.dc.html use the *last* two words instead; channels use the first two). */
-function initials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
+/** Inline sparkline — daily views within the current period, matching design/Channels.dc.html's
+ *  hand-built `spark()`. Flat/empty input renders a flat mid-line rather than an error. */
+function Sparkline({ points, good }: { points: { views: number }[]; good: boolean }) {
+  const W = 68;
+  const H = 20;
+  const PAD = 3;
+  const values = points.map((p) => p.views);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+
+  const coords = points.map((p, i) => {
+    const x = Math.round(PAD + (i * (W - PAD * 2)) / Math.max(1, points.length - 1)) + 2;
+    const y = Math.round(PAD + (1 - (p.views - lo) / (hi - lo || 1)) * H);
+    return { x, y };
+  });
+  const color = good ? "var(--color-cyan)" : "var(--color-red)";
+  const last = coords[coords.length - 1];
+
+  return (
+    <svg width="72" height="26" viewBox="0 0 72 26" className="block" role="img" aria-label="Xu hướng 7 ngày">
+      <polyline
+        points={coords.map((c) => `${c.x},${c.y}`).join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {last ? <circle cx={last.x} cy={last.y} r={2.4} fill={color} /> : null}
+    </svg>
+  );
 }
 
 function CreatorSelect({ creators, defaultValue }: { creators: CreatorOption[]; defaultValue?: string }) {
@@ -121,12 +145,19 @@ export function CreateChannelForm({ creators }: { creators: CreatorOption[] }) {
   );
 }
 
+/** Real CSS grid-template-columns (not a Tailwind class) so the header in page.tsx, this row, and
+ *  loading.tsx's skeleton all reference the exact same layout — one source of truth per
+ *  docs/DESIGN_SYSTEM.md "khối skeleton phải khớp kích thước thật". */
+export const CHANNEL_TABLE_COLUMNS = "2fr 0.95fr 1.05fr 0.6fr 0.85fr 0.8fr 1.1fr 40px";
+
 export function ChannelRow({
   channel,
+  stat,
   creators,
   isManager,
 }: {
   channel: ChannelSummary;
+  stat: ChannelPeriodStat | undefined;
   creators: CreatorOption[];
   isManager: boolean;
 }) {
@@ -189,39 +220,63 @@ export function ChannelRow({
     );
   }
 
+  const hasSpark = (stat?.spark.length ?? 0) >= 2;
+
   return (
-    <div className="grid grid-cols-[2fr_1.3fr_0.9fr_1fr_auto] items-center gap-3 border-t border-line-soft px-5 py-3.5">
+    <div
+      className="grid items-center gap-3 border-t border-line-soft px-5 py-3.5"
+      style={{ gridTemplateColumns: CHANNEL_TABLE_COLUMNS }}
+    >
       <div className="flex min-w-0 items-center gap-2.5">
         <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill bg-line-soft text-xs font-extrabold text-ink-2">
-          {initials(channel.name)}
+          {initialsFromStart(channel.name)}
         </div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-bold tracking-[-0.2px]">{channel.name}</div>
-          <div className="text-[11.5px] text-ink-3">{channel.tiktokHandle}</div>
+          <Link href={`/channels/${channel.id}`} className="block truncate text-sm font-bold tracking-[-0.2px] hover:underline">
+            {channel.name}
+          </Link>
+          <div className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
+            <span className="truncate">{channel.tiktokHandle}</span>
+            <span className="shrink-0">· {channel.currentCreator ? channel.currentCreator.name : "chưa gán"}</span>
+            {!channel.isActive ? (
+              <span className="shrink-0 rounded-pill bg-line-soft px-1.5 py-[1px] font-semibold text-ink-2">Ngừng h.đ</span>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="text-[13px]">
-        {channel.currentCreator ? (
-          channel.currentCreator.name
+      <div className="text-right">
+        <div className="text-sm font-bold">{stat?.followersNow !== null && stat?.followersNow !== undefined ? formatCompact(stat.followersNow) : "—"}</div>
+        {stat?.followersGain !== null && stat?.followersGain !== undefined ? (
+          <div className="mt-0.5 text-[11.5px] font-semibold text-green-dark">{formatSignedNumber(stat.followersGain)}</div>
+        ) : null}
+      </div>
+
+      <div className="text-right">
+        <div className="text-sm font-bold">{stat ? formatCompact(stat.views) : "—"}</div>
+        {stat ? (
+          <div className={`mt-0.5 text-[11.5px] font-semibold ${stat.viewsDeltaPct !== null && stat.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
+            {formatDeltaPct(stat.viewsDeltaPct)}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="text-right text-sm font-bold">{stat?.videos ?? "—"}</div>
+
+      <div className="text-right text-sm font-bold">{stat?.viewsPerVideo !== null && stat?.viewsPerVideo !== undefined ? formatCompact(stat.viewsPerVideo) : "—"}</div>
+
+      <div className="flex justify-center">
+        {hasSpark && stat ? (
+          <Sparkline points={stat.spark} good={stat.viewsDeltaPct === null || stat.viewsDeltaPct >= 0} />
         ) : (
-          <span className="text-ink-3">— Chưa gán —</span>
+          <span className="text-xs text-ink-3">—</span>
         )}
       </div>
 
       <div>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-semibold ${
-            channel.isActive ? "bg-green-bg text-green-dark" : "bg-line-soft text-ink-2"
-          }`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-pill ${channel.isActive ? "bg-green" : "bg-ink-3"}`} />
-          {channel.isActive ? "Đang hoạt động" : "Ngừng hoạt động"}
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-line-soft px-2.5 py-1 text-[11.5px] font-semibold text-ink-3">
+          Chưa đặt KPI
         </span>
-      </div>
-
-      <div className="text-[13px] text-ink-3">
-        {new Date(channel.createdAt).toLocaleDateString("vi-VN")}
       </div>
 
       {isManager ? (

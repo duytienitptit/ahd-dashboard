@@ -34,4 +34,22 @@ describe("parseContentCsv", () => {
     const csv = `${HEADER}\n"18 tháng Tám","Plain title","https://www.tiktok.com/@kenh/video/1","10 tháng Tám","0","0","0","0"`;
     expect(parseContentCsv(csv, "2026-08-20")[0].hashtags).toEqual([]);
   });
+
+  it("parses the Total views/likes/comments/shares columns", () => {
+    const csv = `${HEADER}\n"18 tháng Tám","x","https://www.tiktok.com/@kenh/video/1","10 tháng Tám","3006","40","238","297766"`;
+    const row = parseContentCsv(csv, "2026-08-20")[0];
+    expect(row.likeCount).toBe(3006);
+    expect(row.commentCount).toBe(40);
+    expect(row.shareCount).toBe(238);
+    expect(row.viewCount).toBe(297766);
+  });
+
+  it("parses \"undefined\" totals as null, not 0", () => {
+    const csv = `${HEADER}\n"18 tháng Tám","x","https://www.tiktok.com/@kenh/video/1","10 tháng Tám","undefined","undefined","undefined","undefined"`;
+    const row = parseContentCsv(csv, "2026-08-20")[0];
+    expect(row.viewCount).toBeNull();
+    expect(row.likeCount).toBeNull();
+    expect(row.commentCount).toBeNull();
+    expect(row.shareCount).toBeNull();
+  });
 });

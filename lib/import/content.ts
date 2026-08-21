@@ -1,4 +1,4 @@
-import { parseCsv } from "./csv";
+import { parseCsv, parseNullableInt } from "./csv";
 import { resolveStudioDate } from "./date";
 import { vnMidnightIso } from "@/lib/time";
 
@@ -9,6 +9,14 @@ export type ContentRow = {
   hashtags: string[];
   /** timestamptz — Content.csv only gives a date, not a time, so this is midnight VN of that day. */
   postedAt: string | null;
+  /** Cumulative-as-of-export totals from "Total views/likes/comments/shares" — feeds a
+   *  `video_snapshot` row dated at the export, the same shape lib/tiktok/sync.ts writes from
+   *  Display API. Added for M4's hashtag-effectiveness table (docs/TASKS.md); M3a parsed this file
+   *  for title/link only, since nothing needed the counts yet. */
+  viewCount: number | null;
+  likeCount: number | null;
+  commentCount: number | null;
+  shareCount: number | null;
 };
 
 const VIDEO_ID_RE = /\/video\/(\d+)/;
@@ -39,6 +47,10 @@ export function parseContentCsv(text: string, referenceDate: string): ContentRow
         title,
         hashtags: title ? extractHashtags(title) : [],
         postedAt: postTime ? vnMidnightIso(resolveStudioDate(postTime, referenceDate)) : null,
+        viewCount: parseNullableInt(row["Total views"]),
+        likeCount: parseNullableInt(row["Total likes"]),
+        commentCount: parseNullableInt(row["Total comments"]),
+        shareCount: parseNullableInt(row["Total shares"]),
       };
     })
     .filter((row): row is ContentRow => row !== null);

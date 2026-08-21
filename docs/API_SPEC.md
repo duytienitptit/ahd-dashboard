@@ -174,8 +174,16 @@ Overview/FollowerHistory/Viewers trước khi lọc, phục vụ ô thống kê 
 
 ### `POST /api/channels/:id/manual-entry` — M
 Chỉ Manager. Ghi `data_snapshot(source=manual_entry)` + `audit_log`. Tự bị thay khi `studio_import` về.
+Implementation: [lib/manual-entry.ts](../lib/manual-entry.ts), làm ở M3c (21/08/2026, sớm hơn thứ tự
+đề xuất gốc — theo yêu cầu ngay sau khi M4 xong).
 ```json
 { "date": "2026-08-19", "videoViews": 150000, "followers": 9400, "videoCount": 112 }
+```
+Cả 3 trường số đều **optional**, nhưng phải có **ít nhất một** — thiếu cả 3 → `400`. Trường nào không
+gửi thì giữ nguyên (không ghi `null` đè) nếu đang sửa một `manual_entry` đã có cho đúng ngày đó.
+Response `201`:
+```json
+{ "date": "2026-08-19", "videoViews": 150000, "followers": 9400, "videoCount": null }
 ```
 
 ### `GET /api/channels/:id/snapshots` — M/C
@@ -197,13 +205,23 @@ chung cho cả 2 endpoint).
 
 ### `GET /api/dashboard` — M/C
 **Một endpoint dùng chung cho cả hai vai trò.** Server đọc vai trò từ session và thêm/bớt khối dữ
-liệu — client không tự quyết định.
+liệu — client không tự quyết định. Implementation: [lib/dashboard.ts](../lib/dashboard.ts)
+`getDashboard()`, gọi trực tiếp từ `app/(app)/page.tsx` (page không tự fetch route này — cùng quy
+ước với mọi trang khác trong `app/(app)/`).
 
-Query: `?from=`, `?to=` (khoảng thời gian; mặc định 7 ngày qua)
+Query: `?from=`, `?to=` (khoảng thời gian; mặc định 7 ngày qua, neo theo **hôm nay** — quyết định
+21/08/2026, xem CLAUDE.md). `from`/`to` phải đúng dạng `YYYY-MM-DD`, và `from <= to`. `?creatorId=`
+(optional, thêm 21/08/2026 theo phản hồi sau khi xong M4) — lọc `teamStats`/`trend`/`growth`/
+`viewShare`/`efficiency`/`channelCount`/`dataFreshness` xuống đúng các kênh Creator đó đang phụ
+trách; không ảnh hưởng `myChannels` (luôn là kênh của người đang đăng nhập, bất kể filter này).
+"So với kỳ trước" (`comparedTo`, mọi `deltaPct`/`deltaAbs`) tự giãn theo đúng **độ dài** của
+`[from, to]` đang chọn — chu kỳ 14 ngày thì so với 14 ngày liền trước, không cố định 7 ngày
+(`previousPeriod()` trong `lib/dashboard.ts`).
 
 ```json
 { "role": "manager",
-  "period": { "from": "2026-08-13", "to": "2026-08-19", "comparedTo": "2026-08-06/2026-08-12" },
+  "channelCount": 8,
+  "period": { "from": "2026-08-15", "to": "2026-08-21", "comparedTo": "2026-08-08/2026-08-14" },
 
   "teamStats": {
     "views":          { "value": 2418000, "deltaPct": 12 },
@@ -212,33 +230,48 @@ Query: `?from=`, `?to=` (khoảng thời gian; mặc định 7 ngày qua)
     "viewsPerVideo":  { "value": 21784, "deltaPct": -3 },
     "engagementRate": { "value": 0.0182, "deltaPct": -5 }
   },
-  "dataFreshness": { "latestDate": "2026-08-19", "source": "display_api",
-                     "label": "tạm tính", "reconciledThrough": "2026-08-16" },
-  "trend": { "metric": "views", "granularity": "week",
-             "series": [{ "label": "T27", "value": 1820000 }] },
+  "dataFreshness": { "latestDate": "2026-08-16", "source": "studio_import",
+                     "label": "đã đối chiếu", "reconciledThrough": "2026-08-16" },
+  "trend": { "granularity": "week",
+             "views":     [{ "label": "T27", "value": 1820000 }],
+             "followers": [{ "label": "T27", "value": 51200 }],
+             "videos":    [{ "label": "T27", "value": 14 }] },
   "growth":     [{ "channelId": "...", "channelName": "…", "followers": 7700, "gain": 600, "ratePct": 8.5 }],
   "viewShare":  [{ "channelId": "...", "channelName": "…", "views": 470000, "sharePct": 19.4 }],
   "efficiency": [{ "channelId": "...", "channelName": "…", "videos": 18, "viewsPerVideo": 26111 }],
 
-  "kpiSummary": { "onTrack": 5, "atRisk": 2, "behind": 1,
-                  "attention": [{ "channelId": "...", "channelName": "…", "reason": "View giảm 18%" }] },
+  "kpiSummary": { "onTrack": 0, "atRisk": 0, "behind": 0, "attention": [] },
 
   "myChannels": null
 }
 ```
 
+**3 chỗ lệch so với bản đặc tả gốc, cả 3 quyết định lúc code M4 (21/08/2026):**
+
+1. **`channelCount`** — không có trong bản gốc. `growth`/`viewShare`/`efficiency` đều là top-5/6,
+   không dùng được để suy ra tổng số kênh đang hoạt động cho dòng tiêu đề "N kênh" — thêm hẳn field.
+2. **`trend`** đổi từ `{ metric, granularity, series }` (1 chuỗi tại 1 thời điểm) sang
+   `{ granularity, views, followers, videos }` (cả 3 chuỗi luôn). Mockup có tab chuyển Lượt
+   xem/Follower/Video ngay trên client (`app/(app)/trend-chart.tsx`) — nếu giữ 1 `series`, mỗi lần
+   bấm tab phải gọi lại API với `?metric=`. Tính sẵn cả 3 rẻ hơn (cùng 1-2 query) và tab bấm tức thì.
+3. **`kpiSummary`** luôn `{onTrack:0, atRisk:0, behind:0, attention:[]}` — **đúng thực tế**, không
+   phải giá trị giả: bảng `kpi_cycle` chưa có row nào (M5 chưa code). Không tính health/progress ở
+   đây vì công thức đó (mục dưới) là phạm vi M5, viết trước khi có cycle thật để test sẽ vô nghĩa.
+
 Khác biệt theo `role`:
 
 | Trường | `manager` | `creator` |
 | :--- | :--- | :--- |
-| `teamStats`, `trend`, `growth`, `viewShare`, `efficiency` | Có | Có (giống hệt) |
+| `teamStats`, `trend`, `growth`, `viewShare`, `efficiency`, `channelCount` | Có | Có (giống hệt) |
 | `kpiSummary` | Tổng hợp toàn team + danh sách cần chú ý | Chỉ KPI của kênh mình phụ trách |
 | `myChannels` | `null` | Mảng kênh đang phụ trách, kèm `progress` từng chỉ số và `hint` gợi ý hành động |
 
-`myChannels` item:
+`myChannels` item — **`hasActiveKpi` thêm ở M4** (bản gốc giả định luôn có 1 cycle đang chạy; thực tế
+chưa cái nào có, `metrics: []` + `overallStatus: null` khi `hasActiveKpi: false`, UI hiện "Chưa có
+KPI cho kênh này" thay vì thanh tiến độ):
 ```json
 { "channelId": "...", "channelName": "Học Tiếng Anh", "handle": "@hoctienganh",
-  "followers": 9400, "overallStatus": "green",
+  "followers": 9400, "overallStatus": "green", "hasActiveKpi": true,
   "metrics": [{ "name": "views", "pct": 94, "text": "470k / 500k",
                 "hint": "Sắp về đích, cần thêm 30k view" }] }
 ```

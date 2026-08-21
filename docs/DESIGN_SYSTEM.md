@@ -107,6 +107,27 @@ Không hiển thị dự đoán cuối kỳ khi chu kỳ chưa qua 50%.
 Dùng ở màn chốt sổ. Vòng tròn `22px` nền `green-bg`/`red-bg` + icon check/x `12px`, tiêu đề `13px/600`,
 chú thích `11.5px` màu `ink-3`.
 
+### Chưa đặt KPI (chip trung tính)
+
+Dùng bất cứ đâu một chỉ số KPI đáng lẽ hiển thị nhưng chưa có `kpi_cycle` — cột "Tiến độ KPI" ở
+`/channels`, khối "Kênh của tôi" ở Tổng quan Creator: chip nền `line-soft`, chữ `ink-3`, không chấm
+tròn (phân biệt với 4 nhãn độ tin cậy dữ liệu ở trên, vốn luôn có chấm). Không vẽ thanh tiến độ 0%
+hay số `0%` — dễ đọc nhầm là "đang ở 0%" thay vì "chưa có chỉ tiêu để đo".
+
+### Heatmap giờ × ngày (thêm ở M4, không có trong mockup gốc)
+
+`app/(app)/channels/[id]/detail-widgets.tsx` → `ActivityHeatmapCard`. Ô `10px` cao, bo `2px`, tô màu
+bằng `color-mix(in srgb, var(--color-cyan) N%, white)` với `N = giá trị/max*100` (sàn `8%` để ô có
+dữ liệu thật nhưng bằng 0 vẫn phân biệt được với ô hoàn toàn không có dữ liệu — ô không có dữ liệu
+dùng thẳng `line-soft`, không phải cyan 0%). Nhãn giờ chỉ hiện mỗi 3 giờ (`0h 3h 6h…`) để đỡ rối,
+nhãn ngày dạng `DD/MM` phía trên mỗi cột.
+
+### Danh sách xếp hạng có thanh ngang (hashtag / đóng góp view)
+
+`HashtagTable`, `ViewShareCard`, per-channel bar trong thẻ Creator — cùng 1 mẫu: nhãn trái + số liệu
+phải trên 1 dòng (`12.5px`), thanh `5px` bo tròn `line-soft` bên dưới, độ dài thanh tỷ lệ theo giá
+trị lớn nhất trong danh sách đang hiển thị (không phải theo tổng) — mục cao nhất luôn kín thanh.
+
 ## Trạng thái chờ (skeleton)
 
 Mọi màn trong `app/(app)/` render trên server và phải đợi Supabase trả về, nên **mỗi segment cần
@@ -121,6 +142,31 @@ một `loading.tsx`** — không có nó, bấm chuyển tab sẽ đứng im ở
   thấy): lúc đó chưa biết vai trò, vẽ ra là loé thao tác Manager trước mặt Creator.
 - Thêm route mới trong `app/(app)/` thì thêm `loading.tsx` cùng lúc. Quên thì nó rơi về
   `app/(app)/loading.tsx` — chạy được nhưng sai hình dạng.
+
+### ⚠️ `loading.tsx` KHÔNG hiện khi chỉ đổi `searchParams` trên cùng 1 route
+
+Phát hiện 21/08/2026 lúc thêm date-range picker: **`loading.tsx` chỉ hiện khi ĐI VÀO một route segment
+— không hiện khi searchParams của route đang đứng đổi** (`?from=&to=`, `?creatorId=`...), **kể cả khi
+`router.replace()` được bọc trong `startTransition`.** Đã kiểm chứng bằng `MutationObserver` thật: bọc
+`startTransition` không làm skeleton xuất hiện, nhưng `isPending` từ `useTransition` vẫn đúng và tức
+thời (~7ms) — chỉ là nó không tự động lan sang Suspense boundary của route.
+
+**Không có hiệu ứng chờ nào tự động cho filter kiểu này** — mọi filter đổi `searchParams` (date range,
+dropdown lọc...) đều PHẢI tự tay dùng `isPending` để làm mờ/khoá vùng nội dung đang lọc, nếu không
+màn hình sẽ đứng im không phản hồi trong lúc chờ (query Supabase Tokyo từ xa đo được ~1-1.5s thật) —
+cảm giác giật/đơ, y hệt phản hồi đã nhận được.
+
+**Mẫu dùng chung:** [app/(app)/filter-transition.tsx](../app/(app)/filter-transition.tsx) —
+`FilterTransitionProvider` giữ 1 `useTransition` dùng chung cho mọi filter trên trang (không phải
+mỗi control tự gọi `useTransition` riêng — như vậy mới lấy `isPending` đúng nghĩa "có filter nào đang
+chờ" chứ không phải "riêng cái này"), `useFilterTransition()` cho control gọi `setParams()`, và
+`FilterPendingOverlay` bọc quanh vùng nội dung để tự làm mờ (`opacity-40 pointer-events-none`) khi
+`isPending`. Xem cách dùng ở `date-range-picker.tsx` / `creator-filter.tsx` (control, gọi
+`setParams`) và `app/(app)/page.tsx` / `channels/page.tsx` (bọc `FilterTransitionProvider` quanh
+control + `FilterPendingOverlay` quanh nội dung).
+
+Route mới thêm filter kiểu `searchParams` → bọc theo đúng mẫu này, đừng tưởng `loading.tsx` sẵn có là
+đủ.
 
 ## Nguyên tắc
 
@@ -137,3 +183,9 @@ Mockup gốc `design/*.dc.html` — 10 màn:
 Main (Tổng quan Manager) · CreatorDashboard (Tổng quan Creator) · Channels · ChannelDetail ·
 Creators · KpiForm · Finalize · Import · Connections · Login.
 Sửa mockup → cập nhật lại file này.
+
+**M4 (21/08/2026) thêm 2 mẫu không có trong 10 mockup gốc** — heatmap giờ vàng và bảng hiệu quả
+hashtag ở `ChannelDetail`, tự thiết kế theo đúng token ở trên (xem 2 mục ngay phía trên trong
+"Mẫu bắt buộc dùng lại"). Card "KPI tuần này"/"Các kỳ đã chốt" trong `design/ChannelDetail.dc.html`
+gốc **cố tình bỏ** khỏi M4 (thay bằng "Tỷ lệ khán giả mới") — thuộc phạm vi M5, dựng UI cho bảng rỗng
+không có giá trị.
