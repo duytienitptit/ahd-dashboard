@@ -59,6 +59,28 @@ export function optionalBoolean(body: Record<string, unknown>, field: string): b
   return value;
 }
 
+const DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function requireDateString(body: Record<string, unknown>, field: string): string {
+  const value = body[field];
+  if (typeof value !== "string" || !DATE_STRING_RE.test(value)) {
+    throw new ValidationError(`Trường "${field}" phải có dạng YYYY-MM-DD.`);
+  }
+  return value;
+}
+
+/** `undefined` = field omitted (don't touch it) — manual-entry's 3 metric fields are each
+ *  independently optional, since a Manager patching in for a broken API often only knows some of
+ *  the numbers (docs/DATA_SOURCES.md "Nhập tay khi API lỗi"). */
+export function optionalNonNegativeInt(body: Record<string, unknown>, field: string): number | undefined {
+  const value = body[field];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new ValidationError(`Trường "${field}" phải là số nguyên không âm.`);
+  }
+  return value;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ValidationError, normalizeTiktokHandle } from "./validation";
+import { ValidationError, normalizeTiktokHandle, optionalNonNegativeInt, requireDateString } from "./validation";
 
 describe("normalizeTiktokHandle", () => {
   it("accepts a bare handle without @", () => {
@@ -39,5 +39,46 @@ describe("normalizeTiktokHandle", () => {
 
   it("rejects an empty handle", () => {
     expect(() => normalizeTiktokHandle("@")).toThrow(ValidationError);
+  });
+});
+
+describe("requireDateString", () => {
+  it("accepts a YYYY-MM-DD string", () => {
+    expect(requireDateString({ date: "2026-08-21" }, "date")).toBe("2026-08-21");
+  });
+
+  it("rejects a missing field", () => {
+    expect(() => requireDateString({}, "date")).toThrow(ValidationError);
+  });
+
+  it("rejects a non-ISO date format", () => {
+    expect(() => requireDateString({ date: "21/08/2026" }, "date")).toThrow(ValidationError);
+  });
+});
+
+describe("optionalNonNegativeInt", () => {
+  it("returns undefined when the field is omitted", () => {
+    expect(optionalNonNegativeInt({}, "followers")).toBeUndefined();
+  });
+
+  it("returns undefined when the field is explicitly null", () => {
+    expect(optionalNonNegativeInt({ followers: null }, "followers")).toBeUndefined();
+  });
+
+  it("accepts a non-negative integer, including zero", () => {
+    expect(optionalNonNegativeInt({ followers: 9400 }, "followers")).toBe(9400);
+    expect(optionalNonNegativeInt({ followers: 0 }, "followers")).toBe(0);
+  });
+
+  it("rejects a negative number", () => {
+    expect(() => optionalNonNegativeInt({ followers: -1 }, "followers")).toThrow(ValidationError);
+  });
+
+  it("rejects a non-integer number", () => {
+    expect(() => optionalNonNegativeInt({ followers: 9.5 }, "followers")).toThrow(ValidationError);
+  });
+
+  it("rejects a non-number type", () => {
+    expect(() => optionalNonNegativeInt({ followers: "9400" }, "followers")).toThrow(ValidationError);
   });
 });
