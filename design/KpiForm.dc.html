@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", system-ui, sans-serif; }
+    a { color: #fe2c55; } a:hover { color: #d4213d; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; min-height: 940px; background: #ffffff; color: #161823;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; border-bottom: 1px solid #e3e3e4;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: #161823; display: flex; align-items: center; justify-content: center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25f4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-7"></path></svg>
+      </div>
+      <div style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">AHD</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="font-size: 13px; font-weight: 600;">Hoàng Nam</div>
+      <div style="width: 32px; height: 32px; border-radius: 999px; background: #161823; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">HN</div>
+    </div>
+  </div>
+
+  <div style="padding: 26px 32px 40px 32px;">
+
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #86878b; margin-bottom: 16px;">
+      <span>Tổng quan</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9c9cb" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"></path></svg>
+      <span style="color: #161823; font-weight: 600;">Đặt KPI mới</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: start;">
+
+      <div style="border: 1px solid #e3e3e4; border-radius: 8px;">
+
+        <div style="padding: 22px 26px 18px 26px; border-bottom: 1px solid #f1f1f2;">
+          <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">Đặt chỉ tiêu cho kênh</div>
+          <div style="font-size: 13px; color: #86878b; margin-top: 5px;">Chọn kênh, chu kỳ và ba chỉ tiêu cần đạt</div>
+        </div>
+
+        <div style="padding: 24px 26px; display: flex; flex-direction: column; gap: 26px;">
+
+          <div>
+            <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 9px;">Kênh</div>
+            <div style="display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 16px; border: 1px solid #161823; border-radius: 6px;">
+              <div style="display: flex; align-items: center; gap: 11px;">
+                <div style="width: 32px; height: 32px; border-radius: 999px; background: #e5fbfb; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 800; color: #0a8b91;">BN</div>
+                <div>
+                  <div style="font-size: 14px; font-weight: 600;">Bếp Nhà Mình</div>
+                  <div style="font-size: 11.5px; color: #86878b;">@bepnhaminh · Ngọc Anh phụ trách</div>
+                </div>
+              </div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6066" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 9px;">Chu kỳ</div>
+            <div style="display: flex; gap: 0; padding: 4px; background: #f1f1f2; border-radius: 6px; margin-bottom: 12px;">
+              <div style="flex-grow: 1; text-align: center; padding: 9px 0; border-radius: 4px; background: #ffffff; font-size: 13.5px; font-weight: 700;">Theo tuần</div>
+              <div style="flex-grow: 1; text-align: center; padding: 9px 0; border-radius: 4px; font-size: 13.5px; font-weight: 500; color: #5f6066;">Tuỳ chọn ngày</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+              <div>
+                <div style="font-size: 12px; color: #86878b; margin-bottom: 6px;">Từ ngày</div>
+                <div style="display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 14px; border: 1px solid #e3e3e4; border-radius: 6px; background: #fafafa;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86878b" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg>
+                  <span style="font-size: 14px; font-weight: 500;">17/08/2026</span>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 12px; color: #86878b; margin-bottom: 6px;">Đến ngày</div>
+                <div style="display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 14px; border: 1px solid #e3e3e4; border-radius: 6px; background: #fafafa;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86878b" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg>
+                  <span style="font-size: 14px; font-weight: 500;">23/08/2026</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 4px;">Chỉ tiêu</div>
+            <div style="font-size: 12px; color: #86878b; margin-bottom: 12px;">Follower nhập theo <strong style="color: #161823;">mốc tuyệt đối</strong> — số cần chạm tới, không phải số tăng thêm</div>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <sc-for list="{{targets}}" as="t" hint-placeholder-count="3">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                  <div style="width: 38px; height: 38px; border-radius: 8px; background: {{t.iconBg}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <div style="width: 15px; height: 15px; border-radius: 4px; background: {{t.iconFg}};"></div>
+                  </div>
+                  <div style="flex-grow: 1;">
+                    <div style="font-size: 13.5px; font-weight: 600;">{{t.label}}</div>
+                    <div style="font-size: 11.5px; color: #86878b;">{{t.hint}}</div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; width: 210px; height: 46px; padding: 0 14px; border: 1px solid #e3e3e4; border-radius: 6px;">
+                    <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.3px;">{{t.value}}</span>
+                    <span style="font-size: 12.5px; color: #86878b; margin-left: auto;">{{t.unit}}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 18px 26px; border-top: 1px solid #f1f1f2; background: #fafafa;">
+          <div style="display: flex; align-items: center; height: 40px; padding: 0 20px; border: 1px solid #e3e3e4; border-radius: 4px; background: #ffffff; font-size: 14px; font-weight: 600;">Huỷ</div>
+          <div style="display: flex; align-items: center; height: 40px; padding: 0 24px; border-radius: 4px; background: #fe2c55; color: #ffffff; font-size: 14px; font-weight: 700;">Tạo chu kỳ KPI</div>
+        </div>
+
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+
+        <div style="border: 1px solid #25c9d0; border-radius: 8px; background: #f2fdfd; padding: 18px 20px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0a8b91" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+            <div style="font-size: 13.5px; font-weight: 700; color: #0a6b70;">Follower đầu kỳ</div>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+            <div style="font-size: 30px; font-weight: 800; letter-spacing: -1px; color: #0a6b70;">7.800</div>
+            <div style="font-size: 12.5px; color: #0a8b91;">chụp lúc 09:14 hôm nay</div>
+          </div>
+          <div style="font-size: 12.5px; color: #0a6b70; line-height: 1.55;">Hệ thống tự lấy số follower tại thời điểm tạo chu kỳ và <strong>khoá lại</strong>. Đây là mốc gốc để tính % tiến độ — không sửa được sau khi tạo.</div>
+        </div>
+
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px;">
+          <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 12px;">Cách tính % follower</div>
+          <div style="background: #f1f1f2; border-radius: 6px; padding: 14px; margin-bottom: 12px;">
+            <div style="font-size: 12.5px; color: #5f6066; text-align: center; line-height: 1.7;">(hiện tại − đầu kỳ)<br><span style="display: inline-block; width: 150px; border-top: 1px solid #c9c9cb; margin: 2px 0;"></span><br>(mục tiêu − đầu kỳ)</div>
+          </div>
+          <div style="font-size: 12.5px; color: #5f6066; line-height: 1.6;">Ví dụ: đầu kỳ <strong style="color: #161823;">7.800</strong>, mục tiêu <strong style="color: #161823;">9.000</strong>. Khi đạt <strong style="color: #161823;">8.200</strong> → tiến độ <strong style="color: #25a0a6;">33%</strong>.</div>
+        </div>
+
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px;">
+          <div style="font-size: 13.5px; font-weight: 700; margin-bottom: 10px;">Chu kỳ gần nhất của kênh</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <sc-for list="{{history}}" as="h" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <div style="font-size: 13px; font-weight: 600;">{{h.period}}</div>
+                  <div style="font-size: 11.5px; color: #86878b;">{{h.note}}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: {{h.bg}};">
+                  <span style="font-size: 11.5px; font-weight: 700; color: {{h.fg}};">{{h.result}}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const targets = [
+      { label: 'Lượt xem', hint: 'View mới cần đạt trong chu kỳ', value: '500.000', unit: 'view', iconBg: '#e5fbfb', iconFg: '#25c9d0' },
+      { label: 'Video', hint: 'Số video cần xuất bản', value: '20', unit: 'video', iconBg: '#f1f1f2', iconFg: '#5f6066' },
+      { label: 'Follower', hint: 'Mốc follower cần chạm tới', value: '9.000', unit: 'follower', iconBg: '#ffe9ee', iconFg: '#fe2c55' }
+    ];
+    const history = [
+      { period: 'Tuần 10/08 – 16/08', note: 'Đã chốt sổ 17/08', result: 'Đạt 96%', bg: '#e6f9f0', fg: '#046c45' },
+      { period: 'Tuần 03/08 – 09/08', note: 'Đã chốt sổ 10/08', result: 'Đạt 74%', bg: '#fff6e5', fg: '#8a5a06' }
+    ];
+    return { targets, history };
+  }
+}
+</script>
+</body>
+</html>

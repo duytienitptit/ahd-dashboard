@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", system-ui, sans-serif; }
+    a { color: #fe2c55; } a:hover { color: #d4213d; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; min-height: 900px; background: #ffffff; color: #161823;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; border-bottom: 1px solid #e3e3e4;">
+    <div style="display: flex; align-items: center; gap: 32px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 8px; background: #161823; display: flex; align-items: center; justify-content: center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25f4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-7"></path></svg>
+        </div>
+        <div style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">AHD</div>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Tổng quan</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Kênh</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Creator</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; background: #f1f1f2;">Dữ liệu</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="text-align: right;">
+        <div style="font-size: 13px; font-weight: 600; line-height: 1.3;">Hoàng Nam</div>
+        <div style="font-size: 11px; color: #86878b; line-height: 1.3;">Quản lý</div>
+      </div>
+      <div style="width: 32px; height: 32px; border-radius: 999px; background: #161823; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">HN</div>
+    </div>
+  </div>
+
+  <div style="padding: 26px 32px 40px 32px;">
+
+    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 18px;">
+      <div style="padding: 8px 16px; border-radius: 6px 6px 0 0; font-size: 14px; font-weight: 500; color: #86878b;">Nhập file Studio</div>
+      <div style="padding: 8px 16px; border-radius: 6px 6px 0 0; font-size: 14px; font-weight: 700; background: #f1f1f2;">Kết nối Display API</div>
+    </div>
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 24px; font-weight: 800; letter-spacing: -0.6px;">Kết nối Display API</div>
+        <div style="font-size: 13px; color: #86878b; margin-top: 6px;">Đồng bộ tự động 03:00 mỗi ngày · lần chạy gần nhất 19/08 03:00</div>
+      </div>
+      <div style="display: flex; align-items: center; height: 38px; padding: 0 16px; border: 1px solid #e3e3e4; border-radius: 4px; font-size: 14px; font-weight: 600; gap: 7px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#161823" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-3-6.7"></path><path d="M21 3v6h-6"></path></svg>
+        Chạy đồng bộ ngay
+      </div>
+    </div>
+
+    <div style="border: 1px solid #ffc9d4; border-radius: 8px; background: #fff5f7; padding: 16px 18px; margin-bottom: 14px;">
+      <div style="display: flex; align-items: center; gap: 9px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c11238" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"></path></svg>
+        <div style="font-size: 13.5px; font-weight: 700; color: #c11238;">1 kênh mất kết nối, 1 kênh sắp hết hạn</div>
+      </div>
+      <div style="font-size: 12.5px; color: #8f1229; line-height: 1.6; margin-top: 7px;">Kênh mất kết nối sẽ ngừng có số liệu hằng ngày cho tới khi kết nối lại. Số cuối tuần từ file Studio vẫn về bình thường, nên dữ liệu không mất — chỉ chậm.</div>
+    </div>
+
+    <div style="border: 1px solid #e3e3e4; border-radius: 8px; overflow: hidden;">
+
+      <div style="display: grid; grid-template-columns: 1.9fr 1.2fr 1.3fr 1.5fr 1fr; gap: 14px; padding: 12px 20px; background: #f1f1f2; font-size: 12px; font-weight: 700; color: #5f6066;">
+        <div>Kênh</div>
+        <div>Kết nối</div>
+        <div>Đồng bộ gần nhất</div>
+        <div>Hạn kết nối lại</div>
+        <div style="text-align: right;">Thao tác</div>
+      </div>
+
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="8">
+        <div style="display: grid; grid-template-columns: 1.9fr 1.2fr 1.3fr 1.5fr 1fr; gap: 14px; padding: 14px 20px; border-top: 1px solid #f1f1f2; align-items: center;">
+
+          <div style="display: flex; align-items: center; gap: 11px;">
+            <div style="width: 32px; height: 32px; border-radius: 999px; background: {{r.avBg}}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: {{r.avFg}};">{{r.initials}}</div>
+            <div style="min-width: 0;">
+              <div style="font-size: 13.5px; font-weight: 700;">{{r.channel}}</div>
+              <div style="font-size: 11.5px; color: #86878b;">{{r.handle}}</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: {{r.stBg}}; width: fit-content;">
+              <div style="width: 6px; height: 6px; border-radius: 999px; background: {{r.stDot}};"></div>
+              <span style="font-size: 11.5px; font-weight: 700; color: {{r.stFg}};">{{r.stLabel}}</span>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 12.5px; font-weight: 600; color: {{r.syncFg}};">{{r.syncTime}}</div>
+            <div style="font-size: 11px; color: #86878b;">{{r.syncNote}}</div>
+          </div>
+
+          <div>
+            <div style="display: flex; align-items: baseline; gap: 7px; margin-bottom: 5px;">
+              <span style="font-size: 12.5px; font-weight: 700; color: {{r.expFg}};">{{r.expText}}</span>
+              <span style="font-size: 11px; color: #86878b;">{{r.expDate}}</span>
+            </div>
+            <div style="height: 4px; border-radius: 999px; background: #f1f1f2; overflow: hidden;">
+              <div style="height: 4px; border-radius: 999px; background: {{r.expBar}}; width: {{r.expPct}}%;"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end;">
+            <div style="display: flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 4px; background: {{r.btnBg}}; border: 1px solid {{r.btnBorder}}; font-size: 12.5px; font-weight: 700; color: {{r.btnFg}};">{{r.btnLabel}}</div>
+          </div>
+
+        </div>
+      </sc-for>
+
+    </div>
+
+    <div style="display: flex; gap: 14px; margin-top: 14px;">
+      <div style="flex-grow: 1; border: 1px solid #e3e3e4; border-radius: 8px; padding: 16px 18px;">
+        <div style="font-size: 12.5px; color: #86878b; font-weight: 600; margin-bottom: 8px;">Cách hệ thống giữ kết nối</div>
+        <div style="font-size: 12.5px; color: #5f6066; line-height: 1.65;">Phiên truy cập tự làm mới mỗi 24 giờ, không cần ai thao tác. Nhưng quyền kết nối do TikTok cấp chỉ có hạn <strong style="color: #161823;">365 ngày</strong> — hết hạn thì phải đăng nhập cấp quyền lại thủ công. Hệ thống báo trước 30 ngày.</div>
+      </div>
+      <div style="flex-grow: 1; border: 1px solid #e3e3e4; border-radius: 8px; padding: 16px 18px;">
+        <div style="font-size: 12.5px; color: #86878b; font-weight: 600; margin-bottom: 8px;">Khi một kênh mất kết nối</div>
+        <div style="font-size: 12.5px; color: #5f6066; line-height: 1.65;">Số liệu hằng ngày của kênh đó dừng lại, hiển thị nhãn <strong style="color: #161823;">dữ liệu cũ</strong>. Số chính thức vẫn về đủ khi nhập file Studio cuối tuần, nên <strong style="color: #161823;">không mất dữ liệu</strong> để chốt sổ.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const AV = [
+      { avBg: '#e5fbfb', avFg: '#0a8b91' },
+      { avBg: '#ffe9ee', avFg: '#c11238' },
+      { avBg: '#f1f1f2', avFg: '#5f6066' }
+    ];
+    const OK   = { stBg: '#e6f9f0', stFg: '#046c45', stDot: '#0bad5b', stLabel: 'Đang chạy' };
+    const WARN = { stBg: '#fff6e5', stFg: '#8a5a06', stDot: '#f5a623', stLabel: 'Sắp hết hạn' };
+    const DEAD = { stBg: '#ffe9ee', stFg: '#c11238', stDot: '#fe2c55', stLabel: 'Mất kết nối' };
+
+    const BTN_OK   = { btnLabel: 'Ngắt', btnBg: '#ffffff', btnBorder: '#e3e3e4', btnFg: '#5f6066' };
+    const BTN_FIX  = { btnLabel: 'Kết nối lại', btnBg: '#fe2c55', btnBorder: '#fe2c55', btnFg: '#ffffff' };
+
+    // channel, handle, state, ngày còn lại, sync, note
+    const raw = [
+      ['Nông Nghiệp Xanh', '@nong.nghiep.xanh.17', OK,   331, '19/08 03:00', 'thành công · 15 video'],
+      ['Vườn Vườn Vàng', '@vuonvuonvang',        OK,   331, '19/08 03:00', 'thành công · 15 video'],
+      ['Bếp Nhà Mình', '@bepnhaminh',            OK,   298, '19/08 03:00', 'thành công · 22 video'],
+      ['Học Tiếng Anh', '@hoctienganh',          OK,   298, '19/08 03:00', 'thành công · 18 video'],
+      ['Ẩm Thực Đường Phố', '@amthucduongpho',   OK,   276, '19/08 03:00', 'thành công · 16 video'],
+      ['Góc Thú Cưng', '@gocthucung',            OK,   241, '19/08 03:00', 'thiếu 4 video — đánh dấu chưa đủ'],
+      ['Nhạc Chill', '@nhacchill',               WARN,  22,  '19/08 03:00', 'thành công · 14 video'],
+      ['Mẹo Vặt Hay', '@meovathay',              DEAD,  0,   '12/08 03:00', 'lỗi xác thực — hết hạn']
+    ];
+
+    const rows = raw.map((r, i) => {
+      const [channel, handle, st, days, syncTime, syncNote] = r;
+      const pct = Math.round((days / 365) * 100);
+      const dead = st === DEAD;
+      return Object.assign({
+        channel, handle,
+        initials: channel.split(' ').slice(0, 2).map((w) => w[0]).join(''),
+        syncTime, syncNote,
+        syncFg: dead ? '#c11238' : '#161823',
+        expText: dead ? 'Đã hết hạn' : 'Còn ' + days + ' ngày',
+        expDate: dead ? '' : '· ' + (days > 300 ? '2027' : '2026'),
+        expPct: dead ? 100 : pct,
+        expBar: dead ? '#fe2c55' : days < 30 ? '#f5a623' : '#25c9d0',
+        expFg: dead ? '#c11238' : days < 30 ? '#8a5a06' : '#161823'
+      }, AV[i % 3], st, dead || st === WARN ? BTN_FIX : BTN_OK);
+    });
+
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

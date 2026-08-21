@@ -1,0 +1,379 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", system-ui, sans-serif; }
+    a { color: #fe2c55; } a:hover { color: #d4213d; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; min-height: 1300px; background: #ffffff; color: #161823;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; border-bottom: 1px solid #e3e3e4;">
+    <div style="display: flex; align-items: center; gap: 32px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 8px; background: #161823; display: flex; align-items: center; justify-content: center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25f4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-7"></path></svg>
+        </div>
+        <div style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">AHD</div>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; background: #f1f1f2;">Tổng quan</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Kênh</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">KPI của tôi</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="text-align: right;">
+        <div style="font-size: 13px; font-weight: 600; line-height: 1.3;">Ngọc Anh</div>
+        <div style="font-size: 11px; color: #86878b; line-height: 1.3;">Creator</div>
+      </div>
+      <div style="width: 32px; height: 32px; border-radius: 999px; background: #e5fbfb; color: #0a8b91; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">NA</div>
+    </div>
+  </div>
+
+  <div style="padding: 26px 32px 40px 32px;">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 24px; font-weight: 800; letter-spacing: -0.6px;">Tổng quan dữ liệu</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+          <span style="font-size: 13px; color: #86878b;">8 kênh · dữ liệu cập nhật 09:14 hôm nay</span>
+          <span style="width: 3px; height: 3px; border-radius: 999px; background: #c9c9cb;"></span>
+          <span style="font-size: 13px; color: #86878b;">so sánh với 7 ngày trước</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 4px; border: 1px solid #e3e3e4; font-size: 14px; font-weight: 600;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#161823" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg>
+          7 ngày qua
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f6066" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px; margin-bottom: 22px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div>
+          <div style="font-size: 15px; font-weight: 700;">Kênh của tôi</div>
+          <div style="font-size: 12px; color: #86878b; margin-top: 3px;">2 kênh đang phụ trách · tuần 17/08 – 23/08, còn 2 ngày</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: #f1f1f2;">
+          <span style="font-size: 12px; font-weight: 700; color: #161823;">Cần 60k view/ngày trong 2 ngày còn lại</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+        <sc-for list="{{myChannels}}" as="ch" hint-placeholder-count="2">
+          <div style="border: 1px solid #e3e3e4; border-radius: 8px; overflow: hidden;">
+
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f1f1f2;">
+              <div style="display: flex; align-items: center; gap: 11px;">
+                <div style="width: 36px; height: 36px; border-radius: 999px; background: #e5fbfb; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #0a8b91;">{{ch.initials}}</div>
+                <div>
+                  <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.2px;">{{ch.channel}}</div>
+                  <div style="display: flex; align-items: center; gap: 7px;">
+                    <span style="font-size: 11.5px; color: #86878b;">{{ch.handle}}</span>
+                    <span style="width: 2px; height: 2px; border-radius: 999px; background: #c9c9cb;"></span>
+                    <span style="font-size: 11.5px; color: #86878b;">{{ch.followers}} follower</span>
+                  </div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: {{ch.stBg}};">
+                <div style="width: 6px; height: 6px; border-radius: 999px; background: {{ch.stDot}};"></div>
+                <span style="font-size: 11.5px; font-weight: 700; color: {{ch.stFg}};">{{ch.stLabel}}</span>
+              </div>
+            </div>
+
+            <div style="padding: 16px 18px 18px 18px; display: flex; flex-direction: column; gap: 15px;">
+              <sc-for list="{{ch.metrics}}" as="m" hint-placeholder-count="3">
+                <div>
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-size: 12.5px; font-weight: 600; color: #5f6066;">{{m.name}}</span>
+                      <span style="font-size: 11.5px; color: #86878b;">{{m.text}}</span>
+                    </div>
+                    <span style="font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: {{m.color}};">{{m.pct}}%</span>
+                  </div>
+                  <div style="height: 6px; border-radius: 999px; background: #f1f1f2; overflow: hidden;">
+                    <div style="height: 6px; border-radius: 999px; background: {{m.color}}; width: {{m.pct}}%;"></div>
+                  </div>
+                  <div style="font-size: 11.5px; color: #86878b; margin-top: 6px;">{{m.hint}}</div>
+                </div>
+              </sc-for>
+            </div>
+
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 14px;">
+      <div style="font-size: 15px; font-weight: 700;">Dữ liệu toàn team</div>
+      <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #f1f1f2;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5f6066" stroke-width="2.2" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <span style="font-size: 11.5px; font-weight: 600; color: #5f6066;">Chỉ xem</span>
+      </div>
+      <span style="font-size: 12.5px; color: #86878b;">Xem để học cách làm nội dung từ các kênh khác</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px;">
+      <sc-for list="{{stats}}" as="s" hint-placeholder-count="4">
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 16px 18px;">
+          <div style="font-size: 12.5px; color: #86878b; font-weight: 600; margin-bottom: 11px;">{{s.label}}</div>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px;">
+            <div style="font-size: 30px; font-weight: 800; letter-spacing: -1.1px; line-height: 1;">{{s.value}}</div>
+            <div style="font-size: 12px; color: #86878b; font-weight: 500;">{{s.unit}}</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; background: {{s.dBg}};">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="{{s.dFg}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{s.dRot}}deg);"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>
+              <span style="font-size: 11.5px; font-weight: 700; color: {{s.dFg}};">{{s.delta}}</span>
+            </div>
+            <span style="font-size: 11.5px; color: #86878b;">{{s.note}}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px 14px 20px; margin-bottom: 14px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px;">
+        <div>
+          <div style="font-size: 15px; font-weight: 700;">Xu hướng toàn team</div>
+          <div style="font-size: 12px; color: #86878b; margin-top: 3px;">Tổng lượt xem của 8 kênh · 8 tuần gần nhất</div>
+        </div>
+        <div style="display: flex; gap: 3px; padding: 3px; background: #f1f1f2; border-radius: 6px;">
+          <sc-for list="{{metricTabs}}" as="mt" hint-placeholder-count="3">
+            <div style="padding: 6px 14px; border-radius: 4px; font-size: 12.5px; font-weight: {{mt.w}}; background: {{mt.bg}}; color: {{mt.fg}};">{{mt.name}}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <svg width="1176" height="212" viewBox="0 0 1176 212" style="display: block;">
+        <sc-for list="{{grid}}" as="g" hint-placeholder-count="4">
+          <g>
+            <line x1="46" y1="{{g.y}}" x2="1176" y2="{{g.y}}" stroke="#f1f1f2" stroke-width="1"></line>
+            <text x="0" y="{{g.ty}}" font-family="Figtree, sans-serif" font-size="10.5" fill="#c9c9cb">{{g.label}}</text>
+          </g>
+        </sc-for>
+        <path d="{{areaPath}}" fill="#e5fbfb"></path>
+        <polyline points="{{linePoints}}" fill="none" stroke="#25c9d0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        <sc-for list="{{points}}" as="p" hint-placeholder-count="8">
+          <g>
+            <circle cx="{{p.x}}" cy="{{p.y}}" r="{{p.r}}" fill="#ffffff" stroke="#25c9d0" stroke-width="2.5"></circle>
+            <text x="{{p.x}}" y="202" text-anchor="middle" font-family="Figtree, sans-serif" font-size="11" font-weight="{{p.w}}" fill="{{p.c}}">{{p.label}}</text>
+          </g>
+        </sc-for>
+      </svg>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;">
+
+      <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px;">
+        <div style="font-size: 15px; font-weight: 700;">Tăng trưởng follower</div>
+        <div style="font-size: 12px; color: #86878b; margin-top: 3px; margin-bottom: 16px;">Số follower tăng thêm trong 7 ngày</div>
+        <div style="display: flex; flex-direction: column; gap: 13px;">
+          <sc-for list="{{growth}}" as="g" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; gap: 11px;">
+              <div style="width: 30px; height: 30px; border-radius: 999px; background: {{g.avBg}}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: {{g.avFg}};">{{g.initials}}</div>
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="font-size: 13px; font-weight: 600;">{{g.channel}}</div>
+                <div style="font-size: 11px; color: #86878b;">{{g.total}} follower</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 13.5px; font-weight: 700; color: #046c45;">{{g.gain}}</div>
+                <div style="font-size: 11px; color: #86878b;">{{g.rate}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px;">
+        <div style="font-size: 15px; font-weight: 700;">Đóng góp lượt xem</div>
+        <div style="font-size: 12px; color: #86878b; margin-top: 3px; margin-bottom: 16px;">Tỷ trọng trong tổng view của team</div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <sc-for list="{{share}}" as="sh" hint-placeholder-count="6">
+            <div>
+              <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 5px;">
+                <span style="font-size: 12.5px; font-weight: {{sh.weight}};">{{sh.channel}}</span>
+                <span style="font-size: 12.5px; font-weight: 700; color: {{sh.fg}};">{{sh.pct}}%</span>
+              </div>
+              <div style="height: 5px; border-radius: 999px; background: #f1f1f2; overflow: hidden;">
+                <div style="height: 5px; border-radius: 999px; background: {{sh.bar}}; width: {{sh.w}}%;"></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 18px 20px;">
+        <div style="font-size: 15px; font-weight: 700;">Hiệu quả nội dung</div>
+        <div style="font-size: 12px; color: #86878b; margin-top: 3px; margin-bottom: 16px;">View trung bình mỗi video đăng lên</div>
+        <div style="display: flex; flex-direction: column; gap: 13px;">
+          <sc-for list="{{efficiency}}" as="e" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; gap: 11px;">
+              <div style="width: 30px; height: 30px; border-radius: 999px; background: {{e.avBg}}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: {{e.avFg}};">{{e.initials}}</div>
+              <div style="flex-grow: 1; min-width: 0;">
+                <div style="font-size: 13px; font-weight: 600;">{{e.channel}}</div>
+                <div style="font-size: 11px; color: #86878b;">{{e.videos}} video trong kỳ</div>
+              </div>
+              <div style="font-size: 13.5px; font-weight: 700;">{{e.perVideo}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const AV = [
+      { avBg: '#e5fbfb', avFg: '#0a8b91' },
+      { avBg: '#ffe9ee', avFg: '#c11238' },
+      { avBg: '#f1f1f2', avFg: '#5f6066' }
+    ];
+    const ST = {
+      green: { stBg: '#e6f9f0', stFg: '#046c45', stDot: '#0bad5b', stLabel: 'Vượt tiến độ' },
+      yellow: { stBg: '#fff6e5', stFg: '#8a5a06', stDot: '#f5a623', stLabel: 'Ổn định' },
+      red: { stBg: '#ffe9ee', stFg: '#c11238', stDot: '#fe2c55', stLabel: 'Cần tăng tốc' }
+    };
+    const nf = (n) => n.toLocaleString('vi-VN');
+    const kf = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace('.', ',') + 'k' : String(n));
+    const ini = (s) => s.split(' ').slice(0, 2).map((w) => w[0]).join('');
+    const color = (p) => (p >= 70 ? '#25c9d0' : p >= 45 ? '#f5a623' : '#fe2c55');
+    const m = (name, pct, text, hint) => ({ name, pct, text, hint, color: color(pct) });
+
+    const MINE = ['Học Tiếng Anh', 'Bếp Nhà Mình'];
+
+    const myChannels = [
+      Object.assign({
+        channel: 'Học Tiếng Anh', handle: '@hoctienganh', initials: 'HT', followers: '9.400',
+        metrics: [
+          m('Lượt xem', 94, '470k / 500k', 'Sắp về đích, cần thêm 30k view'),
+          m('Video', 90, '18 / 20', 'Còn 2 video cần đăng'),
+          m('Follower', 45, '9.400 / 10.000', 'Đầu kỳ 8.900 → mục tiêu 10.000')
+        ]
+      }, ST.green),
+      Object.assign({
+        channel: 'Bếp Nhà Mình', handle: '@bepnhaminh', initials: 'BN', followers: '8.200',
+        metrics: [
+          m('Lượt xem', 82, '410k / 500k', 'Cần thêm 90k view trong 2 ngày tới'),
+          m('Video', 75, '15 / 20', 'Còn 5 video cần đăng'),
+          m('Follower', 33, '8.200 / 9.000', 'Đầu kỳ 7.800 → mục tiêu 9.000')
+        ]
+      }, ST.green)
+    ];
+
+    // Cùng nguồn dữ liệu với màn Manager
+    const raw = [
+      ['Học Tiếng Anh', '@hoctienganh', 'Ngọc Anh', 470000, 18, 8900, 9400, 14],
+      ['Bếp Nhà Mình', '@bepnhaminh', 'Ngọc Anh', 410000, 15, 7800, 8200, 8],
+      ['Ẩm Thực Đường Phố', '@amthucduongpho', 'Minh Tuấn', 355000, 16, 7100, 7700, 21],
+      ['Góc Thú Cưng', '@gocthucung', 'Đức Long', 352000, 17, 7500, 7900, 6],
+      ['Nhạc Chill', '@nhacchill', 'Đức Long', 308000, 14, 5950, 6100, -4],
+      ['Review Đồ Chơi', '@reviewdochoi', 'Minh Tuấn', 232000, 12, 5900, 6100, -11],
+      ['Chăm Sóc Da', '@chamsocda', 'Thu Hà', 198000, 11, 4550, 4800, 3],
+      ['Mẹo Vặt Hay', '@meovathay', 'Thu Hà', 93000, 8, 3200, 3300, -18]
+    ];
+
+    const totalViews = raw.reduce((a, r) => a + r[3], 0);
+    const totalVideos = raw.reduce((a, r) => a + r[4], 0);
+    const totalFolNow = raw.reduce((a, r) => a + r[6], 0);
+    const folGain = totalFolNow - raw.reduce((a, r) => a + r[5], 0);
+
+    const stats = [
+      { label: 'Lượt xem', value: '2,42M', unit: 'view', delta: '+12%', note: 'so với kỳ trước',
+        dBg: '#e6f9f0', dFg: '#046c45', dRot: 0 },
+      { label: 'Follower toàn team', value: kf(totalFolNow), unit: 'follower', delta: '+' + nf(folGain), note: 'tăng trong kỳ',
+        dBg: '#e6f9f0', dFg: '#046c45', dRot: 0 },
+      { label: 'Video đã đăng', value: String(totalVideos), unit: 'video', delta: '+7%', note: 'so với kỳ trước',
+        dBg: '#e6f9f0', dFg: '#046c45', dRot: 0 },
+      { label: 'Tỷ lệ tương tác', value: '1,82%', unit: '', delta: '−5%', note: 'chỉ số dẫn báo',
+        dBg: '#ffe9ee', dFg: '#c11238', dRot: 180 }
+    ];
+
+    const metricTabs = [
+      { name: 'Lượt xem', bg: '#ffffff', fg: '#161823', w: 700 },
+      { name: 'Follower', bg: 'transparent', fg: '#5f6066', w: 500 },
+      { name: 'Video', bg: 'transparent', fg: '#5f6066', w: 500 }
+    ];
+
+    const growth = raw
+      .map((r, i) => ({
+        channel: r[0], initials: ini(r[0]),
+        gainNum: r[6] - r[5],
+        gain: '+' + nf(r[6] - r[5]),
+        total: kf(r[6]),
+        rate: '+' + (((r[6] - r[5]) / r[5]) * 100).toFixed(1).replace('.', ',') + '%',
+        avBg: AV[i % 3].avBg, avFg: AV[i % 3].avFg
+      }))
+      .sort((a, b) => b.gainNum - a.gainNum)
+      .slice(0, 5);
+
+    const share = raw.slice(0, 6).map((r, i) => {
+      const pct = (r[3] / totalViews) * 100;
+      const mine = MINE.indexOf(r[0]) >= 0;
+      return {
+        channel: r[0],
+        pct: pct.toFixed(1).replace('.', ','),
+        w: Math.round((pct / ((raw[0][3] / totalViews) * 100)) * 100),
+        bar: mine ? '#25c9d0' : '#c9eff1',
+        fg: mine ? '#0a6b70' : '#5f6066',
+        weight: mine ? 700 : 500
+      };
+    });
+
+    const efficiency = raw
+      .map((r, i) => ({
+        channel: r[0], initials: ini(r[0]), videos: r[4],
+        perVideoNum: Math.round(r[3] / r[4]),
+        perVideo: kf(Math.round(r[3] / r[4])),
+        avBg: AV[i % 3].avBg, avFg: AV[i % 3].avFg
+      }))
+      .sort((a, b) => b.perVideoNum - a.perVideoNum)
+      .slice(0, 5);
+
+    const series = [1.82, 1.95, 1.74, 2.10, 2.28, 2.05, 2.16, 2.42];
+    const labels = ['T27', 'T28', 'T29', 'T30', 'T31', 'T32', 'T33', 'T34'];
+    const X0 = 60, X1 = 1160, TOP = 14, PLOT = 150, LO = 1.5, HI = 2.6;
+    const yOf = (v) => TOP + (1 - (v - LO) / (HI - LO)) * PLOT;
+    const xOf = (i) => Math.round(X0 + (i * (X1 - X0)) / (series.length - 1));
+
+    const points = series.map((v, i) => ({
+      x: xOf(i), y: Math.round(yOf(v)),
+      r: i === series.length - 1 ? 5 : 3.5,
+      label: labels[i],
+      w: i === series.length - 1 ? 700 : 500,
+      c: i === series.length - 1 ? '#161823' : '#86878b'
+    }));
+    const linePoints = points.map((p) => p.x + ',' + p.y).join(' ');
+    const areaPath = 'M' + points.map((p) => p.x + ',' + p.y).join(' L') +
+      ' L' + points[points.length - 1].x + ',' + (TOP + PLOT) +
+      ' L' + points[0].x + ',' + (TOP + PLOT) + ' Z';
+
+    const grid = [2.5, 2.2, 1.9, 1.6].map((v) => ({
+      y: Math.round(yOf(v)),
+      ty: Math.round(yOf(v)) - 5,
+      label: v.toFixed(1).replace('.', ',') + 'M'
+    }));
+
+    return { myChannels, stats, metricTabs, growth, share, efficiency, points, linePoints, areaPath, grid };
+  }
+}
+</script>
+</body>
+</html>

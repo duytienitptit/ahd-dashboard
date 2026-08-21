@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Design tokens — docs/DESIGN_SYSTEM.md. These are the only colours allowed in the app; do not
+   introduce new hex values in components. Light-only by design: the mockups have no dark variant,
+   so there is deliberately no prefers-color-scheme block here. */
+@theme {
+  --color-ink: #161823;
+  --color-ink-2: #5f6066;
+  --color-ink-3: #86878b;
+
+  --color-line: #e3e3e4;
+  --color-line-soft: #f1f1f2;
+  --color-surface: #fafafa;
+  --color-bg: #ffffff;
+
+  --color-cyan: #25c9d0;
+  --color-cyan-logo: #25f4ee; /* logo icon only */
+  --color-cyan-bg: #f2fdfd;
+  --color-cyan-ink: #0a6b70;
+  --color-cyan-ink-2: #0a8b91;
+
+  --color-red: #fe2c55;
+  --color-red-dark: #c11238;
+  --color-red-bg: #ffe9ee;
+  --color-red-bg-soft: #fff5f7;
+
+  --color-green: #0bad5b;
+  --color-green-dark: #046c45;
+  --color-green-bg: #e6f9f0;
+
+  --color-amber: #f5a623;
+  --color-amber-dark: #8a5a06;
+  --color-amber-bg: #fff6e5;
+
+  --radius-btn: 4px;
+  --radius-card: 8px;
+  --radius-input: 6px;
+  --radius-pill: 999px;
+}
+
+@theme inline {
+  --font-sans: var(--font-be-vietnam-pro), "Helvetica Neue", system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: var(--color-red);
+}
+
+a:hover {
+  color: #d4213d;
+}

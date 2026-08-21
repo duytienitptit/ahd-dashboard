@@ -1,0 +1,214 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", system-ui, sans-serif; }
+    a { color: #fe2c55; } a:hover { color: #d4213d; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; min-height: 1080px; background: #ffffff; color: #161823;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; border-bottom: 1px solid #e3e3e4;">
+    <div style="display: flex; align-items: center; gap: 32px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 8px; background: #161823; display: flex; align-items: center; justify-content: center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25f4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-7"></path></svg>
+        </div>
+        <div style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">AHD</div>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Tổng quan</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Kênh</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Creator</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; background: #f1f1f2;">Dữ liệu</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="text-align: right;">
+        <div style="font-size: 13px; font-weight: 600; line-height: 1.3;">Hoàng Nam</div>
+        <div style="font-size: 11px; color: #86878b; line-height: 1.3;">Quản lý</div>
+      </div>
+      <div style="width: 32px; height: 32px; border-radius: 999px; background: #161823; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">HN</div>
+    </div>
+  </div>
+
+  <div style="padding: 26px 32px 40px 32px;">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 24px; font-weight: 800; letter-spacing: -0.6px;">Nhập dữ liệu TikTok Studio</div>
+        <div style="font-size: 13px; color: #86878b; margin-top: 6px;">Chạy thứ Tư hàng tuần cho tuần trước đó · 4 file zip mỗi kênh</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px; background: #fff6e5;">
+        <div style="width: 6px; height: 6px; border-radius: 999px; background: #f5a623;"></div>
+        <span style="font-size: 12.5px; font-weight: 700; color: #8a5a06;">6/8 kênh đã nhập tuần này</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 20px; align-items: start;">
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 20px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">1. Chọn kênh</div>
+          <div style="display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 16px; border: 1px solid #161823; border-radius: 6px;">
+            <div style="display: flex; align-items: center; gap: 11px;">
+              <div style="width: 32px; height: 32px; border-radius: 999px; background: #e5fbfb; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #0a8b91;">NN</div>
+              <div>
+                <div style="font-size: 14px; font-weight: 600;">Nông Nghiệp Xanh</div>
+                <div style="font-size: 11.5px; color: #86878b;">@nong.nghiep.xanh.17</div>
+              </div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6066" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 20px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">2. Kéo thả 4 file zip</div>
+          <div style="font-size: 12.5px; color: #86878b; margin-bottom: 14px; line-height: 1.5;">Tải nguyên file <strong style="color: #161823;">.zip</strong> từ TikTok Studio — không cần giải nén</div>
+
+          <div style="border: 1.5px dashed #25c9d0; border-radius: 8px; background: #f2fdfd; padding: 22px 20px; text-align: center; margin-bottom: 14px;">
+            <div style="width: 40px; height: 40px; border-radius: 999px; background: #ffffff; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px auto;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0a8b91" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"></path></svg>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 700; color: #0a6b70;">Kéo thả file vào đây</div>
+            <div style="font-size: 12px; color: #0a8b91; margin-top: 3px;">hoặc bấm để chọn</div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <sc-for list="{{files}}" as="f" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: {{f.bg}}; border-radius: 6px;">
+                <div style="width: 26px; height: 26px; border-radius: 6px; background: #ffffff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                  <sc-if value="{{f.ok}}" hint-placeholder-val="{{true}}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0bad5b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                  </sc-if>
+                  <sc-if value="{{f.pending}}" hint-placeholder-val="{{false}}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9c9cb" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle></svg>
+                  </sc-if>
+                </div>
+                <div style="flex-grow: 1; min-width: 0;">
+                  <div style="font-size: 12.5px; font-weight: 600; color: {{f.fg}};">{{f.name}}</div>
+                  <div style="font-size: 11px; color: #86878b;">{{f.note}}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; overflow: hidden;">
+          <div style="padding: 16px 20px; border-bottom: 1px solid #f1f1f2;">
+            <div style="font-size: 14px; font-weight: 700;">3. Xem trước kết quả đọc file</div>
+            <div style="font-size: 12.5px; color: #86878b; margin-top: 3px;">Kiểm tra trước khi lưu — chưa có gì ghi vào hệ thống</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid #f1f1f2;">
+            <sc-for list="{{summary}}" as="s" hint-placeholder-count="4">
+              <div style="padding: 14px 18px; border-right: 1px solid #f1f1f2;">
+                <div style="font-size: 11.5px; color: #86878b; font-weight: 600; margin-bottom: 6px;">{{s.label}}</div>
+                <div style="font-size: 19px; font-weight: 800; letter-spacing: -0.5px; color: {{s.color}};">{{s.value}}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.1fr 1.2fr 1.1fr 1fr 1.4fr; gap: 12px; padding: 11px 20px; background: #f1f1f2; font-size: 12px; font-weight: 700; color: #5f6066;">
+            <div>Ngày</div>
+            <div style="text-align: right;">Lượt xem</div>
+            <div style="text-align: right;">Follower</div>
+            <div style="text-align: right;">Lệch so API</div>
+            <div style="text-align: right;">Trạng thái</div>
+          </div>
+
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: 1.1fr 1.2fr 1.1fr 1fr 1.4fr; gap: 12px; padding: 11px 20px; border-top: 1px solid #f1f1f2; align-items: center; background: {{r.rowBg}};">
+              <div style="font-size: 13px; font-weight: 600; color: {{r.dateFg}};">{{r.date}}</div>
+              <div style="text-align: right; font-size: 13px; font-weight: 600; color: {{r.dateFg}};">{{r.views}}</div>
+              <div style="text-align: right; font-size: 13px; color: {{r.dateFg}};">{{r.followers}}</div>
+              <div style="text-align: right; font-size: 12.5px; font-weight: 700; color: {{r.diffFg}};">{{r.diff}}</div>
+              <div style="display: flex; justify-content: flex-end;">
+                <div style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: {{r.stBg}};">
+                  <span style="font-size: 11.5px; font-weight: 600; color: {{r.stFg}};">{{r.stLabel}}</span>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="border: 1px solid #ffe0b3; border-radius: 8px; background: #fffaf2; padding: 16px 18px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a5a06" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+            <div style="font-size: 13px; font-weight: 700; color: #8a5a06;">2 ngày gần nhất bị bỏ qua — đúng như thiết kế</div>
+          </div>
+          <div style="font-size: 12.5px; color: #8a5a06; line-height: 1.6;">TikTok Studio trễ 2 ngày nên chưa có số cho 17-18/08. Hệ thống giữ nguyên số tạm tính từ Display API cho hai ngày này, sẽ ghi đè ở lần nhập tuần sau.</div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border: 1px solid #e3e3e4; border-radius: 8px;">
+          <div style="font-size: 12.5px; color: #5f6066;">Sẽ ghi <strong style="color: #161823;">14 ngày</strong> vào hệ thống và cập nhật <strong style="color: #161823;">15 video</strong></div>
+          <div style="display: flex; gap: 10px;">
+            <div style="display: flex; align-items: center; height: 38px; padding: 0 18px; border: 1px solid #e3e3e4; border-radius: 4px; font-size: 14px; font-weight: 600;">Huỷ</div>
+            <div style="display: flex; align-items: center; height: 38px; padding: 0 20px; border-radius: 4px; background: #fe2c55; color: #ffffff; font-size: 14px; font-weight: 700;">Lưu dữ liệu</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const files = [
+      { name: 'Overview_...nong.nghiep.xanh.17.zip', note: '60 ngày · đọc được 59 dòng', ok: true, pending: false, bg: '#f1f1f2', fg: '#161823' },
+      { name: 'Followers_nong.nghiep.xanh.17.zip', note: '60 ngày + 7 ngày giờ hoạt động', ok: true, pending: false, bg: '#f1f1f2', fg: '#161823' },
+      { name: 'Viewers_nong.nghiep.xanh.17.zip', note: '60 ngày · 1 dòng undefined bị bỏ', ok: true, pending: false, bg: '#f1f1f2', fg: '#161823' },
+      { name: 'Content_....zip — chưa tải lên', note: 'Không bắt buộc · dùng cho thư viện video', ok: false, pending: true, bg: '#fafafa', fg: '#86878b' }
+    ];
+
+    const summary = [
+      { label: 'Ngày đọc được', value: '59', color: '#161823' },
+      { label: 'Sẽ ghi', value: '14', color: '#046c45' },
+      { label: 'Bỏ qua (trễ)', value: '2', color: '#8a5a06' },
+      { label: 'Lệch >10%', value: '1', color: '#c11238' }
+    ];
+
+    const OK   = { stBg: '#e6f9f0', stFg: '#046c45', stLabel: 'Sẽ ghi đè' };
+    const WARN = { stBg: '#ffe9ee', stFg: '#c11238', stLabel: 'Lệch nhiều' };
+    const SKIP = { stBg: '#f1f1f2', stFg: '#86878b', stLabel: 'Bỏ qua — Studio chưa có' };
+
+    const raw = [
+      ['18/08/2026', '—', '—', '—', SKIP, true],
+      ['17/08/2026', '—', '—', '—', SKIP, true],
+      ['16/08/2026', '85,1k', '994', '+1,2%', OK, false],
+      ['15/08/2026', '175k', '942', '−0,8%', OK, false],
+      ['13/08/2026', '157k', '700', '+14,2%', WARN, false]
+    ];
+
+    const rows = raw.map((r) => Object.assign({
+      date: r[0], views: r[1], followers: r[2], diff: r[3],
+      diffFg: r[4] === WARN ? '#c11238' : r[5] ? '#c9c9cb' : '#86878b',
+      dateFg: r[5] ? '#c9c9cb' : '#161823',
+      rowBg: r[5] ? '#fafafa' : '#ffffff'
+    }, r[4]));
+
+    return { files, summary, rows };
+  }
+}
+</script>
+</body>
+</html>

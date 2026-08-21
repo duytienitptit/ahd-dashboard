@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", system-ui, sans-serif; }
+    a { color: #fe2c55; } a:hover { color: #d4213d; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; min-height: 940px; background: #ffffff; color: #161823;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; border-bottom: 1px solid #e3e3e4;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 30px; height: 30px; border-radius: 8px; background: #161823; display: flex; align-items: center; justify-content: center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25f4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-7"></path></svg>
+      </div>
+      <div style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">AHD</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="font-size: 13px; font-weight: 600;">Hoàng Nam</div>
+      <div style="width: 32px; height: 32px; border-radius: 999px; background: #161823; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">HN</div>
+    </div>
+  </div>
+
+  <div style="padding: 26px 32px 40px 32px;">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px;">
+      <div>
+        <div style="font-size: 24px; font-weight: 800; letter-spacing: -0.6px;">Chốt sổ chu kỳ</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+          <span style="font-size: 13px; color: #86878b;">Bếp Nhà Mình · @bepnhaminh</span>
+          <span style="width: 3px; height: 3px; border-radius: 999px; background: #c9c9cb;"></span>
+          <span style="font-size: 13px; color: #86878b;">Tuần 10/08 – 16/08</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 999px; background: #fff6e5;">
+        <div style="width: 6px; height: 6px; border-radius: 999px; background: #f5a623;"></div>
+        <span style="font-size: 12.5px; font-weight: 700; color: #8a5a06;">Đang ở trạng thái Draft</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 20px; align-items: start;">
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; padding: 20px;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 4px;">Điều kiện chốt sổ</div>
+          <div style="font-size: 12.5px; color: #86878b; margin-bottom: 16px; line-height: 1.5;">Không cần tải file ở đây — hệ thống dùng số liệu đã nhập trước đó</div>
+
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <sc-for list="{{checks}}" as="c" hint-placeholder-count="3">
+              <div style="display: flex; align-items: flex-start; gap: 11px;">
+                <div style="width: 22px; height: 22px; border-radius: 999px; background: {{c.iconBg}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;">
+                  <sc-if value="{{c.ok}}" hint-placeholder-val="{{true}}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#046c45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+                  </sc-if>
+                  <sc-if value="{{c.fail}}" hint-placeholder-val="{{false}}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#c11238" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+                  </sc-if>
+                </div>
+                <div style="min-width: 0;">
+                  <div style="font-size: 13px; font-weight: 600; color: {{c.fg}};">{{c.label}}</div>
+                  <div style="font-size: 11.5px; color: #86878b; line-height: 1.5; margin-top: 2px;">{{c.note}}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #ffc9d4; border-radius: 8px; background: #fff5f7; padding: 18px 20px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c11238" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"></path></svg>
+            <div style="font-size: 13.5px; font-weight: 700; color: #c11238;">Chốt sổ là thao tác không thể hoàn tác</div>
+          </div>
+          <div style="font-size: 12.5px; color: #8f1229; line-height: 1.6;">Sau khi chốt, số liệu chu kỳ này bị <strong>khoá vĩnh viễn</strong> và dùng làm căn cứ tính thưởng. Mọi chỉnh sửa về sau đều bị ghi lại kèm người thực hiện và lý do.</div>
+        </div>
+
+      </div>
+
+      <div style="border: 1px solid #e3e3e4; border-radius: 8px; overflow: hidden;">
+
+        <div style="padding: 18px 22px; border-bottom: 1px solid #f1f1f2;">
+          <div style="font-size: 14px; font-weight: 700;">Kết quả chu kỳ</div>
+          <div style="font-size: 12.5px; color: #86878b; margin-top: 4px;">Tổng hợp từ số liệu TikTok Studio đã nhập, đối chiếu với chỉ tiêu đã giao</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1.1fr; gap: 14px; padding: 11px 22px; background: #f1f1f2; font-size: 12px; font-weight: 700; color: #5f6066;">
+          <div>Chỉ tiêu</div>
+          <div style="text-align: right;">Mục tiêu</div>
+          <div style="text-align: right;">Thực tế</div>
+          <div style="text-align: right;">Hoàn thành</div>
+          <div style="text-align: right;">Kết quả</div>
+        </div>
+
+        <sc-for list="{{compare}}" as="c" hint-placeholder-count="3">
+          <div style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1.1fr; gap: 14px; padding: 16px 22px; border-top: 1px solid #f1f1f2; align-items: center;">
+            <div>
+              <div style="font-size: 13.5px; font-weight: 600;">{{c.label}}</div>
+              <div style="font-size: 11.5px; color: #86878b;">{{c.note}}</div>
+            </div>
+            <div style="text-align: right; font-size: 13.5px; color: #5f6066;">{{c.target}}</div>
+            <div style="text-align: right; font-size: 14px; font-weight: 700;">{{c.actual}}</div>
+            <div style="text-align: right; font-size: 15px; font-weight: 800; letter-spacing: -0.3px; color: {{c.color}};">{{c.pct}}%</div>
+            <div style="display: flex; justify-content: flex-end;">
+              <div style="display: flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: {{c.bg}};">
+                <span style="font-size: 11.5px; font-weight: 700; color: {{c.fg}};">{{c.result}}</span>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-top: 1px solid #e3e3e4; background: #fafafa;">
+          <div>
+            <div style="font-size: 12.5px; color: #86878b; margin-bottom: 3px;">Kết quả chung chu kỳ</div>
+            <div style="display: flex; align-items: baseline; gap: 9px;">
+              <div style="font-size: 28px; font-weight: 800; letter-spacing: -1px; color: #0bad5b;">77%</div>
+              <div style="font-size: 13px; font-weight: 600; color: #046c45;">Hoàn thành tốt</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 12px; color: #86878b;">Người chốt · Hoàng Nam</div>
+            <div style="font-size: 12px; color: #86878b; margin-top: 2px;">19/08/2026 · 14:32</div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-top: 1px solid #f1f1f2;">
+          <div style="display: flex; align-items: center; gap: 9px;">
+            <div style="width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid #161823; background: #161823; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+            </div>
+            <span style="font-size: 12.5px; color: #5f6066;">Tôi xác nhận đã đối chiếu số liệu và đồng ý khoá chu kỳ này</span>
+          </div>
+          <div style="display: flex; gap: 10px; flex-shrink: 0;">
+            <div style="display: flex; align-items: center; height: 40px; padding: 0 20px; border: 1px solid #e3e3e4; border-radius: 4px; font-size: 14px; font-weight: 600;">Huỷ</div>
+            <div style="display: flex; align-items: center; height: 40px; padding: 0 22px; border-radius: 4px; background: #fe2c55; color: #ffffff; font-size: 14px; font-weight: 700;">Chốt sổ &amp; khoá</div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const OK   = { ok: true,  fail: false, iconBg: '#e6f9f0', fg: '#161823' };
+    const FAIL = { ok: false, fail: true,  iconBg: '#ffe9ee', fg: '#c11238' };
+
+    const checks = [
+      Object.assign({
+        label: 'Đã qua hạn chờ dữ liệu',
+        note: 'Chu kỳ kết thúc 16/08, mở khoá từ 19/08 (Studio trễ 2 ngày + 1 ngày an toàn)'
+      }, OK),
+      Object.assign({
+        label: 'Đủ 7/7 ngày có số liệu Studio',
+        note: 'Nhập ngày 19/08 lúc 09:14 — phủ trọn 10/08 đến 16/08'
+      }, OK),
+      Object.assign({
+        label: 'Không còn số nhập tay chưa đối chiếu',
+        note: 'Ngày 12/08 từng nhập tay, đã được số Studio thay thế'
+      }, OK)
+    ];
+
+    const compare = [
+      { label: 'Lượt xem', note: 'View phát sinh trong kỳ', target: '500.000', actual: '486.240', pct: 97,
+        color: '#0bad5b', bg: '#e6f9f0', fg: '#046c45', result: 'Gần đạt' },
+      { label: 'Video', note: 'Đếm theo ngày đăng trong kỳ', target: '20', actual: '20', pct: 100,
+        color: '#0bad5b', bg: '#e6f9f0', fg: '#046c45', result: 'Đạt' },
+      { label: 'Follower', note: 'Đầu kỳ 7.800 → mục tiêu 9.000', target: '9.000', actual: '8.200', pct: 33,
+        color: '#f5a623', bg: '#fff6e5', fg: '#8a5a06', result: 'Chưa đạt' }
+    ];
+
+    return { checks, compare };
+  }
+}
+</script>
+</body>
+</html>

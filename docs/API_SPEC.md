@@ -1,0 +1,306 @@
+# API Specification
+
+Next.js Route Handlers (`app/api/...`). Auth qua Supabase session cookie. Mọi response lỗi: `{ error: string }` + HTTP status tương ứng.
+
+Quy ước quyền: **M** = Manager only, **M/C** = Manager và Creator (Creator bị giới hạn phạm vi dữ liệu qua RLS).
+
+---
+
+## Channels
+
+### `GET /api/channels` — M/C
+Query: `?creatorId=<uuid>` (optional, lọc theo Creator)
+```json
+[{ "id": "...", "name": "Kênh A", "tiktokHandle": "@kenh_a",
+   "isActive": true, "createdAt": "2026-08-20T03:00:00Z",
+   "currentCreator": { "id": "...", "name": "Nguyễn A" },
+   "latestStats": { "date": "2026-08-19", "views": 120000, "videos": 14, "followers": 6000,
+                    "engagementRate": 0.0182, "source": "display_api", "isComplete": true } }]
+```
+`isActive`/`createdAt` thêm ở M2 (không có trong bản đặc tả gốc) — `PATCH` đã nhận `isActive` từ đầu
+nhưng `GET` không trả lại để Manager xem trạng thái hiện tại trước khi đổi. `latestStats` là `null`
+nếu kênh chưa có `data_snapshot` nào (đọc qua `v_channel_latest`, xem [DATABASE_ERD.md](DATABASE_ERD.md)).
+
+### `POST /api/channels` — M
+```json
+{ "name": "Kênh A", "tiktokHandle": "@kenh_a", "creatorId": "<uuid>" }
+```
+→ `201` trả channel vừa tạo.
+
+### `PATCH /api/channels/:id` — M
+```json
+{ "name": "...", "creatorId": "<uuid>", "isActive": true }
+```
+Đổi `creatorId` → tự đóng row `channel_ownership_history` cũ (`to_date = today`) và mở row mới.
+
+---
+
+## Creators
+
+### `GET /api/creators` — M/C
+```json
+[{ "id": "...", "name": "Nguyễn A", "email": "a@company.com", "channelCount": 2, "isActive": true,
+   "channels": [{ "id": "...", "name": "Kênh A", "tiktokHandle": "@kenh_a" }] }]
+```
+`channels` thêm ở M2 (không có trong bản đặc tả gốc) — màn `/creators` cần liệt kê "kênh phụ trách"
+theo từng Creator (design/Creators.dc.html).
+
+### `POST /api/creators` — M
+Tạo tài khoản Creator (Admin cấp, không có self-signup).
+```json
+{ "name": "Nguyễn A", "email": "a@company.com", "password": "<temp>" }
+```
+→ `201`. Tạo user trong Supabase Auth trước, insert row `creator` sau — lỗi ở bước insert thì xoá lại
+auth user vừa tạo (không sẽ mắc kẹt ở `email_exists` mãi mãi). Không gửi email mời (chưa có SMTP) —
+mật khẩu tạm chỉ hiện lại một lần ở màn hình `/creators` ngay sau khi tạo, Manager tự gửi riêng.
+
+### `PATCH /api/creators/:id` — M
+Không có trong bản đặc tả gốc — thêm ở M2 để Manager đổi tên hoặc vô hiệu hoá một Creator (ví dụ nghỉ
+việc) mà không phải sửa thẳng trong Supabase. **Không xoá tài khoản.**
+```json
+{ "name": "...", "isActive": false }
+```
+→ Trả về `creator` sau khi sửa, cùng shape với `GET /api/creators`.
+
+---
+
+## KPI Cycles
+
+### `GET /api/kpi-cycles` — M/C
+Query: `?channelId=`, `?status=draft|final`, `?activeOnly=true`
+```json
+[{ "id": "...", "channelId": "...", "periodType": "weekly",
+   "periodStart": "2026-08-17", "periodEnd": "2026-08-23",
+   "targetViews": 500000, "targetVideos": 20, "targetFollowers": 10000,
+   "followersAtStart": 5000, "status": "draft",
+   "progress": { "viewsPct": 45.2, "videosPct": 60.0, "followersPct": 20.0,
+                 "overallStatus": "yellow" } }]
+```
+
+### `POST /api/kpi-cycles` — M
+```json
+{ "channelId": "<uuid>", "periodType": "weekly",
+  "periodStart": "2026-08-17", "periodEnd": "2026-08-23",
+  "targetViews": 500000, "targetVideos": 20, "targetFollowers": 10000 }
+```
+→ `201`. Server tự chụp `followersAtStart` từ snapshot mới nhất. Lỗi `409` nếu trùng khoảng ngày với cycle khác cùng channel.
+
+### `PATCH /api/kpi-cycles/:id` — M
+Chỉ sửa được khi `status = draft`. Nếu `final` → `403`.
+
+### `POST /api/kpi-cycles/:id/finalize` — M
+**Không nhận file.** Chỉ tổng hợp `data_snapshot` đã có trong khoảng ngày của chu kỳ rồi khoá lại.
+Import là việc riêng (xem `/api/channels/:id/import`).
+
+Điều kiện mở khoá — thiếu bất kỳ cái nào đều trả `422` kèm chi tiết:
+1. Đã qua `periodEnd + 3 ngày` (Studio trễ 2 ngày, +1 an toàn)
+2. Mọi ngày trong chu kỳ đều có row `source = studio_import`
+3. Không còn ngày nào chỉ có `manual_entry`
+
+```json
+// 422 khi chưa đủ điều kiện
+{ "error": "cycle_not_ready",
+  "reasons": ["missing_studio_data"],
+  "missingDates": ["2026-08-22", "2026-08-23"],
+  "unlockAt": "2026-08-26" }
+```
+→ Thành công: tính % Final → `status=final`, `finalized_by`, `finalized_at` → ghi `audit_log`.
+`409` nếu đã final.
+
+---
+
+## Kết nối Display API
+
+### `GET /api/channels/:id/oauth/start` — M/C
+Trả URL uỷ quyền TikTok (scope `user.info.stats` + `video.list`), kèm `state` chống CSRF.
+**Sửa ở M3b**: ban đầu chỉ M, mở thêm cho Creator — Creator có sẵn tài khoản TikTok của chính kênh
+mình, Manager thì không, nên để Creator tự Authorize thực tế hơn. Creator chỉ gọi được cho **đúng
+kênh mình đang phụ trách** (`channel.current_creator_id = user.id`), gọi cho kênh khác → `403`.
+
+### `GET /api/oauth/callback` — public (TikTok gọi về)
+Đổi `code` lấy token, lưu vào `channel_oauth` (mã hoá at-rest).
+
+### `GET /api/channels/oauth/status` — M/C (Creator chỉ thấy kênh mình phụ trách)
+Theo dõi sức khoẻ kết nối. Manager thấy toàn bộ 8 kênh; Creator chỉ thấy mảng gồm (nhiều nhất) đúng 1
+kênh họ đang phụ trách. Dùng cho màn cảnh báo hạn token.
+```json
+[{ "channelId": "...", "channelName": "…", "connected": true,
+   "refreshExpiresAt": "2027-08-19T00:00:00Z", "daysUntilExpiry": 365,
+   "lastSyncAt": "2026-08-19T03:00:00Z", "lastSyncStatus": "ok" }]
+```
+
+---
+
+## Đồng bộ & số liệu
+
+### `/api/sync/display-api` — 2 method, không phải 1 — **sửa ở M3b**
+Kéo `user/info` + toàn bộ video của mọi kênh active → ghi `video_snapshot`, tính view trong ngày bằng
+**chênh lệch theo từng video**, ghi `data_snapshot(source=display_api)`.
+
+- **`GET`** — Vercel Cron gọi hằng ngày 03:00 giờ VN. Cron của Vercel **luôn gửi GET, không phải
+  POST** (giới hạn nền tảng, không cấu hình được) — kiểm `Authorization: Bearer $CRON_SECRET`, không
+  qua session.
+- **`POST`** — M, nút "Chạy đồng bộ ngay" trên `/connections`.
+
+Cả hai chạy chung logic, cùng response:
+```json
+{ "date": "2026-08-19", "synced": 8, "failed": 0,
+  "incomplete": [{ "channelId": "...", "expectedVideos": 112, "gotVideos": 108 }] }
+```
+
+### `POST /api/channels/:id/import` — M
+Upload file Studio. Body: `multipart/form-data`, nhận thẳng `.zip` (nhiều file cùng lúc).
+```
+files[]: Overview_*.zip, Followers_*.zip, Viewers_*.zip, Content_*.zip (Content không bắt buộc)
+```
+Query: `?dryRun=true` — **thêm ở M3a**, không có trong bản đặc tả gốc. Parse + trả về đúng response
+bên dưới nhưng **không ghi gì vào DB/Storage** — dùng cho bước "xem trước" trước khi Manager bấm
+"Lưu dữ liệu" (`design/Import.dc.html`). Bỏ `dryRun` (hoặc `dryRun=false`) mới ghi thật.
+
+→ Giải nén, parse, ghi `data_snapshot(source=studio_import)` **chỉ cho ngày `< ngàyExport − 3`**
+(cửa sổ chốt) — cửa sổ này **chỉ áp cho `data_snapshot`**, không áp cho `follower_activity`/
+`audience_snapshot`/`content_video` (3 bảng này luôn ghi toàn bộ nội dung file, xem
+[DATABASE_ERD.md](DATABASE_ERD.md) lý do: `FollowerActivity.csv` chỉ giữ 7 ngày/lần, cửa sổ không
+chồng giữa các tuần nên lọc sẽ mất dữ liệu vĩnh viễn).
+```json
+{ "importedDates": ["2026-08-01", "…", "2026-08-16"],
+  "skippedRecentDates": ["2026-08-17", "2026-08-18"],
+  "discrepancies": [{ "date": "2026-08-14", "displayApi": 160000, "studio": 174608, "diffPct": 8.4 }],
+  "videosUpserted": 15,
+  "readDates": 59 }
+```
+`readDates` **thêm ở M3a** (không có trong bản đặc tả gốc) — tổng số ngày đọc được từ 3 file
+Overview/FollowerHistory/Viewers trước khi lọc, phục vụ ô thống kê "Ngày đọc được" trong mockup.
+
+### `POST /api/channels/:id/manual-entry` — M
+Chỉ Manager. Ghi `data_snapshot(source=manual_entry)` + `audit_log`. Tự bị thay khi `studio_import` về.
+```json
+{ "date": "2026-08-19", "videoViews": 150000, "followers": 9400, "videoCount": 112 }
+```
+
+### `GET /api/channels/:id/snapshots` — M/C
+Query: `?from=`, `?to=`, `?source=`
+Mặc định trả **nguồn ưu tiên cao nhất mỗi ngày** ([DATABASE_ERD.md](DATABASE_ERD.md)); truyền `source`
+để xem riêng một nguồn.
+```json
+[{ "date": "2026-08-16", "views": 85117, "followers": 994, "videos": 15,
+   "engagementRate": 0.0182, "source": "studio_import", "isComplete": true }]
+```
+**Sửa ở M3b**: tên cột đổi từ `videoViews`/`videoCount` (bản gốc) sang `views`/`videos` — khớp đúng
+`latestStats` của `GET /api/channels` (2 chỗ tả cùng 1 shape số liệu theo ngày trong bản gốc lại dùng
+2 bộ tên khác nhau; đã hợp nhất về tên đang chạy thật trong `lib/channels.ts:toChannelStats`, dùng
+chung cho cả 2 endpoint).
+
+---
+
+## Dashboard
+
+### `GET /api/dashboard` — M/C
+**Một endpoint dùng chung cho cả hai vai trò.** Server đọc vai trò từ session và thêm/bớt khối dữ
+liệu — client không tự quyết định.
+
+Query: `?from=`, `?to=` (khoảng thời gian; mặc định 7 ngày qua)
+
+```json
+{ "role": "manager",
+  "period": { "from": "2026-08-13", "to": "2026-08-19", "comparedTo": "2026-08-06/2026-08-12" },
+
+  "teamStats": {
+    "views":          { "value": 2418000, "deltaPct": 12 },
+    "followers":      { "value": 53500, "deltaAbs": 2600 },
+    "videos":         { "value": 111, "deltaPct": 7 },
+    "viewsPerVideo":  { "value": 21784, "deltaPct": -3 },
+    "engagementRate": { "value": 0.0182, "deltaPct": -5 }
+  },
+  "dataFreshness": { "latestDate": "2026-08-19", "source": "display_api",
+                     "label": "tạm tính", "reconciledThrough": "2026-08-16" },
+  "trend": { "metric": "views", "granularity": "week",
+             "series": [{ "label": "T27", "value": 1820000 }] },
+  "growth":     [{ "channelId": "...", "channelName": "…", "followers": 7700, "gain": 600, "ratePct": 8.5 }],
+  "viewShare":  [{ "channelId": "...", "channelName": "…", "views": 470000, "sharePct": 19.4 }],
+  "efficiency": [{ "channelId": "...", "channelName": "…", "videos": 18, "viewsPerVideo": 26111 }],
+
+  "kpiSummary": { "onTrack": 5, "atRisk": 2, "behind": 1,
+                  "attention": [{ "channelId": "...", "channelName": "…", "reason": "View giảm 18%" }] },
+
+  "myChannels": null
+}
+```
+
+Khác biệt theo `role`:
+
+| Trường | `manager` | `creator` |
+| :--- | :--- | :--- |
+| `teamStats`, `trend`, `growth`, `viewShare`, `efficiency` | Có | Có (giống hệt) |
+| `kpiSummary` | Tổng hợp toàn team + danh sách cần chú ý | Chỉ KPI của kênh mình phụ trách |
+| `myChannels` | `null` | Mảng kênh đang phụ trách, kèm `progress` từng chỉ số và `hint` gợi ý hành động |
+
+`myChannels` item:
+```json
+{ "channelId": "...", "channelName": "Học Tiếng Anh", "handle": "@hoctienganh",
+  "followers": 9400, "overallStatus": "green",
+  "metrics": [{ "name": "views", "pct": 94, "text": "470k / 500k",
+                "hint": "Sắp về đích, cần thêm 30k view" }] }
+```
+
+---
+
+## Công thức `progress` (server-side)
+
+```
+viewsPct     = viewsTrongKỳ / targetViews * 100
+videosPct    = videosTrongKỳ / targetVideos * 100
+followersPct = (followersHiệnTại - followersAtStart)
+             / (targetFollowers - followersAtStart) * 100
+
+overallPct   = (viewsPct + videosPct + followersPct) / 3
+```
+
+**Nguồn từng số:**
+
+| Số | Lấy từ |
+| :--- | :--- |
+| `viewsTrongKỳ` | `SUM(data_snapshot.video_views)` các ngày trong kỳ (theo nguồn ưu tiên cao nhất mỗi ngày) |
+| `videosTrongKỳ` | `COUNT(content_video)` có `posted_at` trong kỳ — **không** dùng hiệu `video_count`, vì video bị xoá sẽ làm hiệu sai |
+| `followersHiệnTại` | `data_snapshot.followers` của ngày mới nhất trong kỳ |
+
+### Ngưỡng trạng thái — ±10% quanh tiến độ thời gian
+
+```
+elapsedPct = (hôm nay − periodStart) / (periodEnd − periodStart) * 100
+
+green  : overallPct >= elapsedPct + 10
+red    : overallPct <= elapsedPct − 10
+yellow : còn lại
+```
+
+Ví dụ: chu kỳ 7 ngày, đang ở ngày thứ 4 → `elapsedPct ≈ 50`.
+Đạt ≥60% là 🟢 · dưới 40% là 🔴 · 40-60% là 🟡.
+
+Trả kèm `explanation` để UI hiển thị tooltip — Creator phải hiểu con số này ở đâu ra:
+```json
+"status": { "value": "yellow", "overallPct": 52, "elapsedPct": 57,
+            "explanation": "Đã qua 57% chu kỳ, hoàn thành 52% chỉ tiêu" }
+```
+
+### Số cần làm mỗi ngày — chỉ số chính hiển thị cho Creator
+
+Ưu tiên hiển thị số này thay vì dự đoán, vì nó là số học thuần và không bao giờ sai:
+```
+cầnMỗiNgày = (target − đãĐạt) / sốNgàyCònLại
+```
+```json
+"remaining": { "views": 90000, "daysLeft": 2, "viewsPerDay": 45000,
+               "text": "Cần 45k view/ngày trong 2 ngày còn lại" }
+```
+
+### Dự đoán cuối kỳ — có điều kiện
+
+Chỉ tính khi **`elapsedPct >= 50`**; trước mốc đó trả `null`. Lý do: view TikTok bùng nổ rất mạnh
+(data thật: một kênh nhảy từ 27k lên 301k view/ngày sau 2 hôm), ngoại suy sớm cho số vô nghĩa và
+nguy hiểm khi KPI gắn với thưởng.
+```json
+"forecast": { "overallPct": 87, "basis": "tốc độ trung bình 4 ngày qua",
+              "confidence": "low|medium" }
+```
+UI **bắt buộc** ghi rõ "ước tính", không hiển thị như số chắc chắn.

@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", system-ui, sans-serif; }
+    a { color: #fe2c55; } a:hover { color: #d4213d; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; min-height: 940px; background: #ffffff; color: #161823;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; border-bottom: 1px solid #e3e3e4;">
+    <div style="display: flex; align-items: center; gap: 32px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 8px; background: #161823; display: flex; align-items: center; justify-content: center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25f4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-5 4 3 7-7"></path></svg>
+        </div>
+        <div style="font-size: 16px; font-weight: 800; letter-spacing: -0.3px;">AHD</div>
+      </div>
+      <div style="display: flex; gap: 4px;">
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Tổng quan</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">Kênh</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 600; background: #f1f1f2;">Creator</div>
+        <div style="padding: 7px 14px; border-radius: 6px; font-size: 14px; font-weight: 500; color: #86878b;">KPI</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="text-align: right;">
+        <div style="font-size: 13px; font-weight: 600; line-height: 1.3;">Hoàng Nam</div>
+        <div style="font-size: 11px; color: #86878b; line-height: 1.3;">Quản lý</div>
+      </div>
+      <div style="width: 32px; height: 32px; border-radius: 999px; background: #161823; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">HN</div>
+    </div>
+  </div>
+
+  <div style="padding: 26px 32px 40px 32px;">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px;">
+      <div>
+        <div style="font-size: 24px; font-weight: 800; letter-spacing: -0.6px;">Creator</div>
+        <div style="font-size: 13px; color: #86878b; margin-top: 6px;">4 Creator đang phụ trách 8 kênh</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 13px; border: 1px solid #e3e3e4; border-radius: 4px; width: 230px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#86878b" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+          <span style="font-size: 14px; color: #c9c9cb;">Tìm Creator…</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border: 1px solid #e3e3e4; border-radius: 4px;">
+          <span style="font-size: 12px; color: #86878b;">Sắp xếp</span>
+          <span style="font-size: 13.5px; font-weight: 600;">Tổng view</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f6066" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+        </div>
+        <div style="display: flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 4px; background: #fe2c55; color: #ffffff; font-size: 14px; font-weight: 700;">+ Tạo tài khoản</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+
+      <sc-for list="{{creators}}" as="c" hint-placeholder-count="4">
+        <div style="border: 1px solid #e3e3e4; border-radius: 8px; overflow: hidden;">
+
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid #f1f1f2;">
+            <div style="display: flex; align-items: center; gap: 13px;">
+              <div style="width: 46px; height: 46px; border-radius: 999px; background: {{c.avBg}}; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: {{c.avFg}};">{{c.initials}}</div>
+              <div>
+                <div style="font-size: 16px; font-weight: 700; letter-spacing: -0.3px;">{{c.name}}</div>
+                <div style="font-size: 12.5px; color: #86878b; margin-top: 2px;">{{c.email}}</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: {{c.rankBg}};">
+              <span style="font-size: 11.5px; font-weight: 700; color: {{c.rankFg}};">{{c.rankLabel}}</span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid #f1f1f2;">
+            <sc-for list="{{c.stats}}" as="s" hint-placeholder-count="4">
+              <div style="padding: 14px 16px; border-right: 1px solid #f1f1f2;">
+                <div style="font-size: 11.5px; color: #86878b; font-weight: 600; margin-bottom: 6px;">{{s.label}}</div>
+                <div style="font-size: 18px; font-weight: 800; letter-spacing: -0.5px; color: {{s.color}};">{{s.value}}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding: 16px 20px 18px 20px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: #86878b; margin-bottom: 12px;">KÊNH PHỤ TRÁCH</div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <sc-for list="{{c.channels}}" as="ch" hint-placeholder-count="2">
+                <div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <div style="display: flex; align-items: center; gap: 9px;">
+                      <span style="font-size: 13px; font-weight: 600;">{{ch.name}}</span>
+                      <span style="font-size: 11.5px; color: #86878b;">{{ch.handle}}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; gap: 9px;">
+                      <span style="font-size: 12.5px; color: #86878b;">{{ch.views}} view</span>
+                      <span style="font-size: 12.5px; font-weight: 700; color: {{ch.dFg}};">{{ch.delta}}</span>
+                    </div>
+                  </div>
+                  <div style="height: 5px; border-radius: 999px; background: #f1f1f2; overflow: hidden;">
+                    <div style="height: 5px; border-radius: 999px; background: {{ch.bar}}; width: {{ch.w}}%;"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+        </div>
+      </sc-for>
+
+    </div>
+
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const nf = (n) => n.toLocaleString('vi-VN');
+    const kf = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace('.', ',') + 'k' : String(n));
+    const mf = (n) => (n / 1000000).toFixed(2).replace('.', ',') + 'M';
+
+    // creator -> channels [name, handle, views, deltaPct, folGain, kpiPct]
+    const src = [
+      {
+        name: 'Ngọc Anh', email: 'ngocanh@company.com',
+        avBg: '#e5fbfb', avFg: '#0a8b91',
+        rankLabel: 'Dẫn đầu view', rankBg: '#e5fbfb', rankFg: '#0a6b70',
+        channels: [
+          ['Học Tiếng Anh', '@hoctienganh', 470000, 14, 500, 94],
+          ['Bếp Nhà Mình', '@bepnhaminh', 410000, 8, 400, 82]
+        ]
+      },
+      {
+        name: 'Minh Tuấn', email: 'minhtuan@company.com',
+        avBg: '#f1f1f2', avFg: '#5f6066',
+        rankLabel: 'Tăng trưởng tốt', rankBg: '#e6f9f0', rankFg: '#046c45',
+        channels: [
+          ['Ẩm Thực Đường Phố', '@amthucduongpho', 355000, 21, 600, 71],
+          ['Review Đồ Chơi', '@reviewdochoi', 232000, -11, 200, 58]
+        ]
+      },
+      {
+        name: 'Đức Long', email: 'duclong@company.com',
+        avBg: '#f1f1f2', avFg: '#5f6066',
+        rankLabel: 'Ổn định', rankBg: '#f1f1f2', rankFg: '#5f6066',
+        channels: [
+          ['Góc Thú Cưng', '@gocthucung', 352000, 6, 400, 88],
+          ['Nhạc Chill', '@nhacchill', 308000, -4, 150, 77]
+        ]
+      },
+      {
+        name: 'Thu Hà', email: 'thuha@company.com',
+        avBg: '#ffe9ee', avFg: '#c11238',
+        rankLabel: 'Cần hỗ trợ', rankBg: '#ffe9ee', rankFg: '#c11238',
+        channels: [
+          ['Chăm Sóc Da', '@chamsocda', 198000, 3, 250, 66],
+          ['Mẹo Vặt Hay', '@meovathay', 93000, -18, 100, 31]
+        ]
+      }
+    ];
+
+    const maxChannelViews = 470000;
+
+    const creators = src.map((c) => {
+      const totalViews = c.channels.reduce((a, ch) => a + ch[2], 0);
+      const totalFol = c.channels.reduce((a, ch) => a + ch[4], 0);
+      const avgKpi = Math.round(c.channels.reduce((a, ch) => a + ch[5], 0) / c.channels.length);
+      const onTrack = c.channels.filter((ch) => ch[5] >= 70).length;
+      return {
+        name: c.name, email: c.email,
+        initials: c.name.split(' ').slice(-2).map((w) => w[0]).join(''),
+        avBg: c.avBg, avFg: c.avFg,
+        rankLabel: c.rankLabel, rankBg: c.rankBg, rankFg: c.rankFg,
+        stats: [
+          { label: 'Kênh', value: String(c.channels.length), color: '#161823' },
+          { label: 'Tổng view', value: mf(totalViews), color: '#161823' },
+          { label: 'Follower +', value: nf(totalFol), color: '#046c45' },
+          { label: 'Đạt KPI', value: onTrack + '/' + c.channels.length,
+            color: onTrack === c.channels.length ? '#046c45' : onTrack === 0 ? '#c11238' : '#8a5a06' }
+        ],
+        channels: c.channels.map((ch) => ({
+          name: ch[0], handle: ch[1],
+          views: kf(ch[2]),
+          delta: (ch[3] >= 0 ? '+' : '−') + Math.abs(ch[3]) + '%',
+          dFg: ch[3] >= 0 ? '#046c45' : '#c11238',
+          w: Math.round((ch[2] / maxChannelViews) * 100),
+          bar: ch[3] >= 0 ? '#25c9d0' : '#fe2c55'
+        }))
+      };
+    });
+
+    return { creators };
+  }
+}
+</script>
+</body>
+</html>
