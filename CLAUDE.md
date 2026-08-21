@@ -25,6 +25,7 @@ nào, hệ thống vẫn phải có giá trị nhờ việc lưu và trình bày
 | [docs/DISPLAY_API.md](docs/DISPLAY_API.md) | Gọi Display API — endpoint, scope, token, rate limit, các bẫy |
 | [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md) | Viết parser import — cấu trúc export TikTok Studio thật, các bẫy bắt buộc xử lý |
 | [docs/TASKS.md](docs/TASKS.md) | Chọn task tiếp theo, cập nhật trạng thái sau khi xong |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | Nhớ lại quyết định/deviation của milestone đã xong — không cần đọc để bắt đầu task mới |
 
 Mockup gốc 10 màn hình MVP: `design/*.dc.html` — tham chiếu bố cục khi dựng UI.
 Biến môi trường: `.env.example`.
@@ -101,239 +102,59 @@ Biến môi trường: `.env.example`.
   (schema, phân quyền, cách tính KPI).
 - Cập nhật `docs/TASKS.md` sau khi hoàn thành task; cập nhật `docs/PRODUCT_SPEC.md` khi có
   quyết định sản phẩm mới.
+- **Giữ `CLAUDE.md` ngắn — file này auto-load vào MỌI phiên, phình ra là tốn context mọi lúc dù task
+  đang làm không liên quan.** Xong 1 milestone: chi tiết đầy đủ ("X đã xong — có gì dùng được ngay")
+  viết vào [docs/PROGRESS.md](docs/PROGRESS.md), **không** viết thẳng vào mục "Trạng thái" của
+  `CLAUDE.md`. Mục "Trạng thái" ở đây chỉ giữ: 1 dòng milestone hiện tại + việc tiếp theo, việc đang
+  treo/chặn thật (không phải lịch sử), và vài dòng reference hay tra (deploy URL, project id). Nếu
+  sửa xong mà "Trạng thái" dài hơn ~40 dòng, đó là dấu hiệu cần dọn bớt sang PROGRESS.md.
 
 ## Trạng thái
 
-**M3 xong toàn bộ, đã qua bước chuẩn bị trước M4 (21/08/2026). Việc tiếp theo: bắt đầu code M4 (Dashboard).**
+**M4 xong toàn bộ + M3c (nhập tay) xong sớm theo phản hồi (21/08/2026). Việc tiếp theo: bắt đầu code
+M5 (KPI Cycle).** Lịch sử chi tiết từng milestone (quyết định lúc code, deviation, bug bắt được lúc
+kiểm chứng) đã chuyển sang [docs/PROGRESS.md](docs/PROGRESS.md) — file này chỉ giữ trạng thái
+**hiện tại** và việc **đang treo**, không phải nhật ký đầy đủ.
 
-**Quyết định 21/08/2026:** kiểm chứng OAuth thật (xem mục treo bên dưới) **cố ý dồn lại**, không chặn
-M4 — M4 chỉ đọc `data_snapshot` đã có sẵn từ M3a (`studio_import`, 60 ngày thật cho 2 kênh), chưa cần
-số `display_api`.
+🔑 **`TOKEN_ENCRYPTION_KEY`: KHÔNG được sinh khoá mới nữa.** Khoá trên Vercel đã được chứng minh hợp lệ
+(21/08/2026 — 2 kênh `nong.nghiep.xanh.17` + `vuonvuonvang` kết nối thành công, mà `lib/crypto/token.ts`
+throw cứng nếu khoá không đủ 32 byte hex). Token thật đang nằm trong `channel_oauth` **mã hoá bằng
+khoá đó**. Sinh khoá mới = mất toàn bộ token, phải OAuth lại từ đầu. Nếu `.env.local` cần chạy sync ở
+máy: **copy nguyên giá trị từ Vercel Environment Variables xuống**, không tạo giá trị mới.
 
-⚠️ **Còn treo, chưa chặn gì nhưng cần làm trước khi tính KPI dựa vào `display_api` (M5 trở đi):**
-`TOKEN_ENCRYPTION_KEY` trong `.env.local` hiện **không phải hex 64 ký tự hợp lệ** — phát hiện lúc
-kiểm chứng lại code M3b (đo được 219 ký tự, 3 đoạn cách nhau bởi dấu `.` dài 36/138/43 — đúng hình
-dạng 1 JWT, nhiều khả năng dán nhầm giá trị khác, ví dụ Supabase service role key, vào đúng chỗ này).
-Token OAuth đầu tiên sẽ **mã hoá bằng khoá sai** nếu bấm "Kết nối" trước khi sửa. Tôi không đọc được
-`.env.local` (cố ý), không tự sửa được — sinh khoá mới bằng đúng lệnh trong `.env.example`:
-`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`, dán vào cả `.env.local`
-và Vercel Environment Variables (2 nơi khác nhau, phải sửa cả hai, nhớ Redeploy sau khi sửa trên
-Vercel — biến mới không tự áp dụng cho bản đang chạy).
-
-Luồng kết nối Display API + đồng bộ hằng ngày đã code xong nhưng **chưa ai bấm "Kết nối" thật** — cần
-Authorize trên TikTok cho ít nhất 1 kênh (sau khi sửa `TOKEN_ENCRYPTION_KEY`), việc chỉ người dùng làm
-được (xem mục M3b bên dưới). M0 còn đúng 1 mục kiểm chứng treo (đo view-trong-ngày thật — mở khoá được
-sau khi kết nối kênh đầu tiên).
+Display API đã kết nối thật cho 2 kênh. ⏳ **Lần sync đầu là bootstrap** — ghi `video_views = null`
+(chưa có mốc để trừ), chỉ gieo `video_snapshot`. Phải qua lần sync THỨ HAI mới có số view-trong-kỳ
+thật, và số sạch trọn 24h chỉ có từ lần cron thứ ba (03:00 → 03:00) — delta đầu tiên ứng với khoảng
+thời gian lẻ, đừng dùng nó đối chiếu Studio. M0 còn 1 mục kiểm chứng treo (đo view-trong-ngày thật),
+mở khoá được sau khi đủ 2-3 lần sync.
 
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`).
-Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main` (21/08/2026).
-Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo.
-**Function region: `hkg1` (Hong Kong), đặt ở Vercel Project Settings → Functions.** Không có trong
-code — đừng tìm trong repo, kiểm bằng `npx vercel inspect <url>` (cột `[hkg1]`) hoặc header
-`x-vercel-id`. Mặc định của Vercel là `iad1` (Virginia): đo được TTFB **2.1-2.5s**; sau khi đổi
-sang `hkg1` còn **~0.2s** (21/08/2026).
-
-Hai cách KHÔNG dùng được, đã thử và loại:
-- `"regions"` trong `vercel.json` — Vercel bỏ qua với project Next.js, build vẫn ra `[iad1]`.
-- `export const preferredRegion` ở `app/layout.tsx` — deploy rồi vẫn bị setting dashboard ghi đè,
-  và dù sao cũng không áp cho route handler trong `app/api/` (chúng không nằm dưới root layout).
-  Setting dashboard thì áp cho tất cả, kể cả cron và route thêm sau này.
+Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`.
+Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
+đặt ở Vercel Project Settings → Functions, không có trong code. TTFB `iad1` mặc định 2.1-2.5s → sau
+khi đổi `hkg1` còn ~0.2s. Đã thử 2 cách đặt qua code (`vercel.json` `"regions"`, `preferredRegion` ở
+`app/layout.tsx`) — **đều không ăn**, phải đổi qua dashboard Vercel; chi tiết ở
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
 
 Supabase ở Tokyo còn function ở Hong Kong → mỗi round-trip tới DB ~50ms. Nếu về sau một màn hình
 nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trước khi đổ lỗi cho DB** — chi phí nằm ở
 số lượt, không phải khối lượng dữ liệu. Cùng lý do đó, `getCurrentUser()` trong `lib/auth.ts` bọc
-`cache()` của React: layout và page đều cần user, không bọc thì mỗi bên tự gọi `auth.getUser()`
-(network call thật, không phải decode JWT) + query lại bảng role. **Giữ nguyên `cache()`.**
-
-### Kết luận M0 — Display API sandbox dùng được, đi tiếp M1
-
-Đã OAuth + gọi API thật trên 3 tài khoản (`kidshoppppala` test, `vuonvuonvang` và `nong.nghiep.xanh.17`
-— 2 trong 8 kênh công ty). Chi tiết đầy đủ + số liệu: [docs/DISPLAY_API.md](docs/DISPLAY_API.md) mục
-"Bẫy cần đề phòng khi code", checklist gốc ở [docs/TASKS.md](docs/TASKS.md) M0.
-
-**Đã xác nhận:**
-- Sandbox gọi được `user.info.stats` + `video.list`, đủ cả 3 scope
-- `video/list` trả thẳng `view_count`/like/comment/share qua `fields` — **không cần** `video/query` bổ
-  sung như dự phòng ban đầu (giảm nửa số lệnh gọi/ngày)
-- Đối chiếu video-level với CSV Studio thật: khớp tuyệt đối hoặc tăng hợp lý theo thời gian, không có
-  sai lệch dữ liệu
-- `refresh_token` **không** đổi ở lần refresh đầu — vẫn phải code theo hướng ghi đè, TikTok không cam
-  kết ổn định
-- `video_count` khớp `video/list` trên 2/3 tài khoản, lệch 1 trên `vuonvuonvang` (nghi 1 video riêng
-  tư, chưa xác nhận cố định) — không chặn M1, xử lý khi viết `isComplete` ở M3b
-
-**Còn treo — không chặn M1, làm song song:** phép đo gốc "view trong ngày" (delta 2 snapshot 24h) so
-với `Overview.csv`. Token `nong.nghiep.xanh.17` đã lưu bền trong
-`tools/m0-display-api-probe/out/tokens.json` (dùng `--as nong.nghiep.xanh.17`, không cần OAuth lại) —
-chạy `node probe.mjs probe --as nong.nghiep.xanh.17` rồi `diff` khi đã cách lần đo trước ≥24h.
-
-**2 lỗi thông tin đã sửa trong lúc kiểm chứng (đáng nhớ):**
-- Redirect URI: TikTok từ chối **mọi** dạng `localhost`, kể cả `https://localhost` — phải dùng domain
-  thật đã deploy, kể cả lúc test
-- Tên file zip Studio (`Overview_2026-06-18_...`): đoạn ngày là rác, **không phải** ngày export — dùng
-  `now()` server lúc upload, xem [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md) mục 7
-
-**8 kênh còn lại:** cố ý chưa OAuth — dồn lại làm 1 lượt khi M1 xong (có DB để lưu token thật), không
-login rời rạc trước. Nhớ add đủ 8 kênh vào Sandbox Target Users **trước** buổi đó ít nhất 1 tiếng (thời
-gian TikTok cần để tài khoản mới có hiệu lực).
-
-### M1 đã xong — có gì dùng được ngay
-
-- **7 migration** trong `supabase/migrations/` đã push lên DB thật (6 ở M1 + trigger ownership ở M2).
-  Sửa schema thì thêm file mới, **không sửa file cũ đã push**.
-- **`v_channel_daily`** — view chọn nguồn ưu tiên. Mọi query đọc số liệu đi qua đây.
-- **RLS là tầng chặn thật**, không phải check ở route handler: Creator read-only toàn hệ thống,
-  `channel_oauth` không vai trò đăng nhập nào đọc được, `audit_log` không sửa/xoá được.
-- **`lib/auth.ts`** — `getCurrentUser()` / `requireManager()`. Mọi route chỉ-Manager gọi
-  `requireManager()` ở dòng đầu.
-- **`lib/supabase/`** — 3 client: `server` (theo session, RLS áp dụng, dùng mặc định) ·
-  `client` (browser) · `admin` (service role, **bypass RLS** — chỉ Auth admin, `channel_oauth`, cron).
-- **`lib/crypto/token.ts`** — mã hoá token Display API, M3b gọi lúc lưu.
-- **`./scripts/dryrun/run.sh`** — áp toàn bộ migration lên Postgres tạm trong Docker + chạy assertion.
-  **Chạy trước mỗi lần `db push`.**
-- **`npm test`** (Vitest) — M3b và M5 bắt buộc thêm test vào đây.
-
-### M2 đã xong — có gì dùng được ngay
-
-- **`/api/channels`, `/api/channels/:id`, `/api/creators`, `/api/creators/:id`** — route handler thật,
-  logic nằm ở `lib/channels.ts` / `lib/creators.ts` (route handler và Server Action của UI cùng gọi
-  vào đó, không tách hai đường hành vi). `lib/validation.ts` + `lib/http.ts` là tầng validate/error
-  dùng chung, không thêm dependency ngoài.
-- **`channel_ownership_history` tự đồng bộ bằng trigger DB**
-  (`supabase/migrations/20260820000007_ownership_trigger.sql`) — đổi Creator của kênh chỉ cần
-  `UPDATE channel SET current_creator_id = ...`, **không tự tay ghi vào bảng history**. Chi tiết cơ
-  chế 3 nhánh + `to_date` nửa mở: [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md).
-- **`v_channel_latest`** (cùng migration) — 1 row mới nhất mỗi kênh, `GET /api/channels` đọc từ đây.
-- **`app/(app)/`** — route group có layout dùng chung (header, nav theo vai trò, `requireUser()`
-  chặn chưa đăng nhập). `/`, `/channels`, `/creators` đều nằm trong này.
-- **`/channels`, `/creators`** — quản lý được thật: thêm/sửa kênh, gán/đổi/gỡ Creator, tạo/vô hiệu hoá
-  tài khoản Creator. Cột số liệu (follower/view/sparkline/KPI) trong mockup **chưa có** — để M4, dù
-  `data_snapshot` giờ đã có dữ liệu thật (xong ở M3a), UI chưa đọc và hiển thị.
-- Luồng tạo → gán → gỡ đã kiểm chứng trên DB thật bằng 1 tài khoản Creator test (tạo, gán vào
-  `@vuonvuonvang`, xác nhận `channel_ownership_history` đúng, rồi gỡ gán + vô hiệu hoá — xem
-  [docs/TASKS.md](docs/TASKS.md) M2). **2 kênh seed vẫn đang chưa gán Creator thật** — gán khi có
-  người, qua `/channels`.
-
-### M3a đã xong — có gì dùng được ngay
-
-- **`lib/import/`** — parser CSV thuần (`csv.ts`, `date.ts`, `overview.ts`, `follower-history.ts`,
-  `viewers.ts`, `follower-activity.ts`, `audience.ts`, `content.ts`), `zip.ts` (giải nén, nhận diện
-  file theo tên CSV bên trong, không theo tên zip ngoài), và `plan-import.ts` — hàm **thuần không đụng
-  Supabase** quyết định ngày nào ghi/bỏ qua/cảnh báo lệch, test trực tiếp bằng data thật trong `data/`
-  không cần DB. `run-import.ts` là lớp mỏng bọc quanh, lo phần đọc/ghi Supabase + Storage.
-- **`POST /api/channels/:id/import?dryRun=true|false`** — `dryRun=true` parse + trả kết quả, không ghi
-  gì (bước "xem trước" trước khi Manager bấm "Lưu dữ liệu"). Field thêm so với đặc tả gốc:
-  `?dryRun=`, response field `readDates` — xem [docs/API_SPEC.md](docs/API_SPEC.md).
-- **`/import`** (tab "Dữ liệu", Manager-only) — chọn kênh, kéo-thả file zip, xem trước, lưu. **Không**
-  test được thao tác kéo-thả qua browser automation (giới hạn bảo mật trình duyệt, không set được giá
-  trị `<input type="file">` bằng script) — đã xác nhận UI render đúng, còn pipeline phía sau đã chạy
-  thật (không qua UI) trên DB thật, xem dòng dưới.
-- **Bucket Storage `studio-imports`** — zip gốc lưu tại `<channelId>/<batchId>/<tên file>`, RLS chỉ
-  Manager, cùng mẫu `channel_oauth`. `data_snapshot.raw_file_ref` trỏ tới **thư mục batch**, không
-  phải 1 file — xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md).
-- ⚠️ **Cửa sổ chốt (3 ngày) chỉ áp cho `data_snapshot`** — `follower_activity`/`audience_snapshot`/
-  `content_video` luôn ghi toàn bộ file mỗi lần, không lọc theo ngày export. Lý do:
-  `FollowerActivity.csv` chỉ giữ 7 ngày/lần, cửa sổ 7 ngày không chồng giữa các tuần — lọc sẽ mất dữ
-  liệu vĩnh viễn thay vì bù được ở lần import sau.
-- **`nong.nghiep.xanh.17` và `vuonvuonvang` đã có đủ 60 ngày `data_snapshot` thật** (chạy `runStudioImport`
-  trực tiếp 1 lần trên DB thật cho cả 2 kênh, không qua UI — số khớp chính xác với data trong `data/`:
-  60 ngày, 168 dòng `follower_activity`, 15 `content_video` mỗi kênh). Đây là dữ liệu thật, không phải
-  test — không xoá.
-
-### M3b đã xong (code) — có gì dùng được ngay
-
-- **`lib/tiktok/`** — `provider.ts` (interface `TikTokDataProvider`, CLAUDE.md bắt buộc — business
-  logic không được gọi thẳng Display API), `display-api-provider.ts` (implement interface, port từ
-  `tools/m0-display-api-probe/probe.mjs` đã chạy thật, kể cả fallback `video/query` khi `video/list`
-  thiếu metric), `oauth.ts` (authorize URL, đổi/refresh token — KHÔNG thuộc interface, gắn riêng
-  Display API), `video-delta.ts` (hàm thuần tính view-trong-ngày, port từ `diffSnapshots()` của
-  probe, có test), `sync.ts` (orchestrator 1 kênh + toàn bộ kênh active), `oauth-status.ts` (cho
-  `/connections` + `GET /api/channels/oauth/status`).
-- **OAuth CSRF qua cookie httpOnly** (`sameSite: 'lax'` — bắt buộc, `strict` sẽ làm mất cookie lúc
-  TikTok redirect quay lại), không thêm bảng DB. `GET /api/channels/:id/oauth/start` (set cookie) →
-  Authorize trên TikTok → `GET /api/oauth/callback` (public, đã có sẵn trong `PUBLIC_PATHS` của
-  `proxy.ts`) đổi code lấy token, mã hoá, upsert `channel_oauth`.
-- ⚠️ **Callback đối chiếu tài khoản TikTok vừa Authorize với `channel.tiktok_handle`** (qua
-  `share_url` của 1 video, `lib/tiktok/verify-account.ts`) — TikTok không biết "kênh nào" đang kết
-  nối, chỉ hỏi tài khoản đang đăng nhập trên trình duyệt có đồng ý không. Lệch handle → chặn hẳn,
-  không lưu gì. Phát hiện lúc bàn với bạn 20/08/2026, xem [DISPLAY_API.md](DISPLAY_API.md) mục 9.
-- **`GET /api/channels/:id/oauth/start` + `GET /api/channels/oauth/status` là M/C, không chỉ M** —
-  quyết định sau khi bàn với bạn (20/08/2026): Creator tự Authorize được, nhưng **chỉ đúng kênh mình
-  đang phụ trách** (`channel.current_creator_id = user.id`, sai thì `403`). Lý do đổi: Creator có sẵn
-  tài khoản TikTok của chính kênh, Manager thì không — bắt Manager đăng nhập hộ 8 tài khoản không thực
-  tế. `oauth-status.ts` nhận thêm `channelIds` để lọc theo Creator. Vẫn phải add Target Users trên
-  developer portal trước khi bất kỳ ai (Manager hay Creator) bấm "Kết nối" thành công — giới hạn của
-  TikTok Sandbox, không tránh được từ phía app.
-- **`/api/sync/display-api` có 2 method** — `GET` cho Vercel Cron (luôn gửi GET, kiểm
-  `Authorization: Bearer $CRON_SECRET`), `POST` cho nút "Chạy đồng bộ ngay" (`requireManager()` —
-  **vẫn Manager-only**, đây là đồng bộ toàn bộ kênh active cùng lúc, khác với việc kết nối 1 kênh).
-  `vercel.json`: `0 20 * * *` UTC = 03:00 giờ VN.
-- **`/connections`** (Manager: sub-tab với `/import` qua `app/(app)/data-tabs.tsx`, thấy toàn bộ 8
-  kênh + nút "Chạy đồng bộ ngay". Creator: nav riêng "Kết nối", chỉ thấy đúng kênh mình, không có nút
-  đồng bộ, không có `DataTabs`) — bảng trạng thái kết nối, cảnh báo hạn <30 ngày. **Bỏ nút "Ngắt"** so
-  với mockup — không có endpoint nào yêu cầu, tự thêm là lấn phạm vi.
-- ⚠️ **`isComplete` của `vuonvuonvang` nhiều khả năng sẽ luôn `false`** khi kết nối — biết trước, không
-  phải bug, xem [docs/DISPLAY_API.md](docs/DISPLAY_API.md) mục 1.
-- **`data_snapshot(source=display_api)` chỉ ghi 3 chỉ số nhóm nóng** (`followers`, `video_count`,
-  `video_views`) — không suy day-delta cho likes/comments/shares, ngoài phạm vi TASKS.md M3b.
-- **Đã kiểm chứng bằng code, chưa kiểm chứng bằng OAuth thật** — không tự làm được, cần trình duyệt
-  đăng nhập đúng tài khoản TikTok của từng kênh. `POST /api/sync/display-api` đã chạy thật qua UI cho
-  2 kênh chưa kết nối, trả đúng `{synced:0, failed:2}`, không crash.
-- ⚠️ **Review lại 1 lần sau khi code xong (20/08/2026) — tìm ra 2 lỗi P1 tự sửa**: sync đầu tiên
-  (bootstrap) từng ghi nhầm tổng view luỹ kế cả kênh thành view/ngày (sai ~10 lần); cron 03:00 giờ VN
-  từng gán nhầm ngày do chạy đúng lúc lệch sang ngày lịch mới. Cả 2 đã sửa + kiểm chứng lại bằng fake
-  provider trên DB thật (không cần token TikTok thật) — xem [docs/DISPLAY_API.md](docs/DISPLAY_API.md)
-  mục 10-11, [docs/TASKS.md](docs/TASKS.md) M3b. Bài học: **luôn tự review lại code liên quan tới
-  tiền/số liệu tính thưởng sau khi viết xong, đừng chỉ tin build+test xanh** — cả 2 lỗi đều
-  build/lint/test pass bình thường, chỉ lộ ra khi đọc lại logic bằng con số thật.
-
-Chưa có: dashboard thật đọc `data_snapshot` (M4), màn KPI (M5), kết nối Display API thật cho kênh nào
-(chờ bạn), 6 kênh còn lại chưa OAuth (dồn 1 lượt theo quyết định 20/08 ở M0).
-
-### Chuẩn bị trước M4 đã xong (21/08/2026) — có gì dùng được ngay
-
-Phiên 21/08 phát hiện production deploy trước đó hỏng nặng (thiếu gần hết route — deploy nhầm từ
-`app/.vercel` sót lại), sửa xong rồi tiện thể dọn luôn phần hạ tầng còn thiếu trước khi vào M4:
-
-- **Git + GitHub** — repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch
-  `main`. Đã quét secret trước khi push (`.env.local`, token OAuth thật, zip dữ liệu thật trong
-  `data/` — không cái nào lọt lên remote). `.claude/settings.local.json` thêm vào `.gitignore` —
-  cấu hình riêng máy, khác `settings.json` là quy ước chung nên vẫn commit.
-- **Function region = `hkg1`** (Hong Kong) — sửa qua Vercel Project Settings → Functions, TTFB từ
-  2.1-2.5s xuống **~0.2s**. Chi tiết + 2 cách đã thử mà KHÔNG dùng được: xem mục Deploy bên dưới.
-- **`getCurrentUser()` bọc `cache()`** ([lib/auth.ts](lib/auth.ts)) — layout + page trước đó tự gọi
-  riêng, mỗi lần chuyển tab tốn gấp đôi round-trip tới Supabase Auth.
-- **`loading.tsx` cho mọi route trong `app/(app)/`** — trước đó không có, chuyển tab bị đứng hình
-  chờ server. Primitive dùng chung ở [app/(app)/skeleton.tsx](app/(app)/skeleton.tsx), quy ước ghi ở
-  [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Trạng thái chờ" — route mới phải thêm
-  `loading.tsx` cùng lúc, không thêm sau.
-
-⚠️ **Kiểm tra dữ liệu thật trước khi code M4, phát hiện 3 điều checklist không nói:**
-1. **Chưa kênh nào được gán Creator** — cả `nong.nghiep.xanh.17` lẫn `vuonvuonvang` đều
-   `current_creator_id = null`. Nhánh Creator của "UI một route rẽ nhánh theo vai trò" (M4) sẽ
-   không kiểm chứng được cho tới khi gán — vào `/channels` gán 1 kênh cho 1 Creator test trước.
-2. **Data dừng ở 2026-08-16, đã trễ so với hiện tại** (chưa kênh nào kết nối Display API, 0 kết
-   nối) — "N ngày gần nhất" tính theo ngày hôm nay sẽ ra phần lớn ô trống. Cần chốt: neo mốc theo
-   ngày hiện tại (đúng thực tế, nhiều khoảng trống) hay theo ngày mới nhất có data (đẹp hơn nhưng dễ
-   hiểu nhầm là số mới) — **chưa quyết**, hỏi khi bắt đầu code M4.
-3. Chỉ 2/8 kênh có data (đúng như kế hoạch, không phải thiếu sót) — dashboard sẽ hiển thị đúng 2,
-   6 kênh còn lại chưa từng được thêm vào bảng `channel`.
+`cache()` của React — **giữ nguyên**, không bọc thì mỗi lần chuyển tab tốn gấp đôi round-trip.
 
 ### Việc tiếp theo
 
-**Bắt đầu code M4** (Dashboard, [docs/TASKS.md](docs/TASKS.md)) — phần chuẩn bị (Git, Docker, region,
-loading state) đã xong hết, không còn việc nào phải làm trước khi code. Vào thẳng:
-`GET /api/dashboard` + UI Tổng quan rẽ nhánh theo vai trò, dùng `studio_import` đã có từ M3a — không
-phụ thuộc `display_api`. Nhớ quyết định mốc "N ngày gần nhất" ở mục ⚠️ phía trên trước khi viết query.
+**Bắt đầu code M5** (KPI Cycle, [docs/TASKS.md](docs/TASKS.md)) — `POST /api/kpi-cycles` trước
+(tự chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
+công thức đã có sẵn ở [docs/API_SPEC.md](docs/API_SPEC.md) mục "Công thức progress". M4 đã chừa sẵn
+chỗ cắm: `kpiSummary`/`myChannels.hasActiveKpi` trong `lib/dashboard.ts` hiện luôn rỗng/false vì
+`kpi_cycle` chưa có row — M5 tạo cycle xong thì 2 chỗ đó cần nối lại cho đúng nghĩa (không phải viết
+lại từ đầu, chỉ thay phần luôn-rỗng bằng query thật).
 
-**Việc riêng chỉ người dùng làm được, không chặn M4, làm khi nào tiện** (đã bàn 21/08/2026, cố ý dồn
-lại chứ không phải quên):
-1. Sửa `TOKEN_ENCRYPTION_KEY` sai ở `.env.local` + Vercel (xem cảnh báo đầu mục Trạng thái).
-2. Vào `/connections`, bấm "Kết nối" cho `nong.nghiep.xanh.17` hoặc `vuonvuonvang`, Authorize trên
-   TikTok bằng tài khoản thật của kênh đó.
-3. Đối chiếu số `display_api` với `studio_import` đã có từ M3a — trả lời nốt câu hỏi 🔬 còn treo của
-   [docs/DISPLAY_API.md](docs/DISPLAY_API.md) (đo view-trong-ngày thật) và xác nhận `isComplete` của
-   `vuonvuonvang`.
+**Việc riêng chỉ người dùng làm được, không chặn M5** (cập nhật 21/08/2026):
+1. ✅ Xong — 2 kênh đã kết nối Display API thật.
+2. Chờ đủ 2-3 lần cron chạy, rồi đối chiếu số `display_api` với `studio_import` đã có từ M3a — trả
+   lời nốt câu hỏi 🔬 còn treo của [docs/DISPLAY_API.md](docs/DISPLAY_API.md) (đo view-trong-ngày
+   thật) và xác nhận `isComplete` của `vuonvuonvang` (xem mảng `incomplete[]` trong kết quả sync).
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).

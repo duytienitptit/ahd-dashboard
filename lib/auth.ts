@@ -42,21 +42,17 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<App
 
   if (!user) return null;
 
-  const { data: manager } = await supabase
-    .from("manager")
-    .select("id, name, email")
-    .eq("id", user.id)
-    .maybeSingle();
+  // A user is in exactly one of these tables — run both lookups in parallel instead of trying
+  // manager first and only querying creator on a miss, which cost every Creator login a second
+  // sequential round trip.
+  const [{ data: manager }, { data: creator }] = await Promise.all([
+    supabase.from("manager").select("id, name, email").eq("id", user.id).maybeSingle(),
+    supabase.from("creator").select("id, name, email, is_active").eq("id", user.id).maybeSingle(),
+  ]);
 
   if (manager) {
     return { id: manager.id, email: manager.email, name: manager.name, role: "manager" };
   }
-
-  const { data: creator } = await supabase
-    .from("creator")
-    .select("id, name, email, is_active")
-    .eq("id", user.id)
-    .maybeSingle();
 
   if (creator?.is_active) {
     return { id: creator.id, email: creator.email, name: creator.name, role: "creator" };

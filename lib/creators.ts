@@ -32,16 +32,13 @@ export type UpdateCreatorInput = {
  * added here; docs/API_SPEC.md updated to match (2026-08-20).
  */
 export async function listCreators(supabase: SupabaseServerClient): Promise<CreatorSummary[]> {
-  const { data: creators, error } = await supabase
-    .from("creator")
-    .select("id, name, email, is_active")
-    .order("name", { ascending: true });
+  // Independent queries — run in parallel, not one-after-another (neither depends on the other's
+  // result), to save a Supabase round trip on every screen that lists creators.
+  const [{ data: creators, error }, { data: channels, error: channelsError }] = await Promise.all([
+    supabase.from("creator").select("id, name, email, is_active").order("name", { ascending: true }),
+    supabase.from("channel").select("id, name, tiktok_handle, current_creator_id").not("current_creator_id", "is", null),
+  ]);
   if (error) throw error;
-
-  const { data: channels, error: channelsError } = await supabase
-    .from("channel")
-    .select("id, name, tiktok_handle, current_creator_id")
-    .not("current_creator_id", "is", null);
   if (channelsError) throw channelsError;
 
   const channelsByCreator = new Map<string, { id: string; name: string; tiktokHandle: string }[]>();
