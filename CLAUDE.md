@@ -104,12 +104,11 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M3 xong toàn bộ (3a Import Studio + 3b Display API, 20/08/2026). Việc tiếp theo: M4 (Dashboard).**
+**M3 xong toàn bộ, đã qua bước chuẩn bị trước M4 (21/08/2026). Việc tiếp theo: bắt đầu code M4 (Dashboard).**
 
 **Quyết định 21/08/2026:** kiểm chứng OAuth thật (xem mục treo bên dưới) **cố ý dồn lại**, không chặn
 M4 — M4 chỉ đọc `data_snapshot` đã có sẵn từ M3a (`studio_import`, 60 ngày thật cho 2 kênh), chưa cần
-số `display_api`. Trước khi bắt đầu M4: đưa code vào Git/GitHub + tắt Docker Desktop — 2 việc mới
-thêm, xem đầu mục [TASKS.md](docs/TASKS.md) M4.
+số `display_api`.
 
 ⚠️ **Còn treo, chưa chặn gì nhưng cần làm trước khi tính KPI dựa vào `display_api` (M5 trở đi):**
 `TOKEN_ENCRYPTION_KEY` trong `.env.local` hiện **không phải hex 64 ký tự hợp lệ** — phát hiện lúc
@@ -291,14 +290,41 @@ gian TikTok cần để tài khoản mới có hiệu lực).
 Chưa có: dashboard thật đọc `data_snapshot` (M4), màn KPI (M5), kết nối Display API thật cho kênh nào
 (chờ bạn), 6 kênh còn lại chưa OAuth (dồn 1 lượt theo quyết định 20/08 ở M0).
 
+### Chuẩn bị trước M4 đã xong (21/08/2026) — có gì dùng được ngay
+
+Phiên 21/08 phát hiện production deploy trước đó hỏng nặng (thiếu gần hết route — deploy nhầm từ
+`app/.vercel` sót lại), sửa xong rồi tiện thể dọn luôn phần hạ tầng còn thiếu trước khi vào M4:
+
+- **Git + GitHub** — repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch
+  `main`. Đã quét secret trước khi push (`.env.local`, token OAuth thật, zip dữ liệu thật trong
+  `data/` — không cái nào lọt lên remote). `.claude/settings.local.json` thêm vào `.gitignore` —
+  cấu hình riêng máy, khác `settings.json` là quy ước chung nên vẫn commit.
+- **Function region = `hkg1`** (Hong Kong) — sửa qua Vercel Project Settings → Functions, TTFB từ
+  2.1-2.5s xuống **~0.2s**. Chi tiết + 2 cách đã thử mà KHÔNG dùng được: xem mục Deploy bên dưới.
+- **`getCurrentUser()` bọc `cache()`** ([lib/auth.ts](lib/auth.ts)) — layout + page trước đó tự gọi
+  riêng, mỗi lần chuyển tab tốn gấp đôi round-trip tới Supabase Auth.
+- **`loading.tsx` cho mọi route trong `app/(app)/`** — trước đó không có, chuyển tab bị đứng hình
+  chờ server. Primitive dùng chung ở [app/(app)/skeleton.tsx](app/(app)/skeleton.tsx), quy ước ghi ở
+  [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Trạng thái chờ" — route mới phải thêm
+  `loading.tsx` cùng lúc, không thêm sau.
+
+⚠️ **Kiểm tra dữ liệu thật trước khi code M4, phát hiện 3 điều checklist không nói:**
+1. **Chưa kênh nào được gán Creator** — cả `nong.nghiep.xanh.17` lẫn `vuonvuonvang` đều
+   `current_creator_id = null`. Nhánh Creator của "UI một route rẽ nhánh theo vai trò" (M4) sẽ
+   không kiểm chứng được cho tới khi gán — vào `/channels` gán 1 kênh cho 1 Creator test trước.
+2. **Data dừng ở 2026-08-16, đã trễ so với hiện tại** (chưa kênh nào kết nối Display API, 0 kết
+   nối) — "N ngày gần nhất" tính theo ngày hôm nay sẽ ra phần lớn ô trống. Cần chốt: neo mốc theo
+   ngày hiện tại (đúng thực tế, nhiều khoảng trống) hay theo ngày mới nhất có data (đẹp hơn nhưng dễ
+   hiểu nhầm là số mới) — **chưa quyết**, hỏi khi bắt đầu code M4.
+3. Chỉ 2/8 kênh có data (đúng như kế hoạch, không phải thiếu sót) — dashboard sẽ hiển thị đúng 2,
+   6 kênh còn lại chưa từng được thêm vào bảng `channel`.
+
 ### Việc tiếp theo
 
-**Phiên kế tiếp bắt đầu M4** (Dashboard, [docs/TASKS.md](docs/TASKS.md)) — trình tự đã chốt 21/08/2026:
-
-1. Đầu phiên, trước khi code: đưa dự án vào Git + đẩy GitHub (chưa từng làm, xem đầu mục M4 trong
-   TASKS.md), tắt Docker Desktop nếu còn chạy.
-2. M4 dùng data thật đã có từ M3a (`studio_import`, 2/8 kênh) — không phụ thuộc `display_api`, làm
-   được ngay.
+**Bắt đầu code M4** (Dashboard, [docs/TASKS.md](docs/TASKS.md)) — phần chuẩn bị (Git, Docker, region,
+loading state) đã xong hết, không còn việc nào phải làm trước khi code. Vào thẳng:
+`GET /api/dashboard` + UI Tổng quan rẽ nhánh theo vai trò, dùng `studio_import` đã có từ M3a — không
+phụ thuộc `display_api`. Nhớ quyết định mốc "N ngày gần nhất" ở mục ⚠️ phía trên trước khi viết query.
 
 **Việc riêng chỉ người dùng làm được, không chặn M4, làm khi nào tiện** (đã bàn 21/08/2026, cố ý dồn
 lại chứ không phải quên):
