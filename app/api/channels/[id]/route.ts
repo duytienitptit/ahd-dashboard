@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { requireManager } from "@/lib/auth";
-import { listChannels, updateChannel } from "@/lib/channels";
+import { deleteChannel, listChannels, updateChannel } from "@/lib/channels";
 import { errorResponse } from "@/lib/http";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeTiktokHandle, optionalBoolean, optionalString, optionalUuid, parseJsonBody } from "@/lib/validation";
@@ -47,6 +47,33 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/ch
     }
 
     return NextResponse.json(channel);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+// DELETE /api/channels/:id — M. Hard delete (21/08/2026 follow-up, "đầy đủ CRUD") — irreversible,
+// see lib/channels.ts's deleteChannel() for exactly what it cascades and the one hard guard (blocks
+// if a finalized KPI cycle exists). UI confirms by typing the channel's name
+// (app/(app)/confirm-delete-form.tsx); this route has no such UX, so callers must be certain.
+// Logged to audit_log the same as the server-action path (app/(app)/channels/actions.ts).
+export async function DELETE(_request: NextRequest, context: RouteContext<"/api/channels/[id]">) {
+  try {
+    const user = await requireManager();
+    const { id } = await context.params;
+
+    const supabase = await createSupabaseServerClient();
+    await deleteChannel(supabase, id);
+
+    await supabase.from("audit_log").insert({
+      entity_type: "channel",
+      entity_id: id,
+      action: "deleted",
+      actor: user.email,
+      note: null,
+    });
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error);
   }

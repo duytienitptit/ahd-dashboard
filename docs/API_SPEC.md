@@ -33,6 +33,16 @@ nếu kênh chưa có `data_snapshot` nào (đọc qua `v_channel_latest`, xem [
 ```
 Đổi `creatorId` → tự đóng row `channel_ownership_history` cũ (`to_date = today`) và mở row mới.
 
+### `DELETE /api/channels/:id` — M
+Xoá thật (21/08/2026, theo yêu cầu — không phải soft-delete). **Xoá vĩnh viễn theo tầng** mọi
+`data_snapshot`, `content_video`/`video_snapshot`, `audience_snapshot`, `channel_oauth`,
+`channel_ownership_history`, `kpi_cycle` của kênh này (FK `on delete cascade`, xem
+[DATABASE_ERD.md](DATABASE_ERD.md)). Chặn bằng `400` (`ValidationError`) nếu kênh có bất kỳ `kpi_cycle.status = 'final'` nào — số liệu đã chốt dùng tính thưởng/lương không được xoá kèm channel.
+Ghi `audit_log` (`entity_type: "channel", action: "deleted"`) sau khi xoá thành công. UI xác nhận bằng
+gõ đúng tên kênh trước khi bấm xoá (`ConfirmDeleteForm`) — route này không có bước đó, gọi trực tiếp
+là xoá luôn.
+→ `{ "ok": true }`.
+
 ---
 
 ## Creators
@@ -59,12 +69,27 @@ mãi mãi). Không gửi email mời (chưa có SMTP) — mật khẩu tạm ch�
 
 ### `PATCH /api/creators/:id` — M
 Không có trong bản đặc tả gốc — thêm ở M2 để Manager đổi tên hoặc vô hiệu hoá một Creator (ví dụ nghỉ
-việc) mà không phải sửa thẳng trong Supabase. **Không xoá tài khoản.**
+việc) mà không phải sửa thẳng trong Supabase. Không xoá tài khoản — xoá thật nằm ở `DELETE` bên dưới.
 ```json
 { "name": "...", "isActive": false, "teamId": null }
 ```
 `teamId`: bỏ qua field = không đổi; `null` = gỡ khỏi team hiện tại; uuid = gán/đổi team.
 → Trả về `creator` sau khi sửa, cùng shape với `GET /api/creators`.
+
+Đổi mật khẩu (Manager đặt lại giúp Creator, 21/08/2026 — chưa có màn tự phục vụ) hiện **chỉ có ở UI**
+(`resetCreatorPasswordAction`, `app/(app)/creators/actions.ts`), không qua route REST — không có lý
+do phải expose qua API khi chưa ai cần gọi từ ngoài UI.
+
+### `DELETE /api/creators/:id` — M
+Xoá thật (21/08/2026, theo yêu cầu — không phải soft-delete/vô hiệu hoá). Xoá Auth user trước (không
+xoá thẳng row `creator`) — `creator.id references auth.users(id) on delete cascade`
+([DATABASE_ERD.md](DATABASE_ERD.md)) tự xoá row `creator` theo. Cùng lượt đó, **mất vĩnh viễn**
+`channel_ownership_history` của người này (lịch sử ai từng phụ trách kênh nào, khoảng ngày nào) —
+kênh đang phụ trách thì **không** bị xoá, chỉ thành chưa gán (`current_creator_id` là
+`on delete set null`). Ghi `audit_log` (`entity_type: "creator", action: "deleted"`) sau khi xoá
+thành công. UI xác nhận bằng gõ đúng tên nhân sự trước khi bấm xoá (`ConfirmDeleteForm`) — route này
+không có bước đó, gọi trực tiếp là xoá luôn.
+→ `{ "ok": true }`.
 
 ---
 

@@ -136,3 +136,28 @@ export async function updateCreator(
 
   return getCreatorById(supabase, id);
 }
+
+/**
+ * Hard delete (21/08/2026 follow-up: "xoá thật" chosen over soft-only, Manager-only, type-to-confirm
+ * in the UI). Deletes the Auth user, not the `creator` row directly — `creator.id references
+ * auth.users(id) on delete cascade` (20260820000001_identity.sql) cascades the row delete for us,
+ * mirroring `createCreator`'s auth-user-first pairing in reverse. That cascade also removes this
+ * creator's `channel_ownership_history` rows (creator_id ... on delete cascade) — the historical
+ * "who ran this channel from X to Y" record is genuinely lost, not archived; the caller's confirm UI
+ * must say so. Any channel currently assigned to this creator survives — `channel.current_creator_id`
+ * is `on delete set null`, so it just becomes unassigned, never deleted.
+ */
+export async function deleteCreator(id: string): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) throw error;
+}
+
+/** Manager-initiated password reset — docs/PRODUCT_SPEC.md mục 8 "Chưa chốt" flagged this as
+ *  missing (no self-service change, no reset). Same one-time-reveal UX as account creation: the
+ *  caller shows the new password exactly once, never stored or re-displayed. */
+export async function resetCreatorPassword(id: string, newPassword: string): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(id, { password: newPassword });
+  if (error) throw error;
+}

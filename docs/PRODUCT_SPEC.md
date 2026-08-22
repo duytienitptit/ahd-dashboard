@@ -161,8 +161,9 @@ ràng buộc và index. Mục này chỉ giữ quy tắc nghiệp vụ.
 - [ ] Nếu lỡ quên upload 1 tuần: gộp bù tuần sau hay chấp nhận mất phần dữ liệu nguội tuần đó (đặc biệt `FollowerActivity.csv` chỉ có 7 ngày — bỏ tuần là mất vĩnh viễn)
 - [ ] Vendor scraping fallback cụ thể, nếu Display API không khả thi
 - [ ] **Chưa ép đổi mật khẩu lần đăng nhập đầu** — Manager tự đặt mật khẩu tạm khi tạo tài khoản Creator
-      (M2, `POST /api/creators`), Creator dùng nguyên mật khẩu đó trừ khi tự đổi. Chưa có màn hình đổi
-      mật khẩu cho Creator tự phục vụ.
+      (M2, `POST /api/creators`), Creator dùng nguyên mật khẩu đó trừ khi tự đổi. Manager **có thể**
+      đặt lại mật khẩu giúp Creator bất kỳ lúc nào (21/08/2026, `/creators` → Sửa → Đổi mật khẩu) —
+      vẫn **chưa có** màn hình để Creator tự đổi mật khẩu của chính mình.
 - [ ] **Chưa gửi email mời** — chưa cấu hình SMTP. Sau khi tạo tài khoản Creator, mật khẩu tạm chỉ hiện
       một lần trên màn hình cho Manager (`/creators`), Manager phải tự gửi riêng cho Creator qua kênh
       khác (chat nội bộ, gặp trực tiếp…).

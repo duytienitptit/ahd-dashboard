@@ -72,6 +72,10 @@ Biến môi trường: `.env.example`.
 - **Engagement rate `(like+comment+share)/view` là chỉ số dẫn báo duy nhất** của hệ thống — mọi chỉ số
   khác (view, follower) đều là chỉ số trễ. Luôn hiển thị nó ngang hàng với view/follower, không xem là phụ.
 - `followersDiff` **không lưu vào DB** — tự tính từ chuỗi `followers` (cột gốc trong CSV bị sai, xem dưới).
+- **Xoá Kênh/Nhân sự là xoá thật** (21/08/2026, theo yêu cầu — không phải soft-delete), Manager-only,
+  UI bắt gõ đúng tên để xác nhận (`ConfirmDeleteForm`). Xoá kênh **chặn hẳn** nếu kênh có
+  `kpi_cycle.status = 'final'` — số liệu đã chốt không được mất kèm channel. Cả hai ghi `audit_log`
+  sau khi xoá xong. Team xoá vẫn chỉ gỡ gán (`on delete set null`) — không đổi, không mất dữ liệu.
 
 ## Quy ước code
 

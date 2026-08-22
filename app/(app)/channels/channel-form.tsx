@@ -7,7 +7,8 @@ import type { ChannelSummary } from "@/lib/channels";
 import type { ChannelPeriodStat } from "@/lib/dashboard";
 import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromStart } from "@/lib/format";
 
-import { createChannelAction, updateChannelAction, updateChannelNameAction, type ChannelFormState } from "./actions";
+import { ConfirmDeleteForm } from "../confirm-delete-form";
+import { createChannelAction, deleteChannelAction, updateChannelAction, updateChannelNameAction, type ChannelFormState } from "./actions";
 
 const initialState: ChannelFormState = { error: null };
 
@@ -166,6 +167,7 @@ export function ChannelRow({
   currentUserId?: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const canEditName = isManager || (currentUserId !== undefined && channel.currentCreator?.id === currentUserId);
 
   const boundAction = updateChannelAction.bind(null, channel.id);
@@ -223,6 +225,20 @@ export function ChannelRow({
     );
   }
 
+  if (deleting) {
+    return (
+      <div className="border-t border-line-soft px-5 py-4">
+        <ConfirmDeleteForm
+          action={deleteChannelAction.bind(null, channel.id)}
+          entityName={channel.name}
+          fieldLabel="tên kênh"
+          warning={`Xoá vĩnh viễn kênh "${channel.name}" — mất toàn bộ số liệu đã lưu theo ngày, video, và lịch sử phụ trách của kênh này. Không thể hoàn tác.`}
+          onCancel={() => setDeleting(false)}
+        />
+      </div>
+    );
+  }
+
   if (editing) {
     return (
       <form action={formAction} className="border-t border-line-soft px-5 py-4">
@@ -275,8 +291,15 @@ export function ChannelRow({
           </div>
         </div>
 
-        <div className="mt-2">
+        <div className="mt-3 flex items-center justify-between">
           <ErrorBox error={state.error} />
+          <button
+            type="button"
+            onClick={() => setDeleting(true)}
+            className="ml-auto text-[12px] font-semibold text-red-dark underline underline-offset-2 hover:opacity-80"
+          >
+            Xoá kênh
+          </button>
         </div>
       </form>
     );

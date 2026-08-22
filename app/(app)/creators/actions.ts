@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { AuthorizationError, requireManager } from "@/lib/auth";
-import { createCreator, updateCreator, type CreatorSummary } from "@/lib/creators";
+import { createCreator, deleteCreator, resetCreatorPassword, updateCreator, type CreatorSummary } from "@/lib/creators";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createTeam, deleteTeam, renameTeam } from "@/lib/teams";
 import { ValidationError } from "@/lib/validation";
@@ -96,6 +97,63 @@ export async function updateCreatorAction(
   // (21/08/2026 drill-down redesign).
   revalidatePath(`/creators/${creatorId}`);
   return { error: null };
+}
+
+export type PasswordFormState = { error: string | null; newPassword: string | null };
+
+/** Manager sets a new temp password for a Creator (21/08/2026 follow-up — no self-service change
+ *  exists yet, docs/PRODUCT_SPEC.md mục 8). Returns the plaintext once so `ResetPasswordForm` can
+ *  show it exactly like account creation's `CreatedNotice` does; never stored past this response. */
+export async function resetCreatorPasswordAction(
+  creatorId: string,
+  _prevState: PasswordFormState,
+  formData: FormData,
+): Promise<PasswordFormState> {
+  try {
+    await requireManager();
+    const password = String(formData.get("password") ?? "");
+    if (password.length < 8) {
+      return { error: "Mật khẩu mới phải có ít nhất 8 ký tự.", newPassword: null };
+    }
+    await resetCreatorPassword(creatorId, password);
+    return { error: null, newPassword: password };
+  } catch (error) {
+    return { error: toMessage(error), newPassword: null };
+  }
+}
+
+export type DeleteFormState = { error: string | null };
+
+/**
+ * Hard delete — Manager-only, confirmed by typing the Creator's name in the UI
+ * (ConfirmDeleteForm). Logs to `audit_log` AFTER the delete succeeds (not before): if
+ * `deleteCreator()` throws, nothing should claim a deletion that didn't happen.
+ * `entity_id` on `audit_log` deliberately has no FK — it's designed to survive exactly this.
+ */
+export async function deleteCreatorAction(
+  creatorId: string,
+  _prevState: DeleteFormState,
+  formData: FormData,
+): Promise<DeleteFormState> {
+  const supabase = await createSupabaseServerClient();
+  try {
+    const manager = await requireManager();
+    await deleteCreator(creatorId);
+
+    const confirmedName = String(formData.get("confirmName") ?? "");
+    await supabase.from("audit_log").insert({
+      entity_type: "creator",
+      entity_id: creatorId,
+      action: "deleted",
+      actor: manager.email,
+      note: confirmedName ? `Xoá nhân sự "${confirmedName}".` : null,
+    });
+  } catch (error) {
+    return { error: toMessage(error) };
+  }
+
+  revalidatePath("/creators");
+  redirect("/creators");
 }
 
 export async function createTeamAction(_prevState: TeamFormState, formData: FormData): Promise<TeamFormState> {

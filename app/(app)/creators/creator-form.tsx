@@ -5,18 +5,23 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import type { CreatorSummary } from "@/lib/creators";
 import type { TeamSummary } from "@/lib/teams";
 
+import { ConfirmDeleteForm } from "../confirm-delete-form";
 import {
   createCreatorAction,
   createTeamAction,
+  deleteCreatorAction,
   deleteTeamAction,
   renameTeamAction,
+  resetCreatorPasswordAction,
   updateCreatorAction,
   type CreatorFormState,
+  type PasswordFormState,
   type TeamFormState,
   type UpdateCreatorFormState,
 } from "./actions";
 
 const teamInitialState: TeamFormState = { error: null };
+const passwordInitialState: PasswordFormState = { error: null, newPassword: null };
 
 function TeamSelect({ teams, defaultValue }: { teams: { id: string; name: string }[]; defaultValue?: string }) {
   return (
@@ -357,12 +362,84 @@ export function CreateCreatorForm({ teams }: { teams: { id: string; name: string
   );
 }
 
+/** Reveals a just-set temp password exactly once, same pattern as `CreatedNotice` above. */
+function ResetPasswordForm({ creatorId, onDone }: { creatorId: string; onDone: () => void }) {
+  const boundAction = resetCreatorPasswordAction.bind(null, creatorId);
+  const [state, formAction, pending] = useActionState(boundAction, passwordInitialState);
+
+  if (state.newPassword) {
+    return (
+      <div className="rounded-card border border-line bg-cyan-bg p-4">
+        <div className="text-[13px] font-bold text-cyan-ink">Đã đặt mật khẩu mới</div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[12.5px] text-cyan-ink-2">Mật khẩu mới:</span>
+          <code className="rounded-[4px] bg-bg px-2 py-1 text-[13px] font-semibold">{state.newPassword}</code>
+        </div>
+        <p className="mt-2 text-[11.5px] text-cyan-ink-2">
+          Gửi mật khẩu này riêng cho Creator — trang sẽ không hiển thị lại.
+        </p>
+        <button
+          type="button"
+          onClick={onDone}
+          className="mt-3 text-[12.5px] font-semibold text-cyan-ink underline underline-offset-2"
+        >
+          Xong
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form action={formAction} className="rounded-card border border-line p-4">
+      <label className="block">
+        <span className="mb-1.5 block text-[12.5px] font-bold">Mật khẩu mới</span>
+        <input
+          name="password"
+          type="text"
+          required
+          minLength={8}
+          placeholder="≥ 8 ký tự"
+          autoComplete="off"
+          className="h-[38px] w-full rounded-input border border-line px-3 text-sm outline-none focus:border-ink"
+        />
+      </label>
+
+      <div className="mt-2">
+        <ErrorBox error={state.error} />
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <button
+          type="submit"
+          disabled={pending}
+          className="h-[36px] rounded-btn bg-red px-3.5 text-[12.5px] font-bold text-white hover:opacity-90 disabled:opacity-60"
+        >
+          {pending ? "Đang đặt…" : "Đặt mật khẩu mới"}
+        </button>
+        <button
+          type="button"
+          onClick={onDone}
+          className="h-[36px] rounded-btn border border-line px-3.5 text-[12.5px] font-semibold hover:bg-surface"
+        >
+          Huỷ
+        </button>
+      </div>
+    </form>
+  );
+}
+
+type EditPanel = "edit" | "password" | "delete";
+
 /**
- * Manager-only edit form for one Creator's Tên / Team / Đang hoạt động — extracted from the old
- * `CreatorCard` so both the `/creators` accordion row and the `/creators/[id]` detail page can toggle
- * the exact same form instead of keeping two copies in sync. `onClose` fires both on "Huỷ" and right
- * after a successful save (same behavior `CreatorCard` had: closing is closing, the caller doesn't
- * need to know why).
+ * Manager-only edit form for one Creator — extracted from the old `CreatorCard` so both the
+ * `/creators` accordion row and the `/creators/[id]` detail page can toggle the exact same form
+ * instead of keeping two copies in sync. `onClose` fires both on "Huỷ" and right after a successful
+ * save (same behavior `CreatorCard` had: closing is closing, the caller doesn't need to know why).
+ *
+ * Three panels sharing one component (21/08/2026 follow-up — "đầy đủ CRUD"): the Tên/Team/Đang hoạt
+ * động fields (`edit`, default), a password reset (`password`), and hard delete (`delete`,
+ * type-to-confirm via `ConfirmDeleteForm`) — switched locally, never all visible at once, so a
+ * destructive action is never one accidental click away from a routine save.
  */
 export function CreatorEditForm({
   creator,
@@ -373,6 +450,7 @@ export function CreatorEditForm({
   teams: { id: string; name: string }[];
   onClose: () => void;
 }) {
+  const [panel, setPanel] = useState<EditPanel>("edit");
   const boundAction = updateCreatorAction.bind(null, creator.id);
   const [state, formAction, pending] = useActionState(boundAction, updateInitialState);
   const wasPending = useRef(false);
@@ -384,6 +462,22 @@ export function CreatorEditForm({
     // a new function identity every render; depending on it would re-fire this effect every render too.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, state.error]);
+
+  if (panel === "password") {
+    return <ResetPasswordForm creatorId={creator.id} onDone={() => setPanel("edit")} />;
+  }
+
+  if (panel === "delete") {
+    return (
+      <ConfirmDeleteForm
+        action={deleteCreatorAction.bind(null, creator.id)}
+        entityName={creator.name}
+        fieldLabel="tên nhân sự"
+        warning={`Xoá vĩnh viễn "${creator.name}" — mất tài khoản đăng nhập và lịch sử phụ trách kênh của người này. Kênh đang phụ trách sẽ thành "chưa gán", không bị xoá. Không thể hoàn tác.`}
+        onCancel={() => setPanel("edit")}
+      />
+    );
+  }
 
   return (
     <form action={formAction} className="rounded-card border border-line p-4">
@@ -411,7 +505,7 @@ export function CreatorEditForm({
         <ErrorBox error={state.error} />
       </div>
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="submit"
           disabled={pending}
@@ -426,6 +520,22 @@ export function CreatorEditForm({
         >
           Huỷ
         </button>
+        <span className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setPanel("password")}
+            className="text-[12px] font-semibold text-ink-3 underline underline-offset-2 hover:text-ink"
+          >
+            Đổi mật khẩu
+          </button>
+          <button
+            type="button"
+            onClick={() => setPanel("delete")}
+            className="text-[12px] font-semibold text-red-dark underline underline-offset-2 hover:opacity-80"
+          >
+            Xoá nhân sự
+          </button>
+        </span>
       </div>
     </form>
   );

@@ -486,6 +486,43 @@ ngày + sửa tại chỗ, **bỏ hẳn** `/creators/team/[id]`, thêm `DateRang
   form, Lưu/Huỷ đều hoạt động, không lỗi console, mọi request 200. Bucket "Chưa gán team" + 1 tài khoản
   đã vô hiệu hoá/0 kênh (còn sót từ QA đợt M2) hiện đúng — số 0/"—" đúng chỗ, không badge rank.
 
+## CRUD đầy đủ Nhân sự/Kênh (21/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+Team đã có đủ Create/Read/Update/Delete từ lúc làm tính năng Team (mục "Team — nhóm Creator" trên).
+Creator và Kênh có C/R/U nhưng "Delete" chỉ là toggle `isActive` — chưa từng có cách xoá hẳn bản ghi.
+
+Trước khi code: cảnh báo xoá thật (hard delete) sẽ xoá theo tầng (`on delete cascade`) toàn bộ
+`data_snapshot`/`content_video`/`kpi_cycle`/`channel_ownership_history` của kênh, hoặc lịch sử phụ
+trách của creator — đi ngược nguyên tắc "lưu trữ dữ liệu theo thời gian" mở đầu CLAUDE.md, và có thể
+xoá luôn số liệu KPI đã chốt sổ dùng tính thưởng/lương. Đưa 3 phương án (chỉ vô hiệu hoá / xoá thật
+nhưng chỉ khi chưa có dữ liệu / xoá thật hoàn toàn). Người dùng chọn: **xoá thật hoàn toàn, nhưng bắt
+gõ đúng tên để xác nhận, chỉ Manager được xoá.**
+
+- **`ConfirmDeleteForm`** (mới, `app/(app)/confirm-delete-form.tsx`) — pattern "gõ đúng tên mới bật
+  nút xoá" kiểu GitHub xoá repo, dùng chung cho cả Creator lẫn Channel (component đầu tiên được chia
+  sẻ giữa 2 khu vực thay vì mỗi nơi tự viết `ErrorBox` riêng như quy ước cũ — đủ phức tạp để đáng chia
+  sẻ). Ô gõ tên gửi kèm form dưới dạng `confirmName` ẩn — chỉ để ghi vào `audit_log.note` cho dễ đọc,
+  KHÔNG phải cơ chế bảo mật (quyền thật vẫn là `requireManager()` + id đã bind sẵn ở server action).
+- **`deleteChannel()` (`lib/channels.ts`) chặn hẳn nếu kênh có `kpi_cycle.status = 'final'`** — áp
+  đúng luật đã có sẵn trong CLAUDE.md ("KPICycle final → khoá số liệu, mọi thay đổi phải audit_log")
+  thay vì để xoá bypass luôn luật đó. `kpi_cycle` hiện chưa có row nào (M5 chưa làm) nên check này
+  chưa từng chặn thật, nhưng phải có sẵn trước khi M5 tạo ra cycle đầu tiên.
+- **`deleteCreator()` xoá Auth user, không xoá thẳng row `creator`** — `creator.id references
+  auth.users(id) on delete cascade` tự lo phần đó, đối xứng với `createCreator()` tạo Auth user
+  trước. Cascade phụ: `channel_ownership_history` của creator này mất theo (chấp nhận được — người
+  dùng đã chọn xoá thật); kênh đang phụ trách chỉ thành "chưa gán" (`on delete set null`), không mất.
+- **`resetCreatorPassword()`** — Manager đặt mật khẩu tạm mới cho Creator bất kỳ lúc nào, không cần
+  Creator tự đổi trước (docs/PRODUCT_SPEC.md mục 8 đã ghi thiếu tính năng này). Hiện mật khẩu mới
+  đúng 1 lần, cùng UX với lúc tạo tài khoản (`CreatedNotice`).
+- **`CreatorEditForm` đổi từ 1 form thành 3 panel** (sửa / đổi mật khẩu / xoá) chuyển đổi tại chỗ —
+  không hiện đồng thời, để một thao tác phá huỷ không bao giờ nằm cạnh nút "Lưu" thông thường chỉ
+  cách 1 cú click nhầm. `ChannelRow`'s edit form thêm nút "Xoá kênh" theo cùng logic.
+- **`audit_log`** ghi sau khi xoá thành công (không ghi trước — tránh log "đã xoá" cho thao tác vừa
+  fail ở bước chặn KPI). `entity_id` cố tình không có FK (comment sẵn trong migration: "survives
+  account deletion") — đúng thiết kế cho use case này.
+- `DELETE /api/creators/:id`, `DELETE /api/channels/:id` — thêm cho đủ quy ước "mọi resource có
+  route" dù UI hiện tại gọi server action, không gọi route này (giống cách Team đã làm).
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

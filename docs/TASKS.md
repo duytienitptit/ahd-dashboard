@@ -458,6 +458,23 @@ bấm một kênh → sang trang kênh. Chi tiết đầy đủ: [PROGRESS.md](P
 - [x] Kiểm chứng bằng phiên đăng nhập thật (Browser pane) — accordion mở/đóng, điều hướng
       team→creator→kênh, sửa tại chỗ (cả 2 nơi), đổi khoảng ngày, không lỗi console
 
+## CRUD đầy đủ Nhân sự/Kênh (21/08/2026, theo yêu cầu — Team đã đủ CRUD từ trước)
+
+Đã hỏi trước khi làm: xoá thật hay chỉ vô hiệu hoá (vì xoá thật xoá luôn `data_snapshot`/`kpi_cycle`
+đã chốt — ngược nguyên tắc lưu trữ dữ liệu của hệ thống). Quyết định: xoá thật, gõ tên xác nhận,
+Manager-only. Chi tiết: [PROGRESS.md](PROGRESS.md) mục "CRUD đầy đủ".
+
+- [x] `deleteCreator()`/`deleteChannel()` (`lib/creators.ts`/`lib/channels.ts`) — xoá Auth user (cascade
+      xoá `creator`) / xoá `channel` (cascade toàn bộ dữ liệu liên quan); `deleteChannel` chặn nếu có
+      `kpi_cycle.status = 'final'`
+- [x] `resetCreatorPassword()` — Manager đặt lại mật khẩu tạm cho Creator, hiện 1 lần giống lúc tạo
+- [x] `ConfirmDeleteForm` (mới, dùng chung) — gõ đúng tên mới bật nút xoá, dùng ở cả Creator và Channel
+- [x] `deleteCreatorAction`/`deleteChannelAction`/`resetCreatorPasswordAction` — Manager-only, ghi
+      `audit_log` sau khi xoá thành công, redirect về trang danh sách
+- [x] `DELETE /api/creators/:id`, `DELETE /api/channels/:id` — đúng quy ước mọi resource có route
+- [x] `CreatorEditForm` (đổi thành 3 panel: sửa/đổi mật khẩu/xoá) và `ChannelRow`'s edit form (thêm
+      nút "Xoá kênh") — dùng chung `ConfirmDeleteForm`
+
 ## M5 — KPI Cycle
 
 - [ ] `POST /api/kpi-cycles` — tự chụp `followersAtStart` từ `data_snapshot` mới nhất, chặn trùng khoảng ngày (409)

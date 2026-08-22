@@ -181,6 +181,35 @@ export async function updateChannel(
 }
 
 /**
+ * Hard delete (21/08/2026 follow-up: "xoá thật" chosen over soft-only, Manager-only, type-to-confirm
+ * in the UI). Every dependent table cascades on `channel_id` (channel_oauth, kpi_cycle, data_snapshot,
+ * content_video → video_snapshot, audience_snapshot, channel_ownership_history —
+ * 20260820000001-4_*.sql) — this is a genuine, irreversible loss of every daily number and video ever
+ * recorded for the channel, not an archive. The one hard guard: CLAUDE.md's rule that a finalized
+ * (`status = 'final'`) KPI cycle is locked and any change must go through `audit_log` — a delete would
+ * destroy those numbers outright instead, so it's blocked entirely rather than silently bypassing that
+ * rule. `kpi_cycle` has no rows yet (M5/M6 unbuilt) so this check is a no-op today, but must stay once
+ * they exist.
+ */
+export async function deleteChannel(supabase: SupabaseServerClient, id: string): Promise<void> {
+  const { data: finalCycles, error: kpiError } = await supabase
+    .from("kpi_cycle")
+    .select("id")
+    .eq("channel_id", id)
+    .eq("status", "final")
+    .limit(1);
+  if (kpiError) throw kpiError;
+  if (finalCycles && finalCycles.length > 0) {
+    throw new ValidationError(
+      "Kênh này có chu kỳ KPI đã chốt sổ — không thể xoá vì số liệu dùng để tính thưởng/lương (CLAUDE.md).",
+    );
+  }
+
+  const { error } = await supabase.from("channel").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/**
  * Creator-safe rename — routes through the `update_channel_name` SECURITY DEFINER function
  * (20260821000002_creator_edit_channel_name.sql) instead of a direct table update, since RLS on
  * `channel` is Manager-only and can't express "this one column, for the assigned Creator only".
