@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    A[Đăng nhập email/password] --> B{Vai trò?}
+    A[Đăng nhập username/password] --> B{Vai trò?}
 
     B -- Manager --> M1[Tổng quan: thẻ số toàn team → biểu đồ xu hướng → 3 thẻ phân tích → thẻ KPI]
     B -- Creator --> C1[Tổng quan: khối 'Kênh của tôi' ghim đầu → phần dữ liệu toàn team, chỉ xem]

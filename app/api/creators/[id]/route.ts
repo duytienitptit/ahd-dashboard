@@ -45,7 +45,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext<"/api/
       entity_type: "creator",
       entity_id: id,
       action: "deleted",
-      actor: manager.email,
+      actor: manager.username,
       note: null,
     });
 

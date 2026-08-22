@@ -7,7 +7,10 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 export type CreatorSummary = {
   id: string;
   name: string;
-  email: string;
+  /** Login identifier the Manager typed and the Creator uses (22/08/2026) — the only identity
+   *  string shown anywhere in the UI. `creator.email` still exists in the DB (Supabase Auth needs
+   *  one internally) but is synthetic and never surfaced — see `createCreator()`. */
+  username: string;
   isActive: boolean;
   channelCount: number;
   channels: { id: string; name: string; tiktokHandle: string }[];
@@ -18,7 +21,7 @@ export type CreatorSummary = {
 
 export type CreateCreatorInput = {
   name: string;
-  email: string;
+  username: string;
   password: string;
   /** The Manager creating the account — becomes `creator.manager_id`. */
   managerId: string;
@@ -41,7 +44,10 @@ export async function listCreators(supabase: SupabaseServerClient): Promise<Crea
   // result), to save a Supabase round trip on every screen that lists creators.
   const [{ data: creators, error }, { data: channels, error: channelsError }] = await Promise.all([
     // Embedded via the team_id FK — one round trip, not a third parallel query.
-    supabase.from("creator").select("id, name, email, is_active, team:team(id, name)").order("name", { ascending: true }),
+    supabase
+      .from("creator")
+      .select("id, name, username, is_active, team:team(id, name)")
+      .order("name", { ascending: true }),
     supabase.from("channel").select("id, name, tiktok_handle, current_creator_id").not("current_creator_id", "is", null),
   ]);
   if (error) throw error;
@@ -60,7 +66,7 @@ export async function listCreators(supabase: SupabaseServerClient): Promise<Crea
     return {
       id: creator.id,
       name: creator.name,
-      email: creator.email,
+      username: creator.username,
       isActive: creator.is_active,
       channelCount: assigned.length,
       channels: assigned,
@@ -83,22 +89,28 @@ async function getCreatorById(supabase: SupabaseServerClient, id: string): Promi
  * decision, no join-by-email). If the row insert fails, the Auth user is deleted again: leaving it
  * orphaned would make every retry fail with `email_exists` while no `creator` row ever appears.
  * Pattern mirrors `scripts/seed.mjs`'s `ensureAuthUser`.
+ *
+ * Supabase Auth itself still requires an email (22/08/2026: it has no native username concept), so
+ * one is synthesized 1:1 from `username` purely for that internal requirement — it's never shown
+ * anywhere, and login resolves the other way around (`resolveLoginEmail()` in lib/auth.ts turns the
+ * typed username back into this same value before calling `signInWithPassword`).
  */
 export async function createCreator(
   supabase: SupabaseServerClient,
   input: CreateCreatorInput,
 ): Promise<CreatorSummary> {
   const admin = createSupabaseAdminClient();
+  const syntheticEmail = `${input.username}@creator.internal`;
 
   const { data: created, error: authError } = await admin.auth.admin.createUser({
-    email: input.email,
+    email: syntheticEmail,
     password: input.password,
     email_confirm: true, // internal accounts: nobody is around to click a confirmation link
   });
 
   if (authError) {
     if (authError.code === "email_exists") {
-      throw new ValidationError(`Email ${input.email} đã có tài khoản.`);
+      throw new ValidationError(`Tên đăng nhập "${input.username}" đã có tài khoản.`);
     }
     throw authError;
   }
@@ -106,7 +118,8 @@ export async function createCreator(
   const { error: insertError } = await supabase.from("creator").insert({
     id: created.user.id,
     name: input.name,
-    email: input.email,
+    email: syntheticEmail,
+    username: input.username,
     manager_id: input.managerId,
     team_id: input.teamId ?? null,
   });

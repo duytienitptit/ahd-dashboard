@@ -1,12 +1,19 @@
 import { cache } from "react";
 
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type AppRole = "manager" | "creator";
 
 export type AppUser = {
   id: string;
+  /** Supabase Auth's internal identifier — real for accounts created before 22/08/2026, synthetic
+   *  (`{username}@creator.internal`) for newer ones. Never shown to a user or typed at login —
+   *  `username` is. Kept mainly so `audit_log`/error paths that predate the username switch still
+   *  have something to read without a schema change to those tables. */
   email: string;
+  /** What the user actually typed to log in, and the only identifier shown in the UI (22/08/2026). */
+  username: string;
   name: string;
   role: AppRole;
 };
@@ -46,20 +53,45 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<App
   // manager first and only querying creator on a miss, which cost every Creator login a second
   // sequential round trip.
   const [{ data: manager }, { data: creator }] = await Promise.all([
-    supabase.from("manager").select("id, name, email").eq("id", user.id).maybeSingle(),
-    supabase.from("creator").select("id, name, email, is_active").eq("id", user.id).maybeSingle(),
+    supabase.from("manager").select("id, name, email, username").eq("id", user.id).maybeSingle(),
+    supabase.from("creator").select("id, name, email, username, is_active").eq("id", user.id).maybeSingle(),
   ]);
 
   if (manager) {
-    return { id: manager.id, email: manager.email, name: manager.name, role: "manager" };
+    return { id: manager.id, email: manager.email, username: manager.username, name: manager.name, role: "manager" };
   }
 
   if (creator?.is_active) {
-    return { id: creator.id, email: creator.email, name: creator.name, role: "creator" };
+    return { id: creator.id, email: creator.email, username: creator.username, name: creator.name, role: "creator" };
   }
 
   return null;
 });
+
+/**
+ * Resolves what someone typed at login into the real (or synthetic) email Supabase Auth needs —
+ * `signInWithPassword` only ever accepts email or phone, never an arbitrary username. Runs BEFORE
+ * authentication, so this is the one legitimate place in the app that uses the admin client with no
+ * `requireManager()` guard first: there is no session yet to gate on.
+ *
+ * Accepts either a username (the normal case since 22/08/2026) or a raw email typed out of habit —
+ * anything containing "@" is passed straight through unresolved and left for `signInWithPassword`
+ * itself to accept or reject, no separate lookup needed. An unmatched username falls through to the
+ * typed value too, so the caller doesn't need a null case — it just fails the same way a wrong
+ * password would, and by design nobody can tell "unknown username" apart from "wrong password" from
+ * the response (same reasoning app/login/actions.ts already applied when this was email-only).
+ */
+export async function resolveLoginEmail(identifier: string): Promise<string> {
+  const value = identifier.trim().toLowerCase();
+  if (!value || value.includes("@")) return value;
+
+  const admin = createSupabaseAdminClient();
+  const [{ data: manager }, { data: creator }] = await Promise.all([
+    admin.from("manager").select("email").eq("username", value).maybeSingle(),
+    admin.from("creator").select("email").eq("username", value).maybeSingle(),
+  ]);
+  return manager?.email ?? creator?.email ?? value;
+}
 
 export async function requireUser(): Promise<AppUser> {
   const user = await getCurrentUser();

@@ -475,6 +475,29 @@ Manager-only. Chi tiết: [PROGRESS.md](PROGRESS.md) mục "CRUD đầy đủ".
 - [x] `CreatorEditForm` (đổi thành 3 panel: sửa/đổi mật khẩu/xoá) và `ChannelRow`'s edit form (thêm
       nút "Xoá kênh") — dùng chung `ConfirmDeleteForm`
 
+## Đăng nhập bằng username (22/08/2026, theo yêu cầu)
+
+Không còn dùng email ở tầng người dùng — Manager và Creator đều đăng nhập bằng username. Chi tiết:
+[PROGRESS.md](PROGRESS.md) mục "Đăng nhập bằng username", [DATABASE_ERD.md](DATABASE_ERD.md) mục "Auth".
+
+- [x] Migration `20260822000001_username.sql` — cột `username` (unique, not null, format
+      `^[a-z0-9._-]{3,32}$`) trên cả `manager` và `creator`; backfill tài khoản Manager thật đang có
+      (`username: "andang"`, cùng chọn với người dùng) — không đổi mật khẩu/email, không đăng xuất ai
+- [x] `resolveLoginEmail()` (`lib/auth.ts`) — tra `username → email` bằng admin client (chạy trước
+      khi có phiên đăng nhập nên RLS không áp dụng được); gõ email cũ (có `@`) vẫn nhận, không tra cứu
+- [x] `app/login/actions.ts`/`login-form.tsx` — field "Email" → "Tên đăng nhập", cùng thông báo lỗi
+      chung cho sai username lẫn sai mật khẩu (không cho đoán username nào có tài khoản)
+- [x] `createCreator()` (`lib/creators.ts`) — Manager nhập username, hệ thống tự sinh email nội bộ
+      `{username}@creator.internal` cho Supabase Auth (Auth bắt buộc phải có email, không có username
+      thật ở tầng đó)
+- [x] `CreatorSummary.username` thay `email` — mọi chỗ hiển thị (accordion, trang chi tiết, thông báo
+      tạo tài khoản) đổi theo
+- [x] `audit_log.actor` đổi từ `.email` sang `.username` ở cả 6 nơi ghi (creators/channels actions +
+      API routes + oauth callback/verify)
+- [x] `scripts/seed.mjs` + `.env.example` — thêm `SEED_MANAGER_USERNAME`
+- [x] "Mật khẩu tạm" → "Mật khẩu" (theo yêu cầu riêng, làm cùng lúc) — form tạo tài khoản + thông báo
+      sau khi tạo
+
 ## M5 — KPI Cycle
 
 - [ ] `POST /api/kpi-cycles` — tự chụp `followersAtStart` từ `data_snapshot` mới nhất, chặn trùng khoảng ngày (409)

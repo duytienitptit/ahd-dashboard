@@ -49,23 +49,43 @@ là xoá luôn.
 
 ### `GET /api/creators` — M/C
 ```json
-[{ "id": "...", "name": "Nguyễn A", "email": "a@company.com", "channelCount": 2, "isActive": true,
+[{ "id": "...", "name": "Nguyễn A", "username": "nguyen.a", "channelCount": 2, "isActive": true,
    "channels": [{ "id": "...", "name": "Kênh A", "tiktokHandle": "@kenh_a" }],
    "team": { "id": "...", "name": "Team 1" } }]
 ```
 `channels` thêm ở M2 (không có trong bản đặc tả gốc) — màn `/creators` cần liệt kê "kênh phụ trách"
 theo từng Creator (design/Creators.dc.html). `team` thêm 21/08/2026 (mục "Team" bên dưới) —
-`null` khi Creator chưa gán team, cùng shape null-khi-chưa-gán với `channel.currentCreator`.
+`null` khi Creator chưa gán team, cùng shape null-khi-chưa-gán với `channel.currentCreator`. `email`
+**đổi thành `username`** cùng ngày (theo yêu cầu) — xem "Đăng nhập bằng username" bên dưới.
 
 ### `POST /api/creators` — M
 Tạo tài khoản Creator (Admin cấp, không có self-signup).
 ```json
-{ "name": "Nguyễn A", "email": "a@company.com", "password": "<temp>", "teamId": "..." }
+{ "name": "Nguyễn A", "username": "nguyen.a", "password": "<mật khẩu>", "teamId": "..." }
 ```
-`teamId` optional, bỏ qua = chưa gán team. → `201`. Tạo user trong Supabase Auth trước, insert row
-`creator` sau — lỗi ở bước insert thì xoá lại auth user vừa tạo (không sẽ mắc kẹt ở `email_exists`
-mãi mãi). Không gửi email mời (chưa có SMTP) — mật khẩu tạm chỉ hiện lại một lần ở màn hình
-`/creators` ngay sau khi tạo, Manager tự gửi riêng.
+`username`: chữ thường, số, dấu chấm/gạch dưới/gạch ngang, 3-32 ký tự (`requireUsername()`,
+`lib/validation.ts`) — `400` nếu sai định dạng, `400` nếu đã tồn tại.
+`teamId` optional, bỏ qua = chưa gán team. → `201`. Tạo user trong Supabase Auth trước (email nội bộ
+tự sinh `{username}@creator.internal` — Supabase Auth bắt buộc phải có email, nhưng không ai thấy/gõ
+giá trị này), insert row `creator` sau — lỗi ở bước insert thì xoá lại auth user vừa tạo (không sẽ
+mắc kẹt ở `email_exists` mãi mãi). Không gửi lời mời tự động (chưa có SMTP) — mật khẩu chỉ hiện lại
+một lần ở màn hình `/creators` ngay sau khi tạo, Manager tự gửi riêng.
+
+### Đăng nhập bằng username (22/08/2026, theo yêu cầu)
+
+Không còn khái niệm email ở tầng người dùng — Manager và Creator đều đăng nhập bằng `username`.
+Không có route REST riêng cho việc này (form đăng nhập gọi thẳng server action `signIn()`,
+`app/login/actions.ts`), nhưng ghi lại đây vì đổi cả model nhận diện:
+
+- `manager`/`creator` đều có cột `username` (unique, not null,
+  `supabase/migrations/20260822000001_username.sql`) — đây là định danh duy nhất người dùng thấy.
+- Cột `email` **vẫn còn** ở cả 2 bảng — Supabase Auth bắt buộc phải có, nhưng chỉ dùng nội bộ. Tài
+  khoản tạo trước 22/08/2026 giữ nguyên email thật (không đổi mật khẩu, không ai bị đăng xuất khi
+  migrate); tài khoản tạo sau đó có email tự sinh (`{username}@creator.internal`) không ai cần biết.
+- `resolveLoginEmail()` (`lib/auth.ts`) tra `username` → `email` thật trước khi gọi
+  `supabase.auth.signInWithPassword()` — chạy bằng admin client vì chưa có phiên đăng nhập nào để
+  RLS cho phép đọc bảng `manager`/`creator`. Gõ email cũ ra (còn dấu `@`) vẫn được chấp nhận làm dự
+  phòng, không cần tra cứu.
 
 ### `PATCH /api/creators/:id` — M
 Không có trong bản đặc tả gốc — thêm ở M2 để Manager đổi tên hoặc vô hiệu hoá một Creator (ví dụ nghỉ

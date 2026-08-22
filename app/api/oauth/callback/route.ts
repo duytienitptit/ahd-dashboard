@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
     if (accountMismatch && decoded.ack) {
       // Explicit override of the guard above — worth a permanent record, same spirit as any other
       // "someone chose to bypass a safety check" entry.
-      const actor = (await getCurrentUser().catch(() => null))?.email ?? "unknown";
+      const actor = (await getCurrentUser().catch(() => null))?.username ?? "unknown";
       await supabase.from("audit_log").insert({
         entity_type: "channel_oauth",
         entity_id: decoded.channelId,

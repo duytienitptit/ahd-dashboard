@@ -10,6 +10,9 @@ import { requireEnv } from "@/lib/env";
  *   1. Auth admin calls (a Manager creating a Creator account; the seed script).
  *   2. Reading and writing `channel_oauth`, which no signed-in role can touch.
  *   3. The daily Display API cron, which runs with no user session at all.
+ *   4. `resolveLoginEmail()` (`lib/auth.ts`) — the pre-authentication username→email lookup at
+ *      login. No session exists yet at that point, so there is no `requireManager()` to call first;
+ *      this is the one place that's an inherent exception rather than a shortcut.
  *
  * Anything else belongs on `createSupabaseServerClient()`.
  */

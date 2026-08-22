@@ -523,6 +523,42 @@ gõ đúng tên để xác nhận, chỉ Manager được xoá.**
 - `DELETE /api/creators/:id`, `DELETE /api/channels/:id` — thêm cho đủ quy ước "mọi resource có
   route" dù UI hiện tại gọi server action, không gọi route này (giống cách Team đã làm).
 
+## Đăng nhập bằng username (22/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+Phát sinh từ phản hồi UI của tính năng CRUD ở trên: người dùng không muốn Creator phải có email thật
+để đăng nhập, chỉ cần tên đăng nhập + mật khẩu. Ràng buộc thật sự: Supabase Auth **bắt buộc phải có
+email** ở tầng dưới — không có khái niệm username thuần. Đã hỏi trước khi đụng schema (đây là đổi khó
+sửa lại, ảnh hưởng tài khoản Manager đang dùng để đăng nhập thật) — 2 quyết định: (1) Manager cũng
+chuyển sang username luôn, dùng chung 1 ô "Tên đăng nhập" cho cả 2 vai trò; (2) migrate cả tài khoản
+Manager thật đang có (`username: "andang"`, người dùng tự chọn) — **không đổi mật khẩu/email hiện có
+của ai**, chỉ thêm cột tra cứu mới, không ai bị đăng xuất hay mất quyền truy cập giữa chừng.
+
+- **Migration `20260822000001_username.sql`** — cột `username` (unique, not null,
+  `^[a-z0-9._-]{3,32}$`) trên cả `manager` và `creator`. Bảng `creator` lúc migrate đang **rỗng**
+  (đã kiểm tra trước — 2 tài khoản test/thật trước đó không còn, chắc người dùng đã tự xoá thử tính
+  năng xoá vừa xong) nên không cần backfill; chỉ backfill Manager thật.
+- **`resolveLoginEmail()` (mới, `lib/auth.ts`)** — tra `username → email` thật trước khi gọi
+  `signInWithPassword()`. Đây là chỗ DUY NHẤT trong app dùng admin client mà không đứng sau
+  `requireManager()` trước — hợp lý vì lúc này chưa có phiên đăng nhập nào cả để RLS cho đọc bảng
+  `manager`/`creator`. Gõ nguyên email cũ (có dấu `@`) vẫn được — không tra cứu, để thẳng cho
+  `signInWithPassword` tự nhận/từ chối, tránh 1 lượt query thừa cho trường hợp hiếm.
+- **`createCreator()` sinh email nội bộ `{username}@creator.internal`** — Supabase Auth vẫn cần 1
+  email hợp lệ để tạo user, nhưng giá trị này không ai thấy hay gõ lại; `email_exists` từ Auth được
+  dịch thành thông báo "tên đăng nhập đã có tài khoản" (đúng nghĩa, vì email sinh 1:1 từ username).
+- **Tài khoản cũ (Manager thật) giữ nguyên hoàn toàn ở tầng Auth** — chỉ thêm `username` vào row, mật
+  khẩu và email thật (`duytien@gmail.com`) không đổi. Đây là lý do chọn cách này thay vì đổi
+  `auth.users.email` sang giá trị tổng hợp cho tài khoản cũ — tránh mọi rủi ro liên quan tới
+  session/re-confirm của Supabase Auth khi đổi email một tài khoản đang hoạt động thật.
+- **`audit_log.actor` đổi từ `.email` sang `.username`** ở cả 6 nơi ghi — comment gốc của cột này
+  ("Email of the acting user... survives account deletion") giờ hơi lệch chữ nghĩa (không sửa lại
+  bằng migration riêng, chỉ 1 chuỗi comment, không đáng thêm 1 migration cho việc này).
+- **`scripts/seed.mjs` + `.env.example`** thêm `SEED_MANAGER_USERNAME` — script vẫn idempotent
+  (`upsert` theo `id`) nên chạy lại ở môi trường đã seed không làm mất `username` đã gán, nhưng môi
+  trường mới hoàn toàn (chưa từng seed) sẽ cần biến này vì cột `username` giờ `not null`.
+- **Nhân tiện đổi "Mật khẩu tạm" → "Mật khẩu"** (yêu cầu riêng, làm cùng lúc vì cùng form) — chữ "tạm"
+  ngụ ý sẽ phải đổi sau, nhưng thực tế chưa từng ép đổi mật khẩu lần đầu (đã ghi ở PRODUCT_SPEC.md
+  mục 8 từ trước) nên chữ "tạm" không đúng với hành vi thật.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

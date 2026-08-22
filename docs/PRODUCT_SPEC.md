@@ -27,7 +27,9 @@ cả khi không đặt KPI nào thì hệ thống vẫn phải có giá trị nh
   quyết định RLS mới, cần hỏi lại — xem [DATABASE_ERD.md](DATABASE_ERD.md) mục "`team`".
 - Sở hữu kênh: công ty sở hữu toàn bộ, Creator chỉ vận hành. Hiện có **8 kênh**, có sẵn data thật để seed.
 - Nền tảng: Web dashboard, desktop-first.
-- Đăng nhập: email/password nội bộ. Admin (Manager) tạo tài khoản cho Creator — không có tự đăng ký.
+- Đăng nhập: username/password nội bộ (đổi từ email 22/08/2026, theo yêu cầu — không ai cần nhớ/gõ
+  email nữa, xem [DATABASE_ERD.md](DATABASE_ERD.md) mục "Auth"). Admin (Manager) tạo tài khoản cho
+  Creator — không có tự đăng ký.
 
 ## 3. Phạm vi MVP (P0)
 
@@ -151,7 +153,8 @@ ràng buộc và index. Mục này chỉ giữ quy tắc nghiệp vụ.
 - Hạ tầng: ưu tiên nền tảng free tier (website nội bộ, data nhỏ — 8 kênh), mở rộng trả phí sau nếu cần.
 - Tech stack:
   - Frontend + Backend: **Next.js**
-  - Database + Auth: **Supabase** (Postgres, free tier — Auth khớp yêu cầu email/password do Admin cấp)
+  - Database + Auth: **Supabase** (Postgres, free tier — Auth khớp yêu cầu username/password do Admin
+    cấp; Auth tự nó vẫn cần một email nội bộ, xem [DATABASE_ERD.md](DATABASE_ERD.md) mục "Auth")
   - Hosting: **Vercel** (free tier)
 
 ## 8. Chưa chốt

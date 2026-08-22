@@ -40,6 +40,21 @@ export function requireString(
   return trimmed;
 }
 
+const USERNAME_RE = /^[a-z0-9._-]{3,32}$/;
+
+/** Login identifier — replaces email at the UI layer (22/08/2026). Same pattern the DB CHECK
+ *  constraint enforces (supabase/migrations/20260822000001_username.sql) — checked here too so a
+ *  bad value fails with a clear message instead of a raw Postgres constraint error. */
+export function requireUsername(body: Record<string, unknown>, field: string): string {
+  const value = requireString(body, field, { max: 32 }).toLowerCase();
+  if (!USERNAME_RE.test(value)) {
+    throw new ValidationError(
+      `"${field}" chỉ được chứa chữ thường, số, dấu chấm/gạch dưới/gạch ngang, 3-32 ký tự.`,
+    );
+  }
+  return value;
+}
+
 /** `undefined` = field omitted, leave unchanged. Only meaningful in PATCH bodies. */
 export function optionalString(body: Record<string, unknown>, field: string): string | undefined {
   const value = body[field];

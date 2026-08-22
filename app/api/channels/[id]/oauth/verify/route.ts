@@ -42,7 +42,7 @@ export async function POST(_request: NextRequest, context: RouteContext<"/api/ch
       entity_type: "channel_oauth",
       entity_id: channelId,
       action: "manually_verified",
-      actor: user.email,
+      actor: user.username,
       note: "Xác nhận thủ công — tài khoản TikTok chưa có video nào nên không tự đối chiếu handle được.",
     });
 

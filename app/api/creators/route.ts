@@ -4,7 +4,7 @@ import { requireManager, requireUser } from "@/lib/auth";
 import { createCreator, listCreators } from "@/lib/creators";
 import { errorResponse } from "@/lib/http";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { optionalUuid, parseJsonBody, requireString } from "@/lib/validation";
+import { optionalUuid, parseJsonBody, requireString, requireUsername } from "@/lib/validation";
 
 // GET /api/creators — M/C. docs/API_SPEC.md
 export async function GET() {
@@ -26,12 +26,12 @@ export async function POST(request: Request) {
     const body = await parseJsonBody(request);
 
     const name = requireString(body, "name", { max: 200 });
-    const email = requireString(body, "email", { max: 320 }).toLowerCase();
+    const username = requireUsername(body, "username");
     const password = requireString(body, "password", { min: 8, max: 200 });
     const teamId = optionalUuid(body, "teamId");
 
     const supabase = await createSupabaseServerClient();
-    const creator = await createCreator(supabase, { name, email, password, managerId: manager.id, teamId });
+    const creator = await createCreator(supabase, { name, username, password, managerId: manager.id, teamId });
 
     return NextResponse.json(creator, { status: 201 });
   } catch (error) {

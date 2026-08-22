@@ -56,7 +56,7 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
     return {
       id: creator.id,
       name: creator.name,
-      email: creator.email,
+      username: creator.username,
       isActive: creator.isActive,
       team: creator.team,
       channels: creator.channels,

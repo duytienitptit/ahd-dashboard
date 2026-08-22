@@ -125,7 +125,7 @@ export async function deleteChannelAction(
       entity_type: "channel",
       entity_id: channelId,
       action: "deleted",
-      actor: manager.email,
+      actor: manager.username,
       note: confirmedName ? `Xoá kênh "${confirmedName}".` : null,
     });
   } catch (error) {

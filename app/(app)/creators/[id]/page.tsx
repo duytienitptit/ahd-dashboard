@@ -112,7 +112,7 @@ export default async function CreatorDetailPage({
             <div>
               <h1 className="text-2xl font-extrabold tracking-[-0.6px]">{creator.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-ink-3">
-                <span>{creator.email}</span>
+                <span>{creator.username}</span>
                 <span className="h-[3px] w-[3px] shrink-0 rounded-pill bg-line" />
                 <Link href={teamHref} className="font-semibold hover:underline">
                   {teamLabel}

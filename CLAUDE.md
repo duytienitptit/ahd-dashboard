@@ -76,6 +76,10 @@ Biến môi trường: `.env.example`.
   UI bắt gõ đúng tên để xác nhận (`ConfirmDeleteForm`). Xoá kênh **chặn hẳn** nếu kênh có
   `kpi_cycle.status = 'final'` — số liệu đã chốt không được mất kèm channel. Cả hai ghi `audit_log`
   sau khi xoá xong. Team xoá vẫn chỉ gỡ gán (`on delete set null`) — không đổi, không mất dữ liệu.
+- **Đăng nhập bằng `username`, không phải email** (22/08/2026, theo yêu cầu) — cả Manager lẫn
+  Creator. Cột `email` vẫn còn (Supabase Auth bắt buộc phải có nội bộ) nhưng không hiển thị/không
+  gõ được nữa. Đừng thêm field email vào form tạo/sửa tài khoản hay hiển thị lại `.email` ở UI —
+  dùng `.username`. Chi tiết: [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
 
 ## Quy ước code
 
@@ -116,12 +120,14 @@ Biến môi trường: `.env.example`.
 ## Trạng thái
 
 **M4 + M3c + Đợt 1 (sửa dữ liệu) + Đợt 2 (thiết kế lại UI) + tính năng Team + dựng lại drill-down
-Team → Nhân sự → Kênh đều đã xong, đã commit và **push lên `main`** (22/08/2026, commit `9d17647`).**
+Team → Nhân sự → Kênh + CRUD đầy đủ (xoá thật, đổi mật khẩu) đều đã xong, đã commit và push lên
+`main` (22/08/2026, commit `ccb82e8`).**
 Chi tiết đầy đủ từng phần ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục "Đợt 1 sửa dữ liệu", "Đợt 2...",
-"Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down"). Checklist ở
-[docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team" và "Team → Nhân sự → Kênh". Schema và code
-giờ khớp nhau — 4 migration (`team`, `creator.team_id`, RLS Creator-upload, `update_channel_name`) đã
-lên Supabase production từ 21/08, code dùng chúng cũng đã lên `main`.
+"Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down", "CRUD đầy đủ Nhân sự/Kênh").
+Checklist ở [docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team", "Team → Nhân sự → Kênh" và
+"CRUD đầy đủ Nhân sự/Kênh". Schema và code giờ khớp nhau — 4 migration (`team`, `creator.team_id`,
+RLS Creator-upload, `update_channel_name`) đã lên Supabase production từ 21/08, code dùng chúng cũng
+đã lên `main`.
 
 ⚠️ **Cả 2 kênh đang MẤT KẾT NỐI Display API** (`channel_oauth` rỗng, cố ý xoá sau sự cố sai tài
 khoản — xem PROGRESS.md mục "Đợt 1"). Việc người dùng cần làm: vào `/connections`, bấm "Kết nối"
@@ -138,9 +144,9 @@ copy nguyên giá trị từ Vercel Environment Variables xuống.
 động, không phải quên cấu hình. Push phải do người dùng tự chạy hoặc tự nới rule, Claude không tự làm.
 
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
-`9d17647` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel dashboard).
+`ccb82e8` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel dashboard).
 Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, commit mới
-nhất `9d17647`.
+nhất `ccb82e8`.
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
 đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".

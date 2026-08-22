@@ -30,7 +30,7 @@ function toMessage(error: unknown): string {
   if (error instanceof AuthorizationError) return error.message;
   if (error instanceof ValidationError) return error.message;
   if (typeof error === "object" && error !== null && (error as { code?: unknown }).code === "23505") {
-    return "Email này đã có tài khoản.";
+    return "Tên đăng nhập này đã có tài khoản.";
   }
   console.error(error);
   return "Đã có lỗi xảy ra, thử lại sau.";
@@ -46,18 +46,25 @@ export async function createCreatorAction(
     const name = String(formData.get("name") ?? "").trim();
     if (!name) return { error: "Vui lòng nhập tên Creator.", created: null, tempPassword: null };
 
-    const email = String(formData.get("email") ?? "").trim().toLowerCase();
-    if (!email) return { error: "Vui lòng nhập email.", created: null, tempPassword: null };
+    const username = String(formData.get("username") ?? "").trim().toLowerCase();
+    if (!username) return { error: "Vui lòng nhập tên đăng nhập.", created: null, tempPassword: null };
+    if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+      return {
+        error: "Tên đăng nhập chỉ được chứa chữ thường, số, dấu chấm/gạch dưới/gạch ngang, 3-32 ký tự.",
+        created: null,
+        tempPassword: null,
+      };
+    }
 
     const password = String(formData.get("password") ?? "");
     if (password.length < 8) {
-      return { error: "Mật khẩu tạm phải có ít nhất 8 ký tự.", created: null, tempPassword: null };
+      return { error: "Mật khẩu phải có ít nhất 8 ký tự.", created: null, tempPassword: null };
     }
 
     const supabase = await createSupabaseServerClient();
     const created = await createCreator(supabase, {
       name,
-      email,
+      username,
       password,
       managerId: manager.id,
       teamId: readTeamId(formData),
@@ -145,7 +152,7 @@ export async function deleteCreatorAction(
       entity_type: "creator",
       entity_id: creatorId,
       action: "deleted",
-      actor: manager.email,
+      actor: manager.username,
       note: confirmedName ? `Xoá nhân sự "${confirmedName}".` : null,
     });
   } catch (error) {

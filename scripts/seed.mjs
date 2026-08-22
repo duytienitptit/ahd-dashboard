@@ -102,17 +102,24 @@ async function ensureAuthUser(email, password) {
 }
 
 async function main() {
+  // Login is username-based since 22/08/2026 (supabase/migrations/20260822000001_username.sql) —
+  // `manager.username` is what actually gets typed at /login now. `email` is kept only because
+  // Supabase Auth itself still requires one internally; nobody sees or types it again after this.
   const managerEmail = requireEnv("SEED_MANAGER_EMAIL");
+  const managerUsername = requireEnv("SEED_MANAGER_USERNAME");
   const managerId = await ensureAuthUser(managerEmail, requireEnv("SEED_MANAGER_PASSWORD"));
 
-  const { error: managerError } = await supabase
-    .from("manager")
-    .upsert(
-      { id: managerId, name: process.env.SEED_MANAGER_NAME || "Manager", email: managerEmail },
-      { onConflict: "id" },
-    );
+  const { error: managerError } = await supabase.from("manager").upsert(
+    {
+      id: managerId,
+      name: process.env.SEED_MANAGER_NAME || "Manager",
+      email: managerEmail,
+      username: managerUsername,
+    },
+    { onConflict: "id" },
+  );
   if (managerError) throw managerError;
-  console.log(`Manager: ${managerEmail}`);
+  console.log(`Manager: ${managerUsername}`);
 
   const rows = existsSync(CHANNELS_CSV)
     ? parseCsv(readFileSync(CHANNELS_CSV, "utf8"))

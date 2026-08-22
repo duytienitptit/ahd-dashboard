@@ -36,14 +36,16 @@ erDiagram
     MANAGER {
         uuid id PK "= auth.users.id"
         text name
-        text email UK
+        text username UK "định danh đăng nhập — người dùng thấy/gõ"
+        text email UK "nội bộ, Supabase Auth cần — không hiển thị"
         timestamptz created_at
     }
 
     CREATOR {
         uuid id PK "= auth.users.id"
         text name
-        text email UK
+        text username UK "định danh đăng nhập — người dùng thấy/gõ"
+        text email UK "nội bộ, Supabase Auth cần — không hiển thị"
         uuid manager_id FK
         uuid team_id FK "nullable — chưa gán team"
         boolean is_active
@@ -307,11 +309,20 @@ mất quyền, phải OAuth lại thủ công. Xem [DISPLAY_API.md](DISPLAY_API.
 
 Supabase Auth. **`manager.id` và `creator.id` CHÍNH LÀ `auth.users.id`** (`references auth.users(id)
 on delete cascade`), không phải uuid riêng nối qua email. Policy chỉ cần so `auth.uid()` — nhanh, và
-người dùng đổi email trong Auth không làm đứt liên kết. Cột `email` vẫn giữ (unique) để hiển thị và
-đối chiếu, nhưng **không dùng để join**. Quyết định 20/08/2026, thay cho cách nối qua email ở bản đầu.
+người dùng đổi email trong Auth không làm đứt liên kết. Quyết định 20/08/2026, thay cho cách nối qua
+email ở bản đầu.
 
 Hệ quả: tạo tài khoản phải qua Auth admin API trước (lấy `id`), rồi mới insert row — xem
 [scripts/seed.mjs](../scripts/seed.mjs) và `POST /api/creators` ở M2.
+
+**Đăng nhập bằng `username`, không phải `email` (22/08/2026, theo yêu cầu).** `email` vẫn là cột thật
+trên cả `manager` lẫn `creator` (Supabase Auth bắt buộc phải có một giá trị nội bộ), nhưng không còn
+ai thấy hay gõ nó nữa — `username` (thêm ở `20260822000001_username.sql`, unique, not null, format
+`^[a-z0-9._-]{3,32}$`) mới là định danh hiển thị/đăng nhập thật. Tài khoản tạo sau ngày này có `email`
+tự sinh (`{username}@creator.internal`) chỉ để thoả điều kiện của Auth; tài khoản tạo trước đó vẫn giữ
+nguyên email thật, mật khẩu không đổi — chỉ thêm `username` để tra cứu, không migrate lại Auth.
+`resolveLoginEmail()` (`lib/auth.ts`) là nơi tra `username → email` trước khi gọi
+`signInWithPassword()`, chạy bằng admin client vì lúc đó chưa có phiên nào để RLS cho đọc.
 
 Vai trò đọc từ server bằng `getCurrentUser()` ([lib/auth.ts](../lib/auth.ts)): tra `manager` trước,
 không có thì tra `creator`. **User trong Auth mà không có row ở bảng nào = không có quyền**, bị coi

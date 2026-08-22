@@ -12,7 +12,7 @@ import { CreatorEditForm } from "./creator-form";
 export type CreatorRowData = {
   id: string;
   name: string;
-  email: string;
+  username: string;
   isActive: boolean;
   team: { id: string; name: string } | null;
   channels: { id: string; name: string; tiktokHandle: string }[];
@@ -104,7 +104,7 @@ function CreatorRow({ creator, teams }: { creator: CreatorRowData; teams: { id: 
           <Link href={`/creators/${creator.id}`} className="block truncate text-sm font-bold tracking-[-0.2px] hover:underline">
             {creator.name}
           </Link>
-          <div className="truncate text-[11.5px] text-ink-3">{creator.email}</div>
+          <div className="truncate text-[11.5px] text-ink-3">{creator.username}</div>
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 
 import { signIn, type SignInState } from "./actions";
 
-const initialState: SignInState = { error: null, email: "" };
+const initialState: SignInState = { error: null, username: "" };
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -29,17 +29,17 @@ export function LoginForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
 
       <div className="mb-5">
-        <label htmlFor="email" className="mb-2 block text-[13px] font-bold">
-          Email
+        <label htmlFor="username" className="mb-2 block text-[13px] font-bold">
+          Tên đăng nhập
         </label>
         <input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
+          id="username"
+          name="username"
+          type="text"
+          autoComplete="username"
           required
-          placeholder="ten@company.com"
-          defaultValue={state.email}
+          placeholder="ten-dang-nhap"
+          defaultValue={state.username}
           className="h-[46px] w-full rounded-input border border-line px-[14px] text-sm outline-none placeholder:text-[#c9c9cb] focus:border-ink"
         />
       </div>

@@ -238,19 +238,19 @@ function ErrorBox({ error }: { error: string | null }) {
   );
 }
 
-/** Shows the just-created account's temp password exactly once — it is never stored or shown again. */
+/** Shows the just-created account's password exactly once — it is never stored or shown again. */
 function CreatedNotice({ creator, password, onDismiss }: { creator: CreatorSummary; password: string; onDismiss: () => void }) {
   return (
     <div className="mb-4 rounded-card border border-line bg-cyan-bg p-4">
       <div className="text-[13px] font-bold text-cyan-ink">
-        Đã tạo tài khoản cho {creator.name} ({creator.email})
+        Đã tạo tài khoản cho {creator.name} ({creator.username})
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <span className="text-[12.5px] text-cyan-ink-2">Mật khẩu tạm:</span>
+        <span className="text-[12.5px] text-cyan-ink-2">Mật khẩu:</span>
         <code className="rounded-[4px] bg-bg px-2 py-1 text-[13px] font-semibold">{password}</code>
       </div>
       <p className="mt-2 text-[11.5px] text-cyan-ink-2">
-        Gửi mật khẩu này riêng cho Creator — trang sẽ không hiển thị lại. Chưa có gửi email tự động.
+        Gửi tên đăng nhập và mật khẩu này riêng cho Creator — trang sẽ không hiển thị lại. Chưa có gửi tự động.
       </p>
       <button
         type="button"
@@ -311,16 +311,19 @@ export function CreateCreatorForm({ teams }: { teams: { id: string; name: string
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-bold">Email</span>
+              <span className="mb-1.5 block text-[12.5px] font-bold">Tên đăng nhập</span>
               <input
-                name="email"
-                type="email"
+                name="username"
+                type="text"
                 required
+                placeholder="ten-dang-nhap"
+                pattern="[a-z0-9._-]{3,32}"
+                title="Chữ thường, số, dấu chấm/gạch dưới/gạch ngang, 3-32 ký tự"
                 className="h-[40px] w-full rounded-input border border-line px-3 text-sm outline-none focus:border-ink"
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-bold">Mật khẩu tạm</span>
+              <span className="mb-1.5 block text-[12.5px] font-bold">Mật khẩu</span>
               <input
                 name="password"
                 type="text"

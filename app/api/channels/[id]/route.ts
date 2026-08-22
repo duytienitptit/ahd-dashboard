@@ -41,7 +41,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/ch
         entity_type: "channel",
         entity_id: id,
         action: "tiktok_handle_changed",
-        actor: user.email,
+        actor: user.username,
         note: `Đổi handle từ ${previousHandle} sang ${tiktokHandle}.`,
       });
     }
@@ -69,7 +69,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext<"/api/
       entity_type: "channel",
       entity_id: id,
       action: "deleted",
-      actor: user.email,
+      actor: user.username,
       note: null,
     });
 
