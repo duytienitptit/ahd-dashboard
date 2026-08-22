@@ -112,18 +112,12 @@ Biến môi trường: `.env.example`.
 ## Trạng thái
 
 **M4 + M3c + Đợt 1 (sửa dữ liệu) + Đợt 2 (thiết kế lại UI) + tính năng Team + dựng lại drill-down
-Team → Nhân sự → Kênh đều đã xong (21/08/2026).**
+Team → Nhân sự → Kênh đều đã xong, đã commit và **push lên `main`** (22/08/2026, commit `9d17647`).**
 Chi tiết đầy đủ từng phần ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục "Đợt 1 sửa dữ liệu", "Đợt 2...",
 "Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down"). Checklist ở
-[docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team" và "Team → Nhân sự → Kênh".
-
-⚠️⚠️ **54 file đang sửa dở, CHƯA COMMIT** (`git status` xác nhận ngay) — toàn bộ việc trong mục trên.
-Đã hỏi người dùng, họ chủ động chọn "để tôi review trước", không phải quên. **4 migration đã lên
-thẳng Supabase thật rồi** (`db push` chạy trực tiếp mỗi lần, không đợi commit) — nghĩa là **schema
-production đã đổi** (bảng `team`, cột `creator.team_id`, RLS mới cho Creator-upload, hàm
-`update_channel_name`) **nhưng code dùng nó thì chưa lên GitHub/Vercel**. Trước khi làm gì tiếp:
-đọc kỹ diff các file đã sửa, không tự ý commit/push nếu người dùng chưa bảo — nhưng cũng đừng viết
-migration mới coi như những cái này chưa tồn tại, chúng ĐÃ chạy thật rồi.
+[docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team" và "Team → Nhân sự → Kênh". Schema và code
+giờ khớp nhau — 4 migration (`team`, `creator.team_id`, RLS Creator-upload, `update_channel_name`) đã
+lên Supabase production từ 21/08, code dùng chúng cũng đã lên `main`.
 
 ⚠️ **Cả 2 kênh đang MẤT KẾT NỐI Display API** (`channel_oauth` rỗng, cố ý xoá sau sự cố sai tài
 khoản — xem PROGRESS.md mục "Đợt 1"). Việc người dùng cần làm: vào `/connections`, bấm "Kết nối"
@@ -136,11 +130,13 @@ nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" tr
 🔑 `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không sinh khoá mới**. Cần dùng ở `.env.local` thì
 copy nguyên giá trị từ Vercel Environment Variables xuống.
 
-Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — **bản đang chạy trên
-Vercel là code CŨ**, chưa có gì trong 51 file sửa dở ở trên, vì chưa push. Đang test bằng
-`npm run dev` local (Manager thật đã đăng nhập thử qua Browser pane trong phiên vừa rồi).
-Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, commit gần
-nhất `9dc9784` (trước toàn bộ việc ở trên).
+🔒 `.claude/settings.json` chặn cứng `git push` (nhóm chung với `rm -rf`, `git reset --hard`) — chủ
+động, không phải quên cấu hình. Push phải do người dùng tự chạy hoặc tự nới rule, Claude không tự làm.
+
+Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
+`9d17647` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel dashboard).
+Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, commit mới
+nhất `9d17647`.
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
 đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
@@ -151,9 +147,8 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Người dùng review 54 file đã sửa**, rồi bảo commit/push khi sẵn sàng — không tự làm thay.
-2. Sau khi push: vào `/connections` kết nối lại 2 kênh bằng đúng tài khoản TikTok thật.
-3. **M5 (KPI Cycle)** — chưa bắt đầu, không bị chặn bởi 2 mục trên. `POST /api/kpi-cycles` trước (tự
+1. Vào `/connections` kết nối lại 2 kênh bằng đúng tài khoản TikTok thật (Display API đang mất kết nối).
+2. **M5 (KPI Cycle)** — chưa bắt đầu, không bị chặn bởi mục trên. `POST /api/kpi-cycles` trước (tự
    chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
    công thức ở [docs/API_SPEC.md](docs/API_SPEC.md) mục "Công thức progress". `kpiSummary`/
    `myChannels.hasActiveKpi` trong `lib/dashboard.ts` hiện luôn rỗng/false vì `kpi_cycle` chưa có
