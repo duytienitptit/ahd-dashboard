@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { addDaysToDateString, nowVnDateString } from "@/lib/time";
+import { ALL_TIME_FROM, addDaysToDateString, nowVnDateString } from "@/lib/time";
 import { formatShortDate } from "@/lib/format";
 import { useFilterTransition } from "./filter-transition";
 import { Spinner } from "./spinner";
@@ -23,6 +23,7 @@ export function DateRangePicker({ from, to }: { from: string; to: string }) {
   const [customTo, setCustomTo] = useState(to);
 
   const today = nowVnDateString();
+  const isAllTime = from === ALL_TIME_FROM && to === today;
   const matchedPreset = PRESETS.find((p) => from === addDaysToDateString(today, -(p.days - 1)) && to === today);
 
   function navigate(newFrom: string, newTo: string) {
@@ -49,7 +50,7 @@ export function DateRangePicker({ from, to }: { from: string; to: string }) {
             <path d="M8 3v4M16 3v4M3 10h18" />
           </svg>
         )}
-        {matchedPreset ? matchedPreset.label : `${formatShortDate(from)} – ${formatShortDate(to)}`}
+        {isAllTime ? "Toàn bộ thời gian" : matchedPreset ? matchedPreset.label : `${formatShortDate(from)} – ${formatShortDate(to)}`}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-2)" strokeWidth={2.2} strokeLinecap="round" aria-hidden="true">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -72,6 +73,15 @@ export function DateRangePicker({ from, to }: { from: string; to: string }) {
                   {p.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => navigate(ALL_TIME_FROM, today)}
+                className={`rounded-input px-2.5 py-2 text-left text-[13px] font-medium hover:bg-surface ${
+                  isAllTime ? "bg-line-soft font-bold" : ""
+                }`}
+              >
+                Toàn bộ thời gian
+              </button>
             </div>
 
             <div className="mt-2 border-t border-line-soft pt-2.5">

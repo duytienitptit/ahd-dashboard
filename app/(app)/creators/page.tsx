@@ -5,7 +5,7 @@ import { listCreators } from "@/lib/creators";
 import { aggregateChannelStats, buildCreatorPerformance, getChannelPeriodStats, previousPeriod, rankCreatorPerformance } from "@/lib/dashboard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
-import { resolvePeriodParams } from "@/lib/time";
+import { resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { CreateCreatorForm, TeamManager } from "./creator-form";
 import { DateRangePicker } from "../date-range-picker";
@@ -22,7 +22,7 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
   if (user.role !== "manager") redirect("/");
 
   const params = await searchParams;
-  const { from, to } = resolvePeriodParams(params);
+  const { from, to } = resolvePeriodParamsAllTime(params);
 
   const supabase = await createSupabaseServerClient();
   const [creators, teams] = await Promise.all([listCreators(supabase), listTeams(supabase)]);
@@ -61,9 +61,8 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
       team: creator.team,
       channels: creator.channels,
       totalViews: perf.totalViews,
-      viewsDeltaPct: perf.viewsDeltaPct,
-      followerGain: perf.followerGain,
-      engagementRate: perf.engagementRate,
+      followersNow: perf.followersNow,
+      videos: perf.videos,
       rank: ranks.get(creator.id) ?? "stable",
     };
   }

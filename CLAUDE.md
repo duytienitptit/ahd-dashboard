@@ -69,8 +69,13 @@ Biến môi trường: `.env.example`.
   khối lượng công việc và thời gian bỏ ra, ghi chú định tính của Manager, watch time / nguồn traffic
   (không có trong export), kế hoạch nội dung. Đừng đề xuất lại — xem mục "Ngoài phạm vi" trong
   [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
-- **Engagement rate `(like+comment+share)/view` là chỉ số dẫn báo duy nhất** của hệ thống — mọi chỉ số
-  khác (view, follower) đều là chỉ số trễ. Luôn hiển thị nó ngang hàng với view/follower, không xem là phụ.
+- **Engagement rate `(like+comment+share)/view` không còn hiển thị ở bất kỳ màn nào** (Tổng quan, kênh,
+  Creator, Team) — đã thay bằng **Tổng số like** (like mới nhất cộng dồn từng video, không theo kỳ,
+  không có badge so kỳ trước) ở mọi chỗ trước đây hiện tỷ lệ tương tác (22/08/2026, theo yêu cầu, đánh
+  đổi có chủ đích — quy tắc "chỉ số dẫn báo duy nhất" trước đó đã bỏ). Hàm thuần `engagementRate()` và
+  cột `data_snapshot.likes/comments/shares` vẫn còn trong code (parser CSV vẫn ghi) — không dùng ở UI
+  hiện tại nhưng đừng xoá, có thể cần lại sau. Chi tiết: [PROGRESS.md](docs/PROGRESS.md) mục "Tỷ lệ
+  tương tác → Lượt tim, toàn app".
 - `followersDiff` **không lưu vào DB** — tự tính từ chuỗi `followers` (cột gốc trong CSV bị sai, xem dưới).
 - **Xoá Kênh/Nhân sự là xoá thật** (21/08/2026, theo yêu cầu — không phải soft-delete), Manager-only,
   UI bắt gõ đúng tên để xác nhận (`ConfirmDeleteForm`). Xoá kênh **chặn hẳn** nếu kênh có
@@ -79,7 +84,10 @@ Biến môi trường: `.env.example`.
 - **Đăng nhập bằng `username`, không phải email** (22/08/2026, theo yêu cầu) — cả Manager lẫn
   Creator. Cột `email` vẫn còn (Supabase Auth bắt buộc phải có nội bộ) nhưng không hiển thị/không
   gõ được nữa. Đừng thêm field email vào form tạo/sửa tài khoản hay hiển thị lại `.email` ở UI —
-  dùng `.username`. Chi tiết: [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
+  dùng `.username`. **Gõ email thật ở ô đăng nhập cũng không vào được nữa** (siết thêm 22/08/2026,
+  theo yêu cầu riêng) — `resolveLoginEmail()` (`lib/auth.ts`) chỉ chấp nhận `username` khớp đúng
+  hàng trong `manager`/`creator`, không còn fallback nào cho input có "@". Chi tiết:
+  [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
 
 ## Quy ước code
 
@@ -120,14 +128,17 @@ Biến môi trường: `.env.example`.
 ## Trạng thái
 
 **M4 + M3c + Đợt 1 (sửa dữ liệu) + Đợt 2 (thiết kế lại UI) + tính năng Team + dựng lại drill-down
-Team → Nhân sự → Kênh + CRUD đầy đủ (xoá thật, đổi mật khẩu) đều đã xong, đã commit và push lên
-`main` (22/08/2026, commit `ccb82e8`).**
+Team → Nhân sự → Kênh + CRUD đầy đủ (xoá thật, đổi mật khẩu) + đăng nhập bằng username đều đã xong,
+đã commit và push lên `main` (22/08/2026, commit `16624da`).**
 Chi tiết đầy đủ từng phần ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục "Đợt 1 sửa dữ liệu", "Đợt 2...",
-"Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down", "CRUD đầy đủ Nhân sự/Kênh").
-Checklist ở [docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team", "Team → Nhân sự → Kênh" và
-"CRUD đầy đủ Nhân sự/Kênh". Schema và code giờ khớp nhau — 4 migration (`team`, `creator.team_id`,
-RLS Creator-upload, `update_channel_name`) đã lên Supabase production từ 21/08, code dùng chúng cũng
-đã lên `main`.
+"Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down", "CRUD đầy đủ Nhân sự/Kênh",
+"Đăng nhập bằng username"). Checklist ở [docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team",
+"Team → Nhân sự → Kênh", "CRUD đầy đủ Nhân sự/Kênh" và "Đăng nhập bằng username". Schema và code giờ
+khớp nhau — 5 migration (`team`, `creator.team_id`, RLS Creator-upload, `update_channel_name`,
+`username`) đã lên Supabase production, code dùng chúng cũng đã lên `main`.
+
+🔑 **Tài khoản Manager thật giờ đăng nhập bằng username `andang`** (không còn dùng email nữa, đổi
+22/08/2026) — mật khẩu giữ nguyên như cũ. Xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
 
 ⚠️ **Cả 2 kênh đang MẤT KẾT NỐI Display API** (`channel_oauth` rỗng, cố ý xoá sau sự cố sai tài
 khoản — xem PROGRESS.md mục "Đợt 1"). Việc người dùng cần làm: vào `/connections`, bấm "Kết nối"
@@ -144,9 +155,9 @@ copy nguyên giá trị từ Vercel Environment Variables xuống.
 động, không phải quên cấu hình. Push phải do người dùng tự chạy hoặc tự nới rule, Claude không tự làm.
 
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
-`ccb82e8` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel dashboard).
+`16624da` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel dashboard).
 Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, commit mới
-nhất `ccb82e8`.
+nhất `16624da`.
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
 đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".

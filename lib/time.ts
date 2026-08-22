@@ -33,6 +33,14 @@ export function daysBetweenDateStrings(a: string, b: string): number {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Stand-in for "since the beginning" in a `from` field — fixed, not relative, so it doesn't drift
+ *  as calendar time passes (unlike a big `defaultDays`, which would eventually creep past real
+ *  early data — this project's data only starts in 2026, so any date this early is equivalent to
+ *  "no lower bound" for as long as the tool exists). Used by the Tổng quan default and the date
+ *  picker's "Toàn bộ thời gian" preset (22/08/2026) — both must use this exact constant so the
+ *  picker recognizes the default as that preset instead of falling back to a raw date-range label. */
+export const ALL_TIME_FROM = "2020-01-01";
+
 /**
  * Resolves a `?from=&to=` query pair (both optional, either may be missing/malformed) into a valid
  * `{from, to}`, anchored to today VN when nothing usable was given (M4 decision, 2026-08-21 — see
@@ -49,4 +57,17 @@ export function resolvePeriodParams(
   const fallbackFrom = addDaysToDateString(to, -(defaultDays - 1));
   const from = params.from && DATE_RE.test(params.from) && params.from <= to ? params.from : fallbackFrom;
   return { from, to };
+}
+
+/**
+ * Same as `resolvePeriodParams`, but defaults to "Toàn bộ thời gian" (`ALL_TIME_FROM` through today)
+ * instead of a recent window when neither `?from=` nor `?to=` was given — every page's picker default
+ * (22/08/2026, theo yêu cầu — was Tổng quan-only at first, then extended to match everywhere). Once
+ * either query param is present (the picker's been touched, including its own "Toàn bộ thời gian"
+ * preset), resolution is identical to `resolvePeriodParams` — this only changes what "nothing in the
+ * URL yet" means.
+ */
+export function resolvePeriodParamsAllTime(params: { from?: string; to?: string }, now: Date = new Date()): { from: string; to: string } {
+  if (!params.from && !params.to) return { from: ALL_TIME_FROM, to: nowVnDateString(now) };
+  return resolvePeriodParams(params, undefined, now);
 }

@@ -318,7 +318,7 @@ vấn đề #7, 21/08/2026).
     "followers":      { "value": 53500, "deltaAbs": 2600 },
     "videos":         { "value": 111, "deltaPct": 7 },
     "viewsPerVideo":  { "value": 21784, "deltaPct": -3 },
-    "engagementRate": { "value": 0.0182, "deltaPct": -5 }
+    "totalLikes":     { "value": 88400 }
   },
   "dataFreshness": { "latestDate": "2026-08-16", "source": "studio_import",
                      "label": "đã đối chiếu", "reconciledThrough": "2026-08-16" },

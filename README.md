@@ -37,10 +37,18 @@ npx supabase db push
 
 ### 4. Seed
 
-Điền `SEED_MANAGER_EMAIL` / `SEED_MANAGER_PASSWORD` vào `.env.local` rồi:
+Điền `SEED_MANAGER_EMAIL` / `SEED_MANAGER_USERNAME` / `SEED_MANAGER_PASSWORD` vào `.env.local` rồi:
 
 ```bash
 npm run seed
+```
+
+`npm run seed` chỉ **tạo** tài khoản Manager nếu chưa có — chạy lại khi tài khoản đã tồn tại sẽ không
+đổi mật khẩu (kể cả nếu `SEED_MANAGER_PASSWORD` trong `.env.local` đổi sau đó). Mật khẩu thật đổi ở
+Supabase (qua Dashboard, hoặc do quên) mà cần đồng bộ lại cho khớp `.env.local` thì dùng:
+
+```bash
+npm run reset-manager-password
 ```
 
 Tạo tài khoản Manager và các kênh. Muốn seed kèm Creator: copy

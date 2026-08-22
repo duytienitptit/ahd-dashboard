@@ -183,7 +183,7 @@ export function ChannelsTable({
               <div className="text-right">Lượt xem</div>
               <div className="text-right">Video</div>
               <div className="text-right">View / video</div>
-              <div className="text-center">7 ngày</div>
+              <div className="text-center">Xu hướng</div>
               <div>Tiến độ KPI</div>
               <div />
             </div>

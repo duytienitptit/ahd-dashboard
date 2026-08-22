@@ -20,10 +20,10 @@ import {
   pctChange,
   previousPeriod,
 } from "@/lib/dashboard";
-import { formatCompact, formatDeltaPct, formatRatePct, formatSignedNumber, initialsFromEnd } from "@/lib/format";
+import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromEnd } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
-import { addDaysToDateString, resolvePeriodParams } from "@/lib/time";
+import { addDaysToDateString, resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { StatTile } from "../../dashboard-widgets";
 import { DateRangePicker } from "../../date-range-picker";
@@ -51,7 +51,7 @@ export default async function CreatorDetailPage({
 
   const { id } = await params;
   const search = await searchParams;
-  const { from, to } = resolvePeriodParams(search);
+  const { from, to } = resolvePeriodParamsAllTime(search);
 
   const supabase = await createSupabaseServerClient();
   const [creators, teams] = await Promise.all([listCreators(supabase), listTeams(supabase)]);
@@ -155,13 +155,7 @@ export default async function CreatorDetailPage({
               deltaGood={rollup.videos >= rollup.previousVideos}
               note="so với kỳ trước"
             />
-            <StatTile
-              label="Tương tác"
-              value={formatRatePct(rollup.engagementRate)}
-              deltaText={formatDeltaPct(rollup.engagementRateDeltaPct)}
-              deltaGood={rollup.engagementRateDeltaPct === null ? null : rollup.engagementRateDeltaPct >= 0}
-              note="chỉ số dẫn báo"
-            />
+            <StatTile label="Tổng số like" value={formatCompact(rollup.totalLikes)} unit="like" />
           </div>
 
           <div className="mb-3.5">

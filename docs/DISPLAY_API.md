@@ -101,6 +101,13 @@ mục Scopes để tick, không tìm thấy tile "Display API" trong danh sách 
 
 Nếu sandbox không đủ: nộp duyệt app chính thức, hồ sơ sạch mất **khoảng 1-2 tuần**.
 
+⚠️ **Lỗi `non_sandbox_target`** (gặp thật 22/08/2026 lúc kết nối 2 kênh thật qua `/connections`): trang
+authorize của TikTok báo "We couldn't log in with TikTok... non_sandbox_target" — nghĩa là tài khoản
+TikTok đang đăng nhập lúc bấm "Kết nối" **chưa được thêm vào Target Users của sandbox**. Không phải
+lỗi code/config phía app (redirect URI, client key đều bình thường). Sửa: Developer Portal → app →
+tab **Sandbox** → **Target Users** → thêm tài khoản TikTok thật của kênh (chủ tài khoản cần xác nhận
+lời mời trong app TikTok), rồi mới bấm "Kết nối" lại.
+
 ## Những gì Display API KHÔNG có
 
 Đây là lý do vẫn phải giữ import Studio hằng tuần:

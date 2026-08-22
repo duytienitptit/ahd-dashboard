@@ -74,23 +74,25 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<App
  * authentication, so this is the one legitimate place in the app that uses the admin client with no
  * `requireManager()` guard first: there is no session yet to gate on.
  *
- * Accepts either a username (the normal case since 22/08/2026) or a raw email typed out of habit —
- * anything containing "@" is passed straight through unresolved and left for `signInWithPassword`
- * itself to accept or reject, no separate lookup needed. An unmatched username falls through to the
- * typed value too, so the caller doesn't need a null case — it just fails the same way a wrong
- * password would, and by design nobody can tell "unknown username" apart from "wrong password" from
- * the response (same reasoning app/login/actions.ts already applied when this was email-only).
+ * Username-only login (22/08/2026, hardened further 22/08/2026): a raw email — even a real account's
+ * real underlying email — is no longer accepted as a login identifier, only a `username` that
+ * actually matches a `manager`/`creator` row. Returns `null` on no match (unknown username, or an
+ * email-shaped input — `@` can never appear in a real username, so it can never match) instead of
+ * falling through to the raw typed value; the caller must treat `null` as an immediate auth failure
+ * without calling `signInWithPassword` at all, so a real email can never authenticate again even by
+ * accident. By design the caller still can't tell "unknown username" apart from "wrong password" —
+ * same reasoning app/login/actions.ts already applied when this was email-only.
  */
-export async function resolveLoginEmail(identifier: string): Promise<string> {
+export async function resolveLoginEmail(identifier: string): Promise<string | null> {
   const value = identifier.trim().toLowerCase();
-  if (!value || value.includes("@")) return value;
+  if (!value) return null;
 
   const admin = createSupabaseAdminClient();
   const [{ data: manager }, { data: creator }] = await Promise.all([
     admin.from("manager").select("email").eq("username", value).maybeSingle(),
     admin.from("creator").select("email").eq("username", value).maybeSingle(),
   ]);
-  return manager?.email ?? creator?.email ?? value;
+  return manager?.email ?? creator?.email ?? null;
 }
 
 export async function requireUser(): Promise<AppUser> {

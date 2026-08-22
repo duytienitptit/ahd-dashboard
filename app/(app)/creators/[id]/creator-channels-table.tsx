@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { CreatorPerformanceChannel } from "@/lib/dashboard";
-import { formatCompact, formatDeltaPct, formatRatePct, formatSignedNumber, initialsFromStart } from "@/lib/format";
+import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromStart } from "@/lib/format";
 
 const COLUMNS = "2fr 1fr 1fr 0.7fr 0.9fr";
 
@@ -29,7 +29,7 @@ export function CreatorChannelsTable({ channels }: { channels: CreatorPerformanc
             <div className="text-right">Follower</div>
             <div className="text-right">Lượt xem</div>
             <div className="text-right">Video</div>
-            <div className="text-right">Tương tác</div>
+            <div className="text-right">Lượt tim</div>
           </div>
 
           {channels.map((channel) => (
@@ -65,7 +65,7 @@ export function CreatorChannelsTable({ channels }: { channels: CreatorPerformanc
 
               <div className="text-right text-sm font-bold">{channel.videos}</div>
 
-              <div className="text-right text-sm font-bold">{formatRatePct(channel.engagementRate)}</div>
+              <div className="text-right text-sm font-bold">{formatCompact(channel.totalLikes)}</div>
             </Link>
           ))}
         </div>

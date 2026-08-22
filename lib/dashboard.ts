@@ -1,5 +1,5 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
-import { addDaysToDateString, daysBetweenDateStrings, nowVnDateString, vnMidnightIso } from "@/lib/time";
+import { ALL_TIME_FROM, addDaysToDateString, daysBetweenDateStrings, nowVnDateString, vnMidnightIso } from "@/lib/time";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -622,6 +622,76 @@ export async function fetchChannelVideos(
   }));
 }
 
+export type LatestVideoMetrics = { views: number; likes: number };
+
+/** Every channel's total of its videos' most recently known view/like count — a current snapshot
+ *  total like `followersNow`, not a period sum (per-video `view_count`/`like_count` are both
+ *  cumulative-lifetime — docs/DATABASE_ERD.md). Same latest-per-video dedup as `fetchChannelVideos`,
+ *  just grouped by channel and done for every channel in one pass instead of listed for one.
+ *
+ *  Two unrelated-looking callers share this because they're the same query shape:
+ *  - `likes`: "Tổng số like" at every granularity in the app — one channel, one Creator's channels,
+ *    one Team's channels, or the whole company (22/08/2026: replaced engagement rate everywhere,
+ *    theo yêu cầu).
+ *  - `views`: fallback for `getChannelPeriodStats`'s `views` field specifically when the period is
+ *    "Toàn bộ thời gian" (`ALL_TIME_FROM`) — at that one period, "view trong kỳ" and "tổng view luỹ
+ *    kế" are the same number by definition, and this is more robust than summing
+ *    `data_snapshot.video_views` deltas day-by-day: it doesn't depend on every day since
+ *    `ALL_TIME_FROM` having an unbroken `data_snapshot` row (which isn't true right now — a channel's
+ *    older rows were deleted alongside other cleanup, 22/08/2026). CLAUDE.md's "view trong kỳ phải
+ *    suy ra bằng chênh lệch theo từng video" rule is about SHORTER periods (7/14/30 ngày, tuỳ chỉnh)
+ *    — summing raw cumulative `view_count` there would massively overcount (docs/DISPLAY_API.md bẫy
+ *    #10's ~10x real example), so this fallback is deliberately gated to the one period where it's
+ *    exact, not a general replacement for the delta computation.
+ *
+ *  Channels with no videos yet still get a `{views: 0, likes: 0}` entry, never a missing key —
+ *  callers can `.get(id)` without a special case. */
+export async function fetchLatestVideoMetricsByChannel(
+  supabase: SupabaseServerClient,
+  channelIds: string[],
+): Promise<Map<string, LatestVideoMetrics>> {
+  const totals = new Map<string, LatestVideoMetrics>(channelIds.map((id) => [id, { views: 0, likes: 0 }]));
+  if (channelIds.length === 0) return totals;
+
+  const { data: videos, error: videosError } = await supabase
+    .from("content_video")
+    .select("id, channel_id")
+    .in("channel_id", channelIds);
+  if (videosError) throw videosError;
+  if (!videos || videos.length === 0) return totals;
+
+  const channelByVideo = new Map(videos.map((v) => [v.id as string, v.channel_id as string]));
+  const videoIds = [...channelByVideo.keys()];
+
+  const { data: snapshots, error: snapshotError } = await supabase
+    .from("video_snapshot")
+    .select("content_video_id, date, view_count, like_count")
+    .in("content_video_id", videoIds)
+    .order("date", { ascending: false });
+  if (snapshotError) throw snapshotError;
+
+  const seen = new Set<string>();
+  for (const row of snapshots ?? []) {
+    const videoId = row.content_video_id as string;
+    if (seen.has(videoId)) continue; // sorted desc — first hit per video is the latest
+    seen.add(videoId);
+    const channelId = channelByVideo.get(videoId);
+    if (!channelId) continue;
+    const entry = totals.get(channelId) ?? { views: 0, likes: 0 };
+    entry.views += row.view_count !== null ? Number(row.view_count) : 0;
+    entry.likes += row.like_count !== null ? Number(row.like_count) : 0;
+    totals.set(channelId, entry);
+  }
+  return totals;
+}
+
+/** Sum of `fetchLatestVideoMetricsByChannel`'s `likes` across a set of channels — the team-wide
+ *  "Tổng số like" tile on Tổng quan doesn't need the per-channel breakdown, just the total. */
+export async function sumLatestVideoLikes(supabase: SupabaseServerClient, channelIds: string[]): Promise<number> {
+  const byChannel = await fetchLatestVideoMetricsByChannel(supabase, channelIds);
+  return [...byChannel.values()].reduce((a, m) => a + m.likes, 0);
+}
+
 export async function fetchActivityHeatmap(
   supabase: SupabaseServerClient,
   channelId: string,
@@ -655,14 +725,12 @@ export type ChannelPeriodStat = {
   videos: number;
   previousVideos: number;
   viewsPerVideo: number | null;
-  likes: number;
-  comments: number;
-  shares: number;
-  previousLikes: number;
-  previousComments: number;
-  previousShares: number;
-  engagementRate: number | null;
-  engagementRateDeltaPct: number | null;
+  /** Current total of this channel's videos' latest known like count — not period-scoped (same shape
+   *  as `followersNow`), so no "previous"/delta counterpart. Replaced `engagementRate` here and at
+   *  every rollup built from this type (22/08/2026, theo yêu cầu) — CLAUDE.md's "engagement rate
+   *  luôn hiển thị ngang hàng view/follower" rule updated to match; the underlying `engagementRate()`
+   *  pure function/`data_snapshot.likes` column are untouched, just no longer surfaced by this path. */
+  totalLikes: number;
   followersNow: number | null;
   followersBefore: number | null;
   followersGain: number | null;
@@ -679,13 +747,14 @@ export type RollupStat = {
    *  Creator/Team rollup level instead of the whole company. */
   followersNow: number;
   followerGain: number;
-  engagementRate: number | null;
+  /** Current total across the channel set's videos' latest known like count — see
+   *  `ChannelPeriodStat.totalLikes`, same "current total, no delta" shape. */
+  totalLikes: number;
   /** Added for the Nhân sự detail page's "Video đã đăng" tile — same `countVideosPosted` numbers
    *  already summed per-channel by `getChannelPeriodStats`, just carried through the rollup instead
    *  of being dropped like before. */
   videos: number;
   previousVideos: number;
-  engagementRateDeltaPct: number | null;
 };
 
 /**
@@ -704,22 +773,15 @@ export function aggregateChannelStats(channelIds: string[], statsByChannel: Map<
 
   const totalViews = sum((s) => s.views);
   const previousViews = sum((s) => s.previousViews);
-  const engagementNumerator = sum((s) => s.likes) + sum((s) => s.comments) + sum((s) => s.shares);
-  const previousEngagementNumerator = sum((s) => s.previousLikes) + sum((s) => s.previousComments) + sum((s) => s.previousShares);
-  const previousViewsForEngagement = previousViews;
-  const engagementRate = totalViews > 0 ? engagementNumerator / totalViews : null;
-  const previousEngagementRate = previousViewsForEngagement > 0 ? previousEngagementNumerator / previousViewsForEngagement : null;
 
   return {
     totalViews,
     viewsDeltaPct: pctChange(totalViews, previousViews),
     followersNow: sum((s) => s.followersNow),
     followerGain: sum((s) => s.followersGain),
-    engagementRate,
+    totalLikes: sum((s) => s.totalLikes),
     videos: sum((s) => s.videos),
     previousVideos: sum((s) => s.previousVideos),
-    engagementRateDeltaPct:
-      engagementRate !== null && previousEngagementRate !== null ? pctChange(engagementRate, previousEngagementRate) : null,
   };
 }
 
@@ -735,7 +797,7 @@ export type CreatorPerformanceChannel = {
   followersNow: number | null;
   followersGain: number | null;
   videos: number;
-  engagementRate: number | null;
+  totalLikes: number;
 };
 
 export type CreatorPerformance = RollupStat & { channels: CreatorPerformanceChannel[] };
@@ -767,7 +829,7 @@ export function buildCreatorPerformance(
           followersNow: stat?.followersNow ?? null,
           followersGain: stat?.followersGain ?? null,
           videos: stat?.videos ?? 0,
-          engagementRate: stat?.engagementRate ?? null,
+          totalLikes: stat?.totalLikes ?? 0,
         };
       }),
     });
@@ -783,11 +845,19 @@ export async function getChannelPeriodStats(
   const result = new Map<string, ChannelPeriodStat>();
   if (channelIds.length === 0) return result;
 
-  const [allRows, videosCurrent, videosPrevious] = await Promise.all([
+  const [allRows, videosCurrent, videosPrevious, metricsByChannel] = await Promise.all([
     fetchDailyRows(supabase, channelIds, comparedFrom, to),
     countVideosPosted(supabase, channelIds, from, to),
     countVideosPosted(supabase, channelIds, comparedFrom, comparedTo),
+    fetchLatestVideoMetricsByChannel(supabase, channelIds),
   ]);
+
+  // "Toàn bộ thời gian" is the one period where "view trong kỳ" and "tổng view luỹ kế" are the same
+  // number — fall back to summing each video's current cumulative view_count (fetchLatestVideoMetrics-
+  // ByChannel, above), which doesn't depend on an unbroken data_snapshot history the way the delta sum
+  // below does. Any other period keeps the delta sum — see that function's doc comment for why summing
+  // raw view_count there would badly overcount.
+  const isAllTime = from === ALL_TIME_FROM;
 
   const byChannel = groupByChannel(allRows);
 
@@ -796,17 +866,11 @@ export async function getChannelPeriodStats(
     const currentRows = rows.filter((r) => r.date >= from && r.date <= to);
     const previousRows = rows.filter((r) => r.date >= comparedFrom && r.date <= comparedTo);
 
-    const views = sumViews(currentRows);
+    const views = isAllTime ? (metricsByChannel.get(channelId)?.views ?? 0) : sumViews(currentRows);
     const previousViews = sumViews(previousRows);
     const viewsDeltaPct = views !== null && previousViews !== null ? pctChange(views, previousViews) : null;
     const videos = videosCurrent.get(channelId) ?? 0;
     const previousVideos = videosPrevious.get(channelId) ?? 0;
-    const { likes, comments, shares } = sumEngagementParts(currentRows);
-    const { likes: previousLikes, comments: previousComments, shares: previousShares } =
-      sumEngagementParts(previousRows);
-
-    const currentEngagement = engagementRate(currentRows);
-    const previousEngagement = engagementRate(previousRows);
 
     // A gap day (no row synced) must not read as "dropped to zero" — fall back to the previous
     // period's last known value so a currently-empty tail (today-anchored windows, M4 decision
@@ -824,17 +888,7 @@ export async function getChannelPeriodStats(
       videos,
       previousVideos,
       viewsPerVideo: views !== null && videos > 0 ? Math.round(views / videos) : null,
-      likes,
-      comments,
-      shares,
-      previousLikes,
-      previousComments,
-      previousShares,
-      engagementRate: currentEngagement,
-      engagementRateDeltaPct:
-        currentEngagement !== null && previousEngagement !== null
-          ? pctChange(currentEngagement, previousEngagement)
-          : null,
+      totalLikes: metricsByChannel.get(channelId)?.likes ?? 0,
       followersNow,
       followersBefore,
       followersGain,
@@ -871,7 +925,11 @@ export type DashboardResponse = {
     followers: { value: number; deltaAbs: number };
     videos: { value: number; deltaPct: number | null };
     viewsPerVideo: { value: number; deltaPct: number | null };
-    engagementRate: { value: number | null; deltaPct: number | null };
+    /** Current total of every video's latest known like count — not period-scoped, same shape as
+     *  `followers`. Replaces the old `engagementRate` tile on the Tổng quan overview specifically
+     *  (22/08/2026, theo yêu cầu) — engagement rate itself is unchanged everywhere else (kênh/Creator
+     *  detail still show it; CLAUDE.md's "chỉ số dẫn báo duy nhất" rule still holds there). */
+    totalLikes: { value: number };
   };
   dataFreshness: DataFreshness;
   /** Deviates from docs/API_SPEC.md's original `{ metric, series }` (one series at a time) — the
@@ -958,11 +1016,12 @@ export async function getDashboard(
   const channelIds = activeChannels.map((c) => c.id);
   const nameById = new Map(activeChannels.map((c) => [c.id, c.name]));
 
-  const [periodStats, trendRows, trendPostedDates, freshness] = await Promise.all([
+  const [periodStats, trendRows, trendPostedDates, freshness, totalLikes] = await Promise.all([
     getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo }),
     fetchDailyRows(supabase, channelIds, monthTrendFrom, to),
     fetchPostedVnDates(supabase, channelIds, monthTrendFrom, to),
     fetchDataFreshness(supabase, channelIds),
+    sumLatestVideoLikes(supabase, channelIds),
   ]);
   // Week granularity is a subset of the 180-day fetch above — filtering in memory instead of a
   // second, near-duplicate query.
@@ -979,16 +1038,8 @@ export async function getDashboard(
   const teamPreviousViews = sum((s) => s.previousViews);
   const teamVideos = sum((s) => s.videos);
   const teamPreviousVideos = sum((s) => s.previousVideos);
-  // Engagement rate is (likes+comments+shares)/views over the SUMMED period, not an average of
-  // each channel's own rate — a big channel's rate must outweigh a small channel's the same way it
-  // does in lib/channels.ts's toChannelStats for a single day.
-  const teamEngagementNumerator = sum((s) => s.likes) + sum((s) => s.comments) + sum((s) => s.shares);
-  const teamPreviousEngagementNumerator =
-    sum((s) => s.previousLikes) + sum((s) => s.previousComments) + sum((s) => s.previousShares);
   const teamViewsPerVideo = teamVideos > 0 ? Math.round(teamViews / teamVideos) : 0;
   const teamPreviousViewsPerVideo = teamPreviousVideos > 0 ? teamPreviousViews / teamPreviousVideos : 0;
-  const teamEngagement = teamViews > 0 ? teamEngagementNumerator / teamViews : null;
-  const teamPreviousEngagement = teamPreviousViews > 0 ? teamPreviousEngagementNumerator / teamPreviousViews : null;
   const teamFollowersNow = sum((s) => s.followersNow ?? 0);
   const teamFollowersGain = sum((s) => s.followersGain ?? 0);
 
@@ -1052,13 +1103,7 @@ export async function getDashboard(
       followers: { value: teamFollowersNow, deltaAbs: teamFollowersGain },
       videos: { value: teamVideos, deltaPct: pctChange(teamVideos, teamPreviousVideos) },
       viewsPerVideo: { value: teamViewsPerVideo, deltaPct: pctChange(teamViewsPerVideo, teamPreviousViewsPerVideo) },
-      engagementRate: {
-        value: teamEngagement,
-        deltaPct:
-          teamEngagement !== null && teamPreviousEngagement !== null
-            ? pctChange(teamEngagement, teamPreviousEngagement)
-            : null,
-      },
+      totalLikes: { value: totalLikes },
     },
     dataFreshness: freshness,
     trend: {

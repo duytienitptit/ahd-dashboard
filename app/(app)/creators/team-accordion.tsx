@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import type { CreatorRank, RollupStat } from "@/lib/dashboard";
-import { formatCompact, formatDeltaPct, formatRatePct, formatSignedNumber, initialsFromEnd } from "@/lib/format";
+import { formatCompact, initialsFromEnd } from "@/lib/format";
 
 import { CreatorEditForm } from "./creator-form";
 
@@ -17,9 +17,8 @@ export type CreatorRowData = {
   team: { id: string; name: string } | null;
   channels: { id: string; name: string; tiktokHandle: string }[];
   totalViews: number;
-  viewsDeltaPct: number | null;
-  followerGain: number;
-  engagementRate: number | null;
+  followersNow: number;
+  videos: number;
   rank: CreatorRank;
 };
 
@@ -38,7 +37,7 @@ const RANK_STYLE: Record<CreatorRank, { label: string; bg: string; fg: string } 
   stable: null,
 };
 
-const CREATOR_ROW_COLUMNS = "2.1fr 1.7fr 0.95fr 0.9fr 0.85fr 1.15fr 40px";
+const CREATOR_ROW_COLUMNS = "2.1fr 1.7fr 0.95fr 0.9fr 0.8fr 1.15fr 40px";
 
 /** Sentinel accordion key for the unassigned bucket (`group.id` is `null` there, which can't round-trip
  *  through a URL query param) — matches the `?team=` value the creator detail page's "Chưa gán team"
@@ -70,14 +69,28 @@ function ChevronIcon({ open }: { open: boolean }) {
 /** Compact inline stat in a team's header row — same 3 numbers a member row shows, rolled up over
  *  every member's channels (`aggregateChannelStats`). Visible whether the panel is open or closed,
  *  so a Manager gets the team total at a glance without expanding it. */
-function RollupStatChip({ label, value, deltaText, deltaGood }: { label: string; value: string; deltaText: string; deltaGood: boolean | null }) {
+function RollupStatChip({
+  label,
+  value,
+  deltaText,
+  deltaGood,
+}: {
+  label: string;
+  value: string;
+  /** Omit both to render just the value — "Tổng số like" has no period-over-period counterpart
+   *  (current total, same as `TeamStatsRow`'s "Tổng số like" tile), unlike Lượt xem/Follower here. */
+  deltaText?: string;
+  deltaGood?: boolean | null;
+}) {
   return (
     <div className="flex items-baseline gap-1.5">
       <span className="text-[11.5px] text-ink-3">{label}</span>
       <span className="text-[13px] font-bold">{value}</span>
-      <span className={`text-[11px] font-semibold ${deltaGood === null ? "text-ink-3" : deltaGood ? "text-green-dark" : "text-red-dark"}`}>
-        {deltaText}
-      </span>
+      {deltaText ? (
+        <span className={`text-[11px] font-semibold ${deltaGood === null ? "text-ink-3" : deltaGood ? "text-green-dark" : "text-red-dark"}`}>
+          {deltaText}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -112,16 +125,11 @@ function CreatorRow({ creator, teams }: { creator: CreatorRowData; teams: { id: 
         {creator.channels.length > 0 ? creator.channels.map((ch) => ch.name).join(", ") : <span className="text-ink-3">Chưa phụ trách kênh nào</span>}
       </div>
 
-      <div className="text-right">
-        <div className="text-sm font-bold">{formatCompact(creator.totalViews)}</div>
-        <div className={`mt-0.5 text-[11.5px] font-semibold ${creator.viewsDeltaPct !== null && creator.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
-          {formatDeltaPct(creator.viewsDeltaPct)}
-        </div>
-      </div>
+      <div className="text-right text-sm font-bold">{formatCompact(creator.totalViews)}</div>
 
-      <div className="text-right text-sm font-bold text-green-dark">{formatSignedNumber(creator.followerGain)}</div>
+      <div className="text-right text-sm font-bold">{formatCompact(creator.followersNow)}</div>
 
-      <div className="text-right text-sm font-bold">{formatRatePct(creator.engagementRate)}</div>
+      <div className="text-right text-sm font-bold">{creator.videos}</div>
 
       <div className="flex flex-col items-end gap-1">
         <span
@@ -194,24 +202,9 @@ function TeamPanel({
 
         {hasNumbers ? (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <RollupStatChip
-              label="Lượt xem"
-              value={formatCompact(group.rollup.totalViews)}
-              deltaText={formatDeltaPct(group.rollup.viewsDeltaPct)}
-              deltaGood={group.rollup.viewsDeltaPct === null ? null : group.rollup.viewsDeltaPct >= 0}
-            />
-            <RollupStatChip
-              label="Follower"
-              value={formatCompact(group.rollup.followersNow)}
-              deltaText={formatSignedNumber(group.rollup.followerGain)}
-              deltaGood={group.rollup.followerGain >= 0}
-            />
-            <RollupStatChip
-              label="Tương tác"
-              value={formatRatePct(group.rollup.engagementRate)}
-              deltaText={formatDeltaPct(group.rollup.engagementRateDeltaPct)}
-              deltaGood={group.rollup.engagementRateDeltaPct === null ? null : group.rollup.engagementRateDeltaPct >= 0}
-            />
+            <RollupStatChip label="Lượt xem" value={formatCompact(group.rollup.totalViews)} />
+            <RollupStatChip label="Follower" value={formatCompact(group.rollup.followersNow)} />
+            <RollupStatChip label="Video" value={String(group.rollup.videos)} />
           </div>
         ) : null}
       </button>
@@ -226,8 +219,8 @@ function TeamPanel({
                 <div>Nhân sự</div>
                 <div>Kênh phụ trách</div>
                 <div className="text-right">Lượt xem</div>
-                <div className="text-right">Follower +</div>
-                <div className="text-right">Tương tác</div>
+                <div className="text-right">Follower</div>
+                <div className="text-right">Video</div>
                 <div className="text-right">Trạng thái</div>
                 <div />
               </div>

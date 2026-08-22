@@ -1,10 +1,10 @@
 import { getCurrentUser } from "@/lib/auth";
 import { listCreators } from "@/lib/creators";
 import { getDashboard } from "@/lib/dashboard";
-import { formatDeltaPct, formatShortDate, formatSignedNumber } from "@/lib/format";
+import { formatDeltaPct, formatSignedNumber } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
-import { resolvePeriodParams } from "@/lib/time";
+import { resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { CreatorFilterSelect } from "./creator-filter";
 import {
@@ -32,7 +32,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   if (!user) return null; // layout already redirects signed-out visitors
 
   const params = await searchParams;
-  const { from, to } = resolvePeriodParams(params);
+  const { from, to } = resolvePeriodParamsAllTime(params);
   const creatorId = params.creatorId ?? null;
   const teamId = params.teamId ?? null;
 
@@ -67,11 +67,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 ["Follower toàn team", teamStats.followers.value, formatSignedNumber(teamStats.followers.deltaAbs)],
                 ["Video đã đăng", teamStats.videos.value, formatDeltaPct(teamStats.videos.deltaPct)],
                 ["View / video", teamStats.viewsPerVideo.value, formatDeltaPct(teamStats.viewsPerVideo.deltaPct)],
-                [
-                  "Tỷ lệ tương tác",
-                  teamStats.engagementRate.value !== null ? Math.round(teamStats.engagementRate.value * 10000) / 100 : "",
-                  formatDeltaPct(teamStats.engagementRate.deltaPct),
-                ],
+                ["Tổng số like", teamStats.totalLikes.value, ""],
               ]}
               label="Xuất dữ liệu"
             />
@@ -92,10 +88,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             </div>
           ) : null}
 
-          <p className="mb-2.5 text-[12.5px] text-ink-3">
-            So với kỳ trước ({formatShortDate(dashboard.period.comparedFrom)} –{" "}
-            {formatShortDate(dashboard.period.comparedTo)})
-          </p>
           <TeamStatsRow teamStats={dashboard.teamStats} />
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">

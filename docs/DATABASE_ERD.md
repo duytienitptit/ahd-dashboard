@@ -320,7 +320,10 @@ trên cả `manager` lẫn `creator` (Supabase Auth bắt buộc phải có mộ
 ai thấy hay gõ nó nữa — `username` (thêm ở `20260822000001_username.sql`, unique, not null, format
 `^[a-z0-9._-]{3,32}$`) mới là định danh hiển thị/đăng nhập thật. Tài khoản tạo sau ngày này có `email`
 tự sinh (`{username}@creator.internal`) chỉ để thoả điều kiện của Auth; tài khoản tạo trước đó vẫn giữ
-nguyên email thật, mật khẩu không đổi — chỉ thêm `username` để tra cứu, không migrate lại Auth.
+nguyên email thật, mật khẩu không đổi — chỉ thêm `username` để tra cứu, không migrate lại Auth. **Gõ
+thẳng `email` ở ô đăng nhập cũng không vào được** (siết thêm cùng ngày, theo yêu cầu riêng) —
+`resolveLoginEmail()` (`lib/auth.ts`) chỉ chấp nhận `username` khớp đúng hàng, không còn fallback cho
+input dạng email.
 `resolveLoginEmail()` (`lib/auth.ts`) là nơi tra `username → email` trước khi gọi
 `signInWithPassword()`, chạy bằng admin client vì lúc đó chưa có phiên nào để RLS cho đọc.
 

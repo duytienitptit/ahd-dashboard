@@ -3,7 +3,7 @@ import { listChannels } from "@/lib/channels";
 import { listCreators } from "@/lib/creators";
 import { getChannelPeriodStats, previousPeriod } from "@/lib/dashboard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolvePeriodParams } from "@/lib/time";
+import { resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { DateRangePicker } from "../date-range-picker";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../filter-transition";
@@ -16,7 +16,7 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Sea
   const user = await getCurrentUser();
   if (!user) return null; // layout already redirects signed-out visitors
 
-  const { from, to } = resolvePeriodParams(await searchParams);
+  const { from, to } = resolvePeriodParamsAllTime(await searchParams);
   const { comparedFrom, comparedTo } = previousPeriod(from, to);
 
   const supabase = await createSupabaseServerClient();

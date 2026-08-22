@@ -559,6 +559,98 @@ của ai**, chỉ thêm cột tra cứu mới, không ai bị đăng xuất hay 
   ngụ ý sẽ phải đổi sau, nhưng thực tế chưa từng ép đổi mật khẩu lần đầu (đã ghi ở PRODUCT_SPEC.md
   mục 8 từ trước) nên chữ "tạm" không đúng với hành vi thật.
 
+## Tổng quan — thay Tỷ lệ tương tác bằng Tổng số like (22/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+- **4 thẻ số ở Tổng quan (`teamStats`) đổi "Tỷ lệ tương tác" → "Tổng số like"**, và **bỏ hẳn badge
+  "so với kỳ trước" trên cả 4 thẻ** (theo yêu cầu, xem xu hướng qua biểu đồ bên dưới thay vì lặp lại
+  ở từng thẻ). Ngoại lệ CLAUDE.md ("engagement rate luôn hiển thị ngang hàng view/follower") chỉ áp
+  dụng cho màn này — `channels/[id]`, `creators/[id]`, `team-accordion` **không đổi gì**, vẫn hiển thị
+  Tỷ lệ tương tác đầy đủ với badge như cũ (dùng chung `StatTile` nhưng khác lời gọi).
+- **`sumLatestVideoLikes()` (mới, `lib/dashboard.ts`)** — tổng like **hiện tại** (không phải trong kỳ),
+  cùng kiểu với `followers`: cộng `like_count` mới nhất của từng video (bảng `video_snapshot`), không
+  phải sum theo ngày như `views`. Vì vậy **không đổi theo bộ lọc ngày** — chọn 7 ngày hay Toàn bộ thời
+  gian, Tổng số like vẫn như nhau, giống hệt cách Follower toàn team hoạt động.
+- Cân nhắc rồi bỏ: dùng thẳng `data_snapshot.likes` (đã có cột, dùng cho engagement rate) thay vì
+  cộng theo video — **không dùng** vì cột đó chỉ `studio_import` ghi (cuối tuần), trong khi 3 thẻ kia
+  cập nhật hằng ngày qua Display API; Tổng số like sẽ đứng yên cả tuần nếu theo cách đó, nhìn như treo.
+- Cân nhắc rồi bỏ: tạo view/RPC Postgres cho "like mới nhất mỗi video" (nhanh hơn) — **không làm**,
+  vì cần 1 migration mới phải tự tay áp dụng lên Supabase (không có Supabase CLI trong máy), trong khi
+  scale thật hiện tại (~1-8 kênh) nhỏ vừa đủ để lặp dedup ở JS như `fetchChannelVideos()` đã làm —
+  giống hệt pattern hiện có, không thêm khái niệm mới. Nếu số kênh/video tăng nhiều, đây là chỗ tối ưu
+  đầu tiên nên nhìn tới.
+
+## Tổng quan — mặc định "Toàn bộ thời gian" thay vì "7 ngày qua" (22/08/2026, theo yêu cầu)
+
+- Chỉ đổi **giá trị mặc định lúc mới vào trang Tổng quan** (`app/(app)/page.tsx`, khi URL chưa có
+  `?from=`/`?to=`) — `resolvePeriodParams()` dùng chung và 3 trang còn lại gọi nó (Kênh, Nhân sự,
+  Creator chi tiết) **không đổi**, vẫn mặc định 7 ngày. Lý do đổi: kênh vừa kết nối lại thì cửa sổ 7
+  ngày gần như luôn rỗng — "Video đã đăng" nhảy từ 14 (7 ngày) lên 51 (toàn bộ) sau khi đổi, khớp đúng
+  tổng số video thật của kênh.
+- **`ALL_TIME_FROM = "2020-01-01"` (mới, `lib/time.ts`)** — mốc cố định, không suy từ ngày hiện tại
+  (khác `defaultDays`-based fallback của `resolvePeriodParams`) — cố tình, để không bị trôi theo thời
+  gian: nếu dùng "N ngày trước hôm nay" cho khái niệm "mãi mãi", N cố định sẽ dần cắt mất dữ liệu thật
+  càng về sau công cụ càng chạy lâu. `DateRangePicker` thêm preset "Toàn bộ thời gian" dùng chung hằng
+  số này (nhận diện đúng làm preset đang chọn thay vì hiện dải ngày thô) — dùng được luôn ở Kênh/Creator
+  chi tiết dù mặc định 2 trang đó không đổi, vì component picker là 1 cái dùng chung.
+- ⚠️ **Phát hiện lúc kiểm chứng, không phải do đổi mặc định:** "Lượt xem"/"Tương tác" vẫn "—"/0 kể cả
+  ở Toàn bộ thời gian — kiểm tra bảng "Số liệu đã lưu theo ngày" ở `/channels/[id]` thì `data_snapshot`
+  của kênh `vuonvuonvang` hiện **chỉ có đúng 1 dòng** (hôm nay, `video_views = null` vì là lần sync
+  bootstrap sau khi kết nối lại — docs/DISPLAY_API.md bẫy #10). Người dùng xác nhận đã tự xoá dữ liệu
+  khác lúc dọn (chỉ giữ 1 kênh + 1 Creator) — nhiều khả năng lịch sử `data_snapshot` cũ (từng có, dùng
+  để tính view/engagement) bị xoá theo, trong khi `content_video`/`video_snapshot` (nguồn của "Video
+  đã đăng" 51 và "Tổng số like" 108k) thì còn nguyên. **Không phải bug** — số Lượt xem thật sẽ bắt đầu
+  tích luỹ lại từ lần sync kế tiếp (cron 03:00 mai). Muốn có lại lịch sử Lượt xem cũ: import lại file
+  Studio gốc của kênh này qua `/import` nếu người dùng còn giữ file.
+
+## Đăng nhập bằng email — siết chặt, bỏ hẳn (22/08/2026, theo yêu cầu)
+
+- Từ khi chuyển sang username (mục "Đăng nhập bằng username" ở trên), `resolveLoginEmail()` vẫn giữ
+  1 lối tắt: input có dấu "@" được coi là email thật và cho thẳng qua `signInWithPassword`, không tra
+  `username` — tức **email thật (kể cả không hiển thị/không gõ được ở UI khác) vẫn đăng nhập được**
+  nếu ai đó nhớ/đoán ra. Phát hiện lúc soát lại code lúc debug 1 ca sai mật khẩu thật (không phải do
+  lỗi này — mật khẩu đúng là sai) trong phiên làm việc, người dùng yêu cầu bỏ hẳn.
+- **Sửa:** `resolveLoginEmail()` giờ trả `string | null` — chỉ trả email khi `username` khớp đúng 1
+  hàng trong `manager`/`creator`; không khớp (kể cả input dạng email, vì `@` không bao giờ khớp được
+  `username` do ràng buộc regex `^[a-z0-9._-]{3,32}$`) → trả `null`. `app/login/actions.ts` chặn ngay
+  khi `null`, không gọi `signInWithPassword` nữa — email thật không còn đường nào vào được, kể cả gõ
+  đúng 100%.
+- Không có test cho `resolveLoginEmail()` (dùng `createSupabaseAdminClient()` thật, chưa có hạ tầng
+  mock Supabase admin trong bộ test hiện tại — cùng lý do các hàm dùng admin client khác cũng chưa
+  test). Đã kiểm bằng tay: login thật với `username` đúng vẫn qua bình thường sau khi sửa (build +
+  141 test khác không ảnh hưởng); **chưa** tự kiểm được ca "gõ email thật vẫn bị từ chối" vì cần nhập
+  mật khẩu thật — nhờ người dùng tự xác nhận nếu cần chắc 100%.
+
+## Tỷ lệ tương tác → Lượt tim, toàn app (22/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+- Mở rộng quyết định "Tổng quan thay Tỷ lệ tương tác bằng Tổng số like" (mục trên) ra **toàn bộ 4 chỗ
+  còn lại** hiển thị tỷ lệ tương tác: `channels/[id]` (thẻ số), `creators/[id]` (thẻ số +
+  `creator-channels-table.tsx` cột theo kênh), `team-accordion.tsx` (2 chỗ: rollup Team + cột theo
+  Creator). Quy tắc CLAUDE.md cũ "luôn hiển thị ngang hàng view/follower" đã bỏ hẳn — không còn ngoại
+  lệ nào giữ lại tỷ lệ tương tác ở UI.
+- **`fetchLatestVideoLikesByChannel()` (mới, thay cho `sumLatestVideoLikes()` cũ, `lib/dashboard.ts`)**
+  — cùng logic (like mới nhất mỗi video, cộng dồn) nhưng trả `Map<channelId, number>` thay vì 1 số —
+  dùng chung được cho mọi cấp độ (1 kênh, Creator, Team, toàn team) bằng cách cộng đúng tập channelId
+  cần. `sumLatestVideoLikes()` giữ lại làm wrapper mỏng (`[...map.values()].reduce(...)`) cho chỗ gọi
+  cũ ở Tổng quan, không đổi behavior ở đó.
+- **`ChannelPeriodStat`/`RollupStat`/`CreatorPerformanceChannel` (`lib/dashboard.ts`) bỏ hẳn
+  `likes/comments/shares/previousLikes/previousComments/previousShares/engagementRate/
+  engagementRateDeltaPct`, thêm `totalLikes: number`** — không phải theo kỳ (giống `followersNow`,
+  không có `previous`/delta đi kèm), tính 1 lần trong `getChannelPeriodStats()` qua
+  `fetchLatestVideoLikesByChannel()` (thêm vào `Promise.all` sẵn có, không thêm round-trip tuần tự) rồi
+  cộng dồn ở `aggregateChannelStats()`/`buildCreatorPerformance()` như các field khác.
+- Cân nhắc rồi bỏ: giữ `engagementRate`/`engagementRateDeltaPct` trong type nhưng chỉ ngừng render ở
+  UI — **không làm**, vì người dùng yêu cầu rõ "bỏ tất cả", giữ field chết trong type/data layer trong
+  khi không còn nơi nào tiêu thụ đúng là dead code nên xoá theo.
+- **Không đổi**: `engagementRate()`/`sumEngagementParts()` (hàm thuần) và cột `data_snapshot.likes/
+  comments/shares` — vẫn được `lib/import/*.ts` (parser Studio CSV) ghi và `lib/channels.ts`'s
+  `latestStats.engagementRate` (`GET /api/channels`, không phải màn hình nào trong scope lần này)
+  vẫn dùng. Không nằm trong 4 chỗ người dùng liệt — cố tình không đụng.
+- `dashboard.test.ts`: bỏ 2 test kiểm `engagementRateDeltaPct` (kiểm hành vi đã xoá, không có gì thay
+  thế hợp lý), sửa fixture `channelStat()` + 3 test còn lại của `aggregateChannelStats`/
+  `buildCreatorPerformance` sang `totalLikes`. 141/141 test qua, build/typecheck sạch. Kiểm chứng
+  trực quan bằng browser thật cả 4 vị trí (không chỉ dựa test) — số `108k` khớp nhau tuyệt đối ở
+  Tổng quan, kênh, Creator, Team.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

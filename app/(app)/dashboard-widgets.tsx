@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { DashboardResponse } from "@/lib/dashboard";
-import { avatarPalette, formatCompact, formatDeltaPct, formatFullDate, formatSignedNumber, initialsFromStart } from "@/lib/format";
+import { avatarPalette, formatCompact, formatFullDate, formatSignedNumber, initialsFromStart } from "@/lib/format";
 
 import { SourcePriorityInfo } from "./source-priority-info";
 
@@ -52,60 +52,40 @@ export function StatTile({
   label: string;
   value: string;
   unit?: string;
-  deltaText: string;
-  deltaGood: boolean | null;
-  note: string;
+  /** Omit all three to render a plain total with no comparison row — the Tổng quan "Tổng số like"
+   *  tile has nothing period-over-period to compare (22/08/2026, theo yêu cầu: bỏ badge so kỳ trước
+   *  trên các thẻ tổng, xem xu hướng qua biểu đồ bên dưới thay vì lặp lại ở từng thẻ). */
+  deltaText?: string;
+  deltaGood?: boolean | null;
+  note?: string;
 }) {
   return (
     <div className="rounded-card border border-line px-[18px] py-4">
       <div className="mb-[11px] text-[12.5px] font-semibold text-ink-3">{label}</div>
-      <div className="mb-[9px] flex items-baseline gap-2">
+      <div className={deltaText ? "mb-[9px] flex items-baseline gap-2" : "flex items-baseline gap-2"}>
         <div className="text-[30px] font-extrabold leading-none tracking-[-1.1px]">{value}</div>
         {unit ? <div className="text-xs font-medium text-ink-3">{unit}</div> : null}
       </div>
-      <div className="flex items-center gap-1.5">
-        <DeltaPill text={deltaText} good={deltaGood} />
-        <span className="text-[11.5px] text-ink-3">{note}</span>
-      </div>
+      {deltaText ? (
+        <div className="flex items-center gap-1.5">
+          <DeltaPill text={deltaText} good={deltaGood ?? null} />
+          {note ? <span className="text-[11.5px] text-ink-3">{note}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-/** The 4-tile row shared by the Manager and Creator "Tổng quan" headers — same data, same math. */
+/** The 4-tile row shared by the Manager and Creator "Tổng quan" headers — same data, same math. Just
+ *  totals, no per-tile "so với kỳ trước" — that comparison lives in the trend chart right below
+ *  instead of repeating on every tile (22/08/2026, theo yêu cầu). */
 export function TeamStatsRow({ teamStats }: { teamStats: DashboardResponse["teamStats"] }) {
   return (
     <div className="mb-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <StatTile
-        label="Lượt xem"
-        value={formatCompact(teamStats.views.value)}
-        unit="view"
-        deltaText={formatDeltaPct(teamStats.views.deltaPct)}
-        deltaGood={teamStats.views.deltaPct === null ? null : teamStats.views.deltaPct >= 0}
-        note="so với kỳ trước"
-      />
-      <StatTile
-        label="Follower toàn team"
-        value={formatCompact(teamStats.followers.value)}
-        unit="follower"
-        deltaText={formatSignedNumber(teamStats.followers.deltaAbs)}
-        deltaGood={teamStats.followers.deltaAbs >= 0}
-        note="tăng trong kỳ"
-      />
-      <StatTile
-        label="Video đã đăng"
-        value={String(teamStats.videos.value)}
-        unit="video"
-        deltaText={formatDeltaPct(teamStats.videos.deltaPct)}
-        deltaGood={teamStats.videos.deltaPct === null ? null : teamStats.videos.deltaPct >= 0}
-        note="so với kỳ trước"
-      />
-      <StatTile
-        label="Tỷ lệ tương tác"
-        value={teamStats.engagementRate.value === null ? "—" : (teamStats.engagementRate.value * 100).toFixed(2).replace(".", ",") + "%"}
-        deltaText={formatDeltaPct(teamStats.engagementRate.deltaPct)}
-        deltaGood={teamStats.engagementRate.deltaPct === null ? null : teamStats.engagementRate.deltaPct >= 0}
-        note="chỉ số dẫn báo"
-      />
+      <StatTile label="Lượt xem" value={formatCompact(teamStats.views.value)} unit="view" />
+      <StatTile label="Follower toàn team" value={formatCompact(teamStats.followers.value)} unit="follower" />
+      <StatTile label="Video đã đăng" value={String(teamStats.videos.value)} unit="video" />
+      <StatTile label="Tổng số like" value={formatCompact(teamStats.totalLikes.value)} unit="like" />
     </div>
   );
 }

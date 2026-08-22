@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "reset-manager-password": "node scripts/reset-manager-password.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

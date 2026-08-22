@@ -143,14 +143,7 @@ function channelStat(partial: Partial<ChannelPeriodStat> & { channelId: string }
     videos: 0,
     previousVideos: 0,
     viewsPerVideo: null,
-    likes: 0,
-    comments: 0,
-    shares: 0,
-    previousLikes: 0,
-    previousComments: 0,
-    previousShares: 0,
-    engagementRate: null,
-    engagementRateDeltaPct: null,
+    totalLikes: 0,
     followersNow: null,
     followersBefore: null,
     followersGain: null,
@@ -161,17 +154,17 @@ function channelStat(partial: Partial<ChannelPeriodStat> & { channelId: string }
 }
 
 describe("aggregateChannelStats", () => {
-  it("sums views/followerGain/engagement across the given channels — same math for a Creator's channels or a Team's channels", () => {
+  it("sums views/followerGain/totalLikes across the given channels — same math for a Creator's channels or a Team's channels", () => {
     const statsByChannel = new Map([
-      ["a", channelStat({ channelId: "a", views: 100000, previousViews: 80000, followersNow: 5000, followersGain: 500, likes: 1000, comments: 200, shares: 100 })],
-      ["b", channelStat({ channelId: "b", views: 50000, previousViews: 50000, followersNow: 3000, followersGain: 200, likes: 500, comments: 50, shares: 50 })],
+      ["a", channelStat({ channelId: "a", views: 100000, previousViews: 80000, followersNow: 5000, followersGain: 500, totalLikes: 1300 })],
+      ["b", channelStat({ channelId: "b", views: 50000, previousViews: 50000, followersNow: 3000, followersGain: 200, totalLikes: 600 })],
     ]);
 
     const rollup = aggregateChannelStats(["a", "b"], statsByChannel);
     expect(rollup.totalViews).toBe(150000);
     expect(rollup.followersNow).toBe(8000);
     expect(rollup.followerGain).toBe(700);
-    expect(rollup.engagementRate).toBeCloseTo(1900 / 150000);
+    expect(rollup.totalLikes).toBe(1900);
     expect(rollup.viewsDeltaPct).toBe(15); // (150000-130000)/130000
   });
 
@@ -181,49 +174,27 @@ describe("aggregateChannelStats", () => {
     expect(rollup.totalViews).toBe(100);
   });
 
-  it("returns totalViews: 0 and engagementRate: null for an empty channel list (e.g. a team with no channels yet)", () => {
+  it("returns totalViews: 0 and totalLikes: 0 for an empty channel list (e.g. a team with no channels yet)", () => {
     const rollup = aggregateChannelStats([], new Map());
     expect(rollup.totalViews).toBe(0);
-    expect(rollup.engagementRate).toBeNull();
+    expect(rollup.totalLikes).toBe(0);
   });
 
-  it("sums videos and derives engagementRateDeltaPct from current vs previous engagement", () => {
+  it("sums videos across channels alongside the other rollup fields", () => {
     const statsByChannel = new Map([
-      [
-        "a",
-        channelStat({
-          channelId: "a",
-          views: 1000,
-          previousViews: 1000,
-          videos: 5,
-          previousVideos: 3,
-          likes: 100,
-          comments: 0,
-          shares: 0,
-          previousLikes: 50,
-          previousComments: 0,
-          previousShares: 0,
-        }),
-      ],
+      ["a", channelStat({ channelId: "a", views: 1000, previousViews: 1000, videos: 5, previousVideos: 3, totalLikes: 100 })],
     ]);
     const rollup = aggregateChannelStats(["a"], statsByChannel);
     expect(rollup.videos).toBe(5);
     expect(rollup.previousVideos).toBe(3);
-    expect(rollup.engagementRate).toBeCloseTo(0.1); // 100/1000
-    expect(rollup.engagementRateDeltaPct).toBe(100); // 0.1 vs 0.05 previous → +100%
-  });
-
-  it("returns engagementRateDeltaPct: null when there's no previous-period views to compare against", () => {
-    const statsByChannel = new Map([["a", channelStat({ channelId: "a", views: 100, previousViews: 0, likes: 10 })]]);
-    const rollup = aggregateChannelStats(["a"], statsByChannel);
-    expect(rollup.engagementRateDeltaPct).toBeNull();
+    expect(rollup.totalLikes).toBe(100);
   });
 });
 
 describe("buildCreatorPerformance", () => {
   it("builds one rollup + channel breakdown per creator, keyed by creator id", () => {
     const statsByChannel = new Map([
-      ["ch1", channelStat({ channelId: "ch1", views: 1000, previousViews: 800, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2 })],
+      ["ch1", channelStat({ channelId: "ch1", views: 1000, previousViews: 800, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2, totalLikes: 40 })],
       ["ch2", channelStat({ channelId: "ch2", views: 500, previousViews: 500, followersNow: 50, followersGain: 5, videos: 1 })],
     ]);
     const creators = [
@@ -234,7 +205,7 @@ describe("buildCreatorPerformance", () => {
     const result = buildCreatorPerformance(creators, statsByChannel);
     expect(result.get("c1")?.totalViews).toBe(1000);
     expect(result.get("c1")?.channels).toEqual([
-      { id: "ch1", name: "Kênh 1", tiktokHandle: "@k1", views: 1000, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2, engagementRate: null },
+      { id: "ch1", name: "Kênh 1", tiktokHandle: "@k1", views: 1000, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2, totalLikes: 40 },
     ]);
     expect(result.get("c2")?.totalViews).toBe(500);
   });

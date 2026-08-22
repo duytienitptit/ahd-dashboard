@@ -22,11 +22,17 @@ export async function signIn(_prevState: SignInState, formData: FormData): Promi
   }
 
   const email = await resolveLoginEmail(username);
+
+  // One message for both wrong-password and unknown-username (including anything email-shaped —
+  // resolveLoginEmail never resolves those anymore): telling them apart would confirm which
+  // usernames have accounts, and skipping the Supabase call entirely means a real email can never
+  // authenticate even by accident.
+  if (!email) {
+    return { error: "Tên đăng nhập hoặc mật khẩu không đúng.", username };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-  // One message for both wrong-password and unknown-username: telling them apart would confirm
-  // which usernames have accounts.
   if (error) {
     return { error: "Tên đăng nhập hoặc mật khẩu không đúng.", username };
   }
