@@ -24,7 +24,9 @@ export function CreatorFilterSelect({
       disabled={isPending}
       className="h-[38px] rounded-btn border border-line bg-bg px-3 text-sm font-semibold outline-none disabled:opacity-60"
     >
-      <option value="all">Toàn team</option>
+      {/* "Tất cả Creator", not "Toàn team" — "Team" is now a real entity (TeamFilterSelect sits right
+          next to this), the old wording would read as if it meant that instead of "mọi Creator". */}
+      <option value="all">Tất cả Creator</option>
       {creators.map((c) => (
         <option key={c.id} value={c.id}>
           {c.name}

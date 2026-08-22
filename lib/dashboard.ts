@@ -64,8 +64,13 @@ export type DailyRow = {
   isComplete: boolean;
 };
 
-export function sumViews(rows: DailyRow[]): number {
-  return rows.reduce((sum, r) => sum + (r.videoViews ?? 0), 0);
+/** `null` when not one row in `rows` has a known `videoViews` — an honest "chưa có số đo", not a
+ *  bogus 0 (same principle CLAUDE.md applies to CSV `"undefined"`: never silently become 0). A
+ *  period where SOME days are known still sums those and ignores the unknown ones. */
+export function sumViews(rows: DailyRow[]): number | null {
+  const known = rows.filter((r) => r.videoViews !== null);
+  if (known.length === 0) return null;
+  return known.reduce((sum, r) => sum + r.videoViews!, 0);
 }
 
 export function sumEngagementParts(rows: DailyRow[]): { likes: number; comments: number; shares: number } {
@@ -81,7 +86,7 @@ export function sumEngagementParts(rows: DailyRow[]): { likes: number; comments:
 
 export function engagementRate(rows: DailyRow[]): number | null {
   const views = sumViews(rows);
-  if (views <= 0) return null;
+  if (views === null || views <= 0) return null;
   const { likes, comments, shares } = sumEngagementParts(rows);
   return (likes + comments + shares) / views;
 }
@@ -120,67 +125,217 @@ export function groupByChannel(rows: DailyRow[]): Map<string, DailyRow[]> {
   return map;
 }
 
-export type TrendPoint = { label: string; value: number };
+/** Priority order a single day's `source` is picked by when multiple channels disagree — same order
+ *  as `v_channel_daily`'s `source_rank()` (docs/DATABASE_ERD.md) and CLAUDE.md's
+ *  "studio_import > business_api > display_api > vendor_scraping > manual_entry". Index = strength,
+ *  lower is stronger. An unrecognized value sorts as weakest rather than throwing — defensive only,
+ *  every real row's `source` is one of these five. */
+const SOURCE_PRIORITY = ["studio_import", "business_api", "display_api", "vendor_scraping", "manual_entry"];
+function sourceRank(source: string): number {
+  const rank = SOURCE_PRIORITY.indexOf(source);
+  return rank === -1 ? SOURCE_PRIORITY.length : rank;
+}
+
+/**
+ * Merges one or more channels' `DailyRow`s into a single row per date — the Nhân sự detail page's
+ * `DailyTable` shows one Creator's whole channel set as one timeline, not N side-by-side tables.
+ * `channelCount` is the number of channels the caller expects a complete day to have data from (not
+ * derived from `rows` itself — a day where every channel is silently missing wouldn't appear in
+ * `rows` at all, so counting distinct channelIds present per day would never catch that case).
+ *
+ * Sums follow the same null-vs-0 rule as `sumViews`: a metric is `null` for a date only when NOT ONE
+ * of that day's channel rows has a known value for it — never a bogus 0 standing in for "chưa có số
+ *  đo". `source` takes the WEAKEST source among that day's rows (CLAUDE.md priority order) — a merged
+ * day is only as trustworthy as its worst-covered channel. `isComplete` requires both every
+ * contributing row to itself be complete AND every expected channel to have contributed a row that
+ * day (a channel silently absent — e.g. rate-limited out of the sync — must not read as "đầy đủ").
+ */
+export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): DailyRow[] {
+  type Acc = {
+    date: string;
+    channelsPresent: number;
+    videoViews: number | null;
+    videoCount: number | null;
+    followers: number | null;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    totalViewers: number | null;
+    newViewers: number | null;
+    weakestSource: string;
+    isComplete: boolean;
+  };
+
+  const byDate = new Map<string, Acc>();
+  const addNullable = (a: number | null, b: number | null) => (a === null && b === null ? null : (a ?? 0) + (b ?? 0));
+
+  for (const row of rows) {
+    const existing = byDate.get(row.date);
+    const acc: Acc = existing ?? {
+      date: row.date,
+      channelsPresent: 0,
+      videoViews: null,
+      videoCount: null,
+      followers: null,
+      likes: null,
+      comments: null,
+      shares: null,
+      totalViewers: null,
+      newViewers: null,
+      weakestSource: row.source,
+      isComplete: true,
+    };
+
+    acc.channelsPresent += 1;
+    acc.videoViews = addNullable(acc.videoViews, row.videoViews);
+    acc.videoCount = addNullable(acc.videoCount, row.videoCount);
+    acc.followers = addNullable(acc.followers, row.followers);
+    acc.likes = addNullable(acc.likes, row.likes);
+    acc.comments = addNullable(acc.comments, row.comments);
+    acc.shares = addNullable(acc.shares, row.shares);
+    acc.totalViewers = addNullable(acc.totalViewers, row.totalViewers);
+    acc.newViewers = addNullable(acc.newViewers, row.newViewers);
+    if (sourceRank(row.source) > sourceRank(acc.weakestSource)) acc.weakestSource = row.source;
+    acc.isComplete = acc.isComplete && row.isComplete;
+
+    byDate.set(row.date, acc);
+  }
+
+  return [...byDate.values()]
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map((acc) => ({
+      channelId: "merged",
+      date: acc.date,
+      videoViews: acc.videoViews,
+      videoCount: acc.videoCount,
+      followers: acc.followers,
+      likes: acc.likes,
+      comments: acc.comments,
+      shares: acc.shares,
+      totalViewers: acc.totalViewers,
+      newViewers: acc.newViewers,
+      source: acc.weakestSource,
+      isComplete: acc.isComplete && acc.channelsPresent === channelCount,
+    }));
+}
+
+/** `value: null` = not one day this week has a known videoViews — the chart must render this as a
+ *  gap, never as a plotted 0 (a flat "0 views for 5 weeks" line reads as a real crash, not as
+ *  "chưa có số đo"). */
+export type TrendPoint = { label: string; value: number | null };
+
+/** `YYYY-MM` of a VN calendar-date string — the month bucket key. Pure string slicing, same "no
+ *  timezone conversion" rule as `isoWeekStart` (the input is already a VN date string). */
+function monthKey(dateStr: string): string {
+  return dateStr.slice(0, 7);
+}
+
+/** "Th7", "Th8" — month label for the trend chart's tuần/tháng toggle (docs/TASKS.md Đợt 2 #2). */
+function monthLabel(dateStr: string): string {
+  return `Th${Number(dateStr.slice(5, 7))}`;
+}
+
+/** Shared core of `bucketWeeklyViews`/`bucketMonthlyViews` — the only difference between "theo
+ *  tuần" and "theo tháng" is which (key, label) function buckets a date into, so this is
+ *  parameterized rather than duplicated. */
+function bucketViewsBy(rows: DailyRow[], keyOf: (date: string) => string, labelOf: (date: string) => string): TrendPoint[] {
+  const byBucket = new Map<string, { label: string; value: number; hasData: boolean }>();
+  for (const row of rows) {
+    const key = keyOf(row.date);
+    const entry = byBucket.get(key) ?? { label: labelOf(row.date), value: 0, hasData: false };
+    if (row.videoViews !== null) {
+      entry.value += row.videoViews;
+      entry.hasData = true;
+    }
+    byBucket.set(key, entry);
+  }
+  return [...byBucket.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([, e]) => ({ label: e.label, value: e.hasData ? e.value : null }));
+}
 
 /** Buckets rows (any number of channels, already date-filtered by the caller) into ISO-week sums
  *  of `videoViews` — the "Xu hướng toàn team" / "Diễn biến của kênh" chart series. */
 export function bucketWeeklyViews(rows: DailyRow[]): TrendPoint[] {
-  const byWeek = new Map<string, TrendPoint>();
-  for (const row of rows) {
-    const key = isoWeekStart(row.date);
-    const entry = byWeek.get(key) ?? { label: isoWeekLabel(row.date), value: 0 };
-    entry.value += row.videoViews ?? 0;
-    byWeek.set(key, entry);
-  }
-  return [...byWeek.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, point]) => point);
+  return bucketViewsBy(rows, isoWeekStart, isoWeekLabel);
 }
 
-/** Followers is a stock, not a flow — each week's point is the SUM, across channels, of each
- *  channel's own last known value that week. Must resolve "last known" per channel before summing:
- *  taking the last row in date order across the whole (possibly multi-channel) input would just
- *  pick whichever channel's row happens to sort last, not the team total. Weeks where a channel has
- *  no synced row contribute nothing for that channel, not a zero. */
-export function bucketWeeklyLastFollowers(rows: DailyRow[]): TrendPoint[] {
-  const sumByWeek = new Map<string, number>();
+/** Same as `bucketWeeklyViews`, bucketed by calendar month instead — so sánh tháng 7 với tháng 8. */
+export function bucketMonthlyViews(rows: DailyRow[]): TrendPoint[] {
+  return bucketViewsBy(rows, monthKey, monthLabel);
+}
+
+/** Shared core of `bucketWeeklyLastFollowers`/`bucketMonthlyLastFollowers`. Followers is a stock,
+ *  not a flow — each bucket's point is the SUM, across channels, of each channel's own last known
+ *  value in that bucket. Must resolve "last known" per channel before summing: taking the last row
+ *  in date order across the whole (possibly multi-channel) input would just pick whichever channel's
+ *  row happens to sort last, not the team total. Buckets where a channel has no synced row
+ *  contribute nothing for that channel, not a zero. */
+function bucketLastFollowersBy(rows: DailyRow[], keyOf: (date: string) => string, labelOf: (date: string) => string): TrendPoint[] {
+  const sumByBucket = new Map<string, number>();
 
   for (const channelRows of groupByChannel(rows).values()) {
-    const lastByWeek = new Map<string, { asOfDate: string; followers: number }>();
+    const lastByBucket = new Map<string, { asOfDate: string; followers: number }>();
     for (const row of channelRows) {
       if (row.followers === null) continue;
-      const key = isoWeekStart(row.date);
-      const existing = lastByWeek.get(key);
+      const key = keyOf(row.date);
+      const existing = lastByBucket.get(key);
       if (!existing || row.date >= existing.asOfDate) {
-        lastByWeek.set(key, { asOfDate: row.date, followers: row.followers });
+        lastByBucket.set(key, { asOfDate: row.date, followers: row.followers });
       }
     }
-    for (const [week, { followers }] of lastByWeek) {
-      sumByWeek.set(week, (sumByWeek.get(week) ?? 0) + followers);
+    for (const [bucket, { followers }] of lastByBucket) {
+      sumByBucket.set(bucket, (sumByBucket.get(bucket) ?? 0) + followers);
     }
   }
 
-  return [...sumByWeek.entries()]
+  return [...sumByBucket.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([week, value]) => ({ label: isoWeekLabel(week), value }));
+    .map(([bucket, value]) => ({ label: labelOf(bucket), value }));
+}
+
+export function bucketWeeklyLastFollowers(rows: DailyRow[]): TrendPoint[] {
+  return bucketLastFollowersBy(rows, isoWeekStart, isoWeekLabel);
+}
+
+/** `labelOf` receives the bucket KEY here (already `YYYY-MM` for months, or a week's Monday date for
+ *  weeks) — `monthLabel`/`isoWeekLabel` both accept any date string within the bucket, so passing the
+ *  key itself (not an original row date) still resolves to the right label either way. */
+export function bucketMonthlyLastFollowers(rows: DailyRow[]): TrendPoint[] {
+  return bucketLastFollowersBy(rows, monthKey, monthLabel);
+}
+
+/** Shared core of `bucketWeeklyVideoCounts`/`bucketMonthlyVideoCounts`. A post either happened in a
+ *  bucket or didn't — always a fully-known count, never "no measurement" — so this accumulator
+ *  (unlike the views one) stays plain `number`, not tracking a `hasData` flag. */
+function bucketVideoCountsBy(postedDates: string[], keyOf: (date: string) => string, labelOf: (date: string) => string): TrendPoint[] {
+  const byBucket = new Map<string, { label: string; value: number }>();
+  for (const date of postedDates) {
+    const key = keyOf(date);
+    const entry = byBucket.get(key) ?? { label: labelOf(date), value: 0 };
+    entry.value += 1;
+    byBucket.set(key, entry);
+  }
+  return [...byBucket.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, point]) => point);
 }
 
 /** One point per posted video, already resolved to a VN calendar-date string
  *  (`nowVnDateString(new Date(video.posted_at))` at the call site) — counts videos per ISO week. */
 export function bucketWeeklyVideoCounts(postedDates: string[]): TrendPoint[] {
-  const byWeek = new Map<string, TrendPoint>();
-  for (const date of postedDates) {
-    const key = isoWeekStart(date);
-    const entry = byWeek.get(key) ?? { label: isoWeekLabel(date), value: 0 };
-    entry.value += 1;
-    byWeek.set(key, entry);
-  }
-  return [...byWeek.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, point]) => point);
+  return bucketVideoCountsBy(postedDates, isoWeekStart, isoWeekLabel);
+}
+
+export function bucketMonthlyVideoCounts(postedDates: string[]): TrendPoint[] {
+  return bucketVideoCountsBy(postedDates, monthKey, monthLabel);
 }
 
 export type CreatorRank = "leader" | "growth" | "attention" | "stable";
 
 /** Data-driven Creator-card badge — CLAUDE.md: "đừng lấy % KPI làm trục sắp xếp mặc định", so this
  *  ranks by view share and trend instead of a KPI cycle nothing has created yet.
- *  "leader": the single highest total-views creator (ties keep the first by input order).
+ *  "leader": the single highest total-views creator, only when there's at least one OTHER creator
+ *  with channels to actually be ahead of — "dẫn đầu" among a field of one is a badge with nothing
+ *  behind it (bug caught 21/08/2026 dùng thử: a lone active Creator always got "Dẫn đầu view").
  *  "growth" / "attention": ±10-point average view-trend threshold, same as the health-color rule in
  *  docs/DESIGN_SYSTEM.md (`pct >= 70 cyan / >= 45 amber / < 45 red`) adapted to a delta instead of a
  *  percent-of-target. "stable" (no badge) otherwise, including creators with zero channels. */
@@ -191,10 +346,10 @@ export function rankCreatorPerformance(
   const withChannels = creators.filter((c) => c.channelCount > 0);
   if (withChannels.length === 0) return ranked;
 
-  const leader = withChannels.reduce((best, c) => (c.totalViews > best.totalViews ? c : best));
+  const leader = withChannels.length >= 2 ? withChannels.reduce((best, c) => (c.totalViews > best.totalViews ? c : best)) : null;
 
   for (const c of withChannels) {
-    if (c.creatorId === leader.creatorId && leader.totalViews > 0) {
+    if (leader && c.creatorId === leader.creatorId && leader.totalViews > 0) {
       ranked.set(c.creatorId, "leader");
     } else if (c.avgViewsDeltaPct !== null && c.avgViewsDeltaPct >= 10) {
       ranked.set(c.creatorId, "growth");
@@ -491,8 +646,11 @@ export async function fetchActivityHeatmap(
 
 export type ChannelPeriodStat = {
   channelId: string;
-  views: number;
-  previousViews: number;
+  /** `null` = not one synced day this period has a known videoViews (e.g. a channel that just
+   *  connected — the first sync is a bootstrap with no baseline to diff, per CLAUDE.md). Render as
+   *  "—", never as "0 view". */
+  views: number | null;
+  previousViews: number | null;
   viewsDeltaPct: number | null;
   videos: number;
   previousVideos: number;
@@ -512,6 +670,110 @@ export type ChannelPeriodStat = {
   /** Daily views within the current period, ascending — sparkline / per-channel trend input. */
   spark: { date: string; views: number }[];
 };
+
+export type RollupStat = {
+  totalViews: number;
+  viewsDeltaPct: number | null;
+  /** Current follower stock summed across the channel set — pairs with `followerGain` the same way
+   *  `TeamStatsRow`'s "Follower toàn team" tile shows both (value = stock, delta = gain), just at
+   *  Creator/Team rollup level instead of the whole company. */
+  followersNow: number;
+  followerGain: number;
+  engagementRate: number | null;
+  /** Added for the Nhân sự detail page's "Video đã đăng" tile — same `countVideosPosted` numbers
+   *  already summed per-channel by `getChannelPeriodStats`, just carried through the rollup instead
+   *  of being dropped like before. */
+  videos: number;
+  previousVideos: number;
+  engagementRateDeltaPct: number | null;
+};
+
+/**
+ * Sums a set of channels' `ChannelPeriodStat` rows into one rollup — same math whether the set is
+ * "one Creator's channels" or "one Team's channels" (a Team is just every Creator in it, transitively
+ * — CLAUDE.md, 21/08/2026), so this is the one place that math lives instead of two copies drifting
+ * apart. A channel id with no entry in `statsByChannel` contributes nothing to the total (unmeasured
+ * channel doesn't count against it — same rule `getDashboard`'s team-level sum uses).
+ */
+export function aggregateChannelStats(channelIds: string[], statsByChannel: Map<string, ChannelPeriodStat>): RollupStat {
+  const channelStats = channelIds
+    .map((id) => statsByChannel.get(id))
+    .filter((s): s is ChannelPeriodStat => s !== undefined);
+  const sum = (pick: (s: ChannelPeriodStat) => number | null) =>
+    channelStats.reduce((acc, s) => acc + (pick(s) ?? 0), 0);
+
+  const totalViews = sum((s) => s.views);
+  const previousViews = sum((s) => s.previousViews);
+  const engagementNumerator = sum((s) => s.likes) + sum((s) => s.comments) + sum((s) => s.shares);
+  const previousEngagementNumerator = sum((s) => s.previousLikes) + sum((s) => s.previousComments) + sum((s) => s.previousShares);
+  const previousViewsForEngagement = previousViews;
+  const engagementRate = totalViews > 0 ? engagementNumerator / totalViews : null;
+  const previousEngagementRate = previousViewsForEngagement > 0 ? previousEngagementNumerator / previousViewsForEngagement : null;
+
+  return {
+    totalViews,
+    viewsDeltaPct: pctChange(totalViews, previousViews),
+    followersNow: sum((s) => s.followersNow),
+    followerGain: sum((s) => s.followersGain),
+    engagementRate,
+    videos: sum((s) => s.videos),
+    previousVideos: sum((s) => s.previousVideos),
+    engagementRateDeltaPct:
+      engagementRate !== null && previousEngagementRate !== null ? pctChange(engagementRate, previousEngagementRate) : null,
+  };
+}
+
+/** One Creator/Team member's channel, as shown in the Nhân sự detail page's "Kênh phụ trách" table —
+ *  the per-channel numbers a `CreatorSummary.channels` entry doesn't carry on its own (that type is
+ *  just id/name/handle; the metrics live in `ChannelPeriodStat`, keyed separately). */
+export type CreatorPerformanceChannel = {
+  id: string;
+  name: string;
+  tiktokHandle: string;
+  views: number;
+  viewsDeltaPct: number | null;
+  followersNow: number | null;
+  followersGain: number | null;
+  videos: number;
+  engagementRate: number | null;
+};
+
+export type CreatorPerformance = RollupStat & { channels: CreatorPerformanceChannel[] };
+
+/**
+ * Builds each creator's rollup + per-channel breakdown in one pass — the loop `/creators` and (until
+ * now) `/creators/team/[id]` each wrote inline, byte-for-byte identical apart from which `creators`
+ * array they looped over. Kept here instead of a page component so `/creators` and `/creators/[id]`
+ * can't drift on the math (same reasoning as `aggregateChannelStats` itself).
+ */
+export function buildCreatorPerformance(
+  creators: { id: string; channels: { id: string; name: string; tiktokHandle: string }[] }[],
+  statsByChannel: Map<string, ChannelPeriodStat>,
+): Map<string, CreatorPerformance> {
+  const result = new Map<string, CreatorPerformance>();
+  for (const creator of creators) {
+    const channelIds = creator.channels.map((ch) => ch.id);
+    const rollup = aggregateChannelStats(channelIds, statsByChannel);
+    result.set(creator.id, {
+      ...rollup,
+      channels: creator.channels.map((channel) => {
+        const stat = statsByChannel.get(channel.id);
+        return {
+          id: channel.id,
+          name: channel.name,
+          tiktokHandle: channel.tiktokHandle,
+          views: stat?.views ?? 0,
+          viewsDeltaPct: stat?.viewsDeltaPct ?? null,
+          followersNow: stat?.followersNow ?? null,
+          followersGain: stat?.followersGain ?? null,
+          videos: stat?.videos ?? 0,
+          engagementRate: stat?.engagementRate ?? null,
+        };
+      }),
+    });
+  }
+  return result;
+}
 
 export async function getChannelPeriodStats(
   supabase: SupabaseServerClient,
@@ -536,6 +798,7 @@ export async function getChannelPeriodStats(
 
     const views = sumViews(currentRows);
     const previousViews = sumViews(previousRows);
+    const viewsDeltaPct = views !== null && previousViews !== null ? pctChange(views, previousViews) : null;
     const videos = videosCurrent.get(channelId) ?? 0;
     const previousVideos = videosPrevious.get(channelId) ?? 0;
     const { likes, comments, shares } = sumEngagementParts(currentRows);
@@ -557,10 +820,10 @@ export async function getChannelPeriodStats(
       channelId,
       views,
       previousViews,
-      viewsDeltaPct: pctChange(views, previousViews),
+      viewsDeltaPct,
       videos,
       previousVideos,
-      viewsPerVideo: videos > 0 ? Math.round(views / videos) : null,
+      viewsPerVideo: views !== null && videos > 0 ? Math.round(views / videos) : null,
       likes,
       comments,
       shares,
@@ -598,7 +861,11 @@ export type DashboardResponse = {
    *  added so the UI's "N kênh" header doesn't have to infer a count from a slice like `growth`
    *  (top 5) or `viewShare` (top 6). */
   channelCount: number;
-  period: { from: string; to: string; comparedTo: string };
+  /** `comparedFrom`/`comparedTo` used to ship as one slash-joined string — no screen ever rendered
+   *  it, so "so với kỳ trước" meant something different on every date-range/mode combination with
+   *  nothing telling the viewer which days it actually was (CLAUDE.md — vấn đề #1, 21/08/2026). Two
+   *  plain date fields so a caller can't forget to show them. */
+  period: { from: string; to: string; comparedFrom: string; comparedTo: string };
   teamStats: {
     views: { value: number; deltaPct: number | null };
     followers: { value: number; deltaAbs: number };
@@ -611,7 +878,13 @@ export type DashboardResponse = {
    *  mockups' trend chart has a Lượt xem/Follower/Video tab-switcher, so all three are computed
    *  server-side instead of adding a `?metric=` param the client would have to refetch on every
    *  tab click. docs/API_SPEC.md updated to match (M4). */
-  trend: { granularity: "week"; views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
+  /** Both granularities computed server-side, same reasoning as bundling all 3 metrics below — the
+   *  mockups' tuần/tháng toggle (docs/TASKS.md Đợt 2 #2, "so tháng 7 với tháng 8") switches client-
+   *  side with no refetch, exactly like the Lượt xem/Follower/Video metric tabs already do. */
+  trend: {
+    week: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
+    month: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
+  };
   growth: { channelId: string; channelName: string; followers: number; gain: number; ratePct: number | null }[];
   viewShare: { channelId: string; channelName: string; views: number; sharePct: number }[];
   efficiency: { channelId: string; channelName: string; videos: number; viewsPerVideo: number }[];
@@ -641,11 +914,25 @@ export type DashboardResponse = {
 
 export async function getDashboard(
   supabase: SupabaseServerClient,
-  params: { role: DashboardRole; userId: string; from: string; to: string; creatorId?: string | null },
+  params: {
+    role: DashboardRole;
+    userId: string;
+    from: string;
+    to: string;
+    creatorId?: string | null;
+    /** Filters down to channels whose current Creator belongs to this team. Team is purely an
+     *  organizational grouping (CLAUDE.md, 21/08/2026) — a channel has no team_id of its own, so
+     *  this always resolves through `creator.team_id`, never a stored/cached copy. */
+    teamId?: string | null;
+  },
 ): Promise<DashboardResponse> {
-  const { role, userId, from, to, creatorId } = params;
+  const { role, userId, from, to, creatorId, teamId } = params;
   const { comparedFrom, comparedTo } = previousPeriod(from, to);
-  const trendFrom = isoWeekStart(addDaysToDateString(to, -55)); // ~8 full ISO weeks, snapped to Monday
+  const weekTrendFrom = isoWeekStart(addDaysToDateString(to, -55)); // ~8 full ISO weeks, snapped to Monday
+  // ~6 months back — enough to compare "tháng 7 với tháng 8" (docs/TASKS.md Đợt 2 #2), same 180-day
+  // window channels/[id]/page.tsx's DailyTable already uses (HISTORY_DAYS), so this superset covers
+  // the week window above too — one fetch serves both granularities, not two.
+  const monthTrendFrom = addDaysToDateString(to, -179);
 
   let channelsQuery = supabase
     .from("channel")
@@ -653,6 +940,17 @@ export async function getDashboard(
     .eq("is_active", true)
     .order("name", { ascending: true });
   if (creatorId) channelsQuery = channelsQuery.eq("current_creator_id", creatorId);
+  if (teamId) {
+    const { data: teamCreators, error: teamCreatorsError } = await supabase
+      .from("creator")
+      .select("id")
+      .eq("team_id", teamId);
+    if (teamCreatorsError) throw teamCreatorsError;
+    channelsQuery = channelsQuery.in(
+      "current_creator_id",
+      (teamCreators ?? []).map((c) => c.id as string),
+    );
+  }
   const { data: channels, error: channelsError } = await channelsQuery;
   if (channelsError) throw channelsError;
 
@@ -662,13 +960,20 @@ export async function getDashboard(
 
   const [periodStats, trendRows, trendPostedDates, freshness] = await Promise.all([
     getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo }),
-    fetchDailyRows(supabase, channelIds, trendFrom, to),
-    fetchPostedVnDates(supabase, channelIds, trendFrom, to),
+    fetchDailyRows(supabase, channelIds, monthTrendFrom, to),
+    fetchPostedVnDates(supabase, channelIds, monthTrendFrom, to),
     fetchDataFreshness(supabase, channelIds),
   ]);
+  // Week granularity is a subset of the 180-day fetch above — filtering in memory instead of a
+  // second, near-duplicate query.
+  const weekTrendRows = trendRows.filter((r) => r.date >= weekTrendFrom);
+  const weekTrendPostedDates = trendPostedDates.filter((d) => d >= weekTrendFrom);
 
   const stats = [...periodStats.values()];
-  const sum = (pick: (s: ChannelPeriodStat) => number) => stats.reduce((acc, s) => acc + pick(s), 0);
+  // A channel with no measurement this period (views: null) contributes nothing to the team total —
+  // standard rollup semantics — but stays "—" at its own row (see growth/viewShare/efficiency below,
+  // which filter it out of those lists instead of silently showing it at 0%).
+  const sum = (pick: (s: ChannelPeriodStat) => number | null) => stats.reduce((acc, s) => acc + (pick(s) ?? 0), 0);
 
   const teamViews = sum((s) => s.views);
   const teamPreviousViews = sum((s) => s.previousViews);
@@ -699,23 +1004,26 @@ export async function getDashboard(
     .sort((a, b) => b.gain - a.gain)
     .slice(0, 5);
 
+  // Filtered like `growth` above (which already drops `followersNow === null`) — a channel with no
+  // view measurement this period must not appear in a ranking at a misleading "0%"/"0 view".
   const viewShare = stats
+    .filter((s) => s.views !== null)
     .map((s) => ({
       channelId: s.channelId,
       channelName: nameById.get(s.channelId) ?? "",
-      views: s.views,
-      sharePct: teamViews > 0 ? Math.round((s.views / teamViews) * 1000) / 10 : 0,
+      views: s.views!,
+      sharePct: teamViews > 0 ? Math.round((s.views! / teamViews) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.views - a.views)
     .slice(0, 6);
 
   const efficiency = stats
-    .filter((s) => s.videos > 0)
+    .filter((s) => s.videos > 0 && s.viewsPerVideo !== null)
     .map((s) => ({
       channelId: s.channelId,
       channelName: nameById.get(s.channelId) ?? "",
       videos: s.videos,
-      viewsPerVideo: s.viewsPerVideo ?? 0,
+      viewsPerVideo: s.viewsPerVideo!,
     }))
     .sort((a, b) => b.viewsPerVideo - a.viewsPerVideo)
     .slice(0, 5);
@@ -738,7 +1046,7 @@ export async function getDashboard(
   return {
     role,
     channelCount: activeChannels.length,
-    period: { from, to, comparedTo: `${comparedFrom}/${comparedTo}` },
+    period: { from, to, comparedFrom, comparedTo },
     teamStats: {
       views: { value: teamViews, deltaPct: pctChange(teamViews, teamPreviousViews) },
       followers: { value: teamFollowersNow, deltaAbs: teamFollowersGain },
@@ -754,10 +1062,16 @@ export async function getDashboard(
     },
     dataFreshness: freshness,
     trend: {
-      granularity: "week",
-      views: bucketWeeklyViews(trendRows).slice(-8),
-      followers: bucketWeeklyLastFollowers(trendRows).slice(-8),
-      videos: bucketWeeklyVideoCounts(trendPostedDates).slice(-8),
+      week: {
+        views: bucketWeeklyViews(weekTrendRows).slice(-8),
+        followers: bucketWeeklyLastFollowers(weekTrendRows).slice(-8),
+        videos: bucketWeeklyVideoCounts(weekTrendPostedDates).slice(-8),
+      },
+      month: {
+        views: bucketMonthlyViews(trendRows).slice(-6),
+        followers: bucketMonthlyLastFollowers(trendRows).slice(-6),
+        videos: bucketMonthlyVideoCounts(trendPostedDates).slice(-6),
+      },
     },
     growth,
     viewShare,

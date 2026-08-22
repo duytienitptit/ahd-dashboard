@@ -21,7 +21,8 @@ const HISTORY_LOOKBACK_DAYS = 30;
 
 export type SyncOutcome =
   | { status: "ok"; channelId: string; isComplete: boolean; gotVideos: number; expectedVideos: number }
-  | { status: "failed"; channelId: string; error: string };
+  | { status: "failed"; channelId: string; error: string }
+  | { status: "unverified"; channelId: string };
 
 /**
  * Which calendar day a sync's view-count delta belongs to, and whether this is the channel's
@@ -64,11 +65,20 @@ export async function syncChannel(
   try {
     const { data: oauthRow, error: oauthError } = await supabase
       .from("channel_oauth")
-      .select("access_token, access_expires_at, refresh_token, last_sync_at")
+      .select("access_token, access_expires_at, refresh_token, last_sync_at, account_verified")
       .eq("channel_id", channel.id)
       .maybeSingle();
     if (oauthError) throw oauthError;
     if (!oauthRow) throw new Error("Kênh chưa kết nối Display API.");
+
+    // Guard against the 21/08/2026 wrong-account incident happening again: a connection nobody has
+    // confirmed matches this channel must never be allowed to write numbers into data_snapshot, no
+    // matter how long ago it was authorized. Not a `throw` (that would count as `last_sync_status =
+    // 'failed'`, which reads as "TikTok/network error" — this isn't one) — a distinct outcome the
+    // caller can surface as "chưa xác minh", not "lỗi".
+    if (!oauthRow.account_verified) {
+      return { status: "unverified", channelId: channel.id };
+    }
 
     // Read the baseline reference BEFORE this sync updates last_sync_at below.
     const { date: attributedDate, isBootstrap } = determineSyncDate(oauthRow.last_sync_at, today);
@@ -230,6 +240,7 @@ export async function syncAllChannels(supabase: AdminClient, provider: TikTokDat
     date: today,
     synced: results.filter((r) => r.status === "ok").length,
     failed: results.filter((r) => r.status === "failed").length,
+    unverified: results.filter((r) => r.status === "unverified").length,
     incomplete,
   };
 }

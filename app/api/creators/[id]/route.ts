@@ -4,7 +4,7 @@ import { requireManager } from "@/lib/auth";
 import { updateCreator } from "@/lib/creators";
 import { errorResponse } from "@/lib/http";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { optionalBoolean, optionalString, parseJsonBody } from "@/lib/validation";
+import { optionalBoolean, optionalString, optionalUuid, parseJsonBody } from "@/lib/validation";
 
 // PATCH /api/creators/:id — M. Not in the original docs/API_SPEC.md — added for M2 so a Manager can
 // rename or disable a Creator account (e.g. someone leaving the team) without touching Supabase
@@ -17,9 +17,10 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/cr
 
     const name = optionalString(body, "name");
     const isActive = optionalBoolean(body, "isActive");
+    const teamId = optionalUuid(body, "teamId");
 
     const supabase = await createSupabaseServerClient();
-    const creator = await updateCreator(supabase, id, { name, isActive });
+    const creator = await updateCreator(supabase, id, { name, isActive, teamId });
 
     return NextResponse.json(creator);
   } catch (error) {

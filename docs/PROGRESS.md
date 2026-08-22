@@ -238,6 +238,254 @@ thiết kế UI không có mockup nguồn) đã ghi ở [TASKS.md](TASKS.md) m�
 - Chưa làm: chặn chốt sổ khi chu kỳ còn chứa `manual_entry` (đúng phạm vi M6, chưa tồn tại `kpi_cycle`
   nào để chốt).
 
+## Đợt 1 sửa dữ liệu sau khi dùng thử bản deploy đầu (21/08/2026) — có gì dùng được ngay
+
+Sau khi deploy M4 xong và kết nối Display API thật lần đầu, dùng thử phát hiện 11 vấn đề — tách 2
+đợt: Đợt 1 sửa bug dữ liệu (đã xong, ghi ở đây), Đợt 2 thiết kế lại UI (chưa bắt đầu, đang chờ chốt
+phạm vi với người dùng — xem CLAUDE.md).
+
+- ⚠️ **Bug nghiêm trọng nhất: cả 2 kênh đã kết nối gắn CÙNG một tài khoản TikTok lạ**
+  (`@kidshoppppala`, không phải kênh nào cả). Gốc rễ: guard chống sai tài khoản ở
+  `app/api/oauth/callback/route.ts` (so `share_url` vừa Authorize với `channel.tiktok_handle`) **đã
+  tồn tại từ M0 nhưng chỉ cảnh báo, không chặn** — token sai vẫn được lưu, sync hằng ngày vẫn chạy.
+  **Đã sửa**: mismatch giờ chặn hẳn (không lưu token), kèm nút "Vẫn kết nối" có xác nhận rõ ràng cho
+  trường hợp hiếm `share_url` sai định dạng (chưa từng xảy ra, chỉ đề phòng). Thêm cột
+  `channel_oauth.account_verified` (migration `20260821000001`) — tài khoản TikTok chưa có video nào
+  (không có `share_url` để đối chiếu) vẫn được lưu nhưng **không sync** cho tới khi có người xác nhận
+  tay qua `POST /api/channels/:id/oauth/verify`. `/connections` hiện badge "Chưa xác minh" **thường
+  trực** trên từng dòng, không phải banner 1 lần lúc kết nối xong (banner 1 lần chính là lý do sự cố
+  lọt qua mà không ai để ý).
+- ⚠️ **Bug thứ hai, hoàn toàn độc lập, phát hiện lúc dọn bug thứ nhất**: import file Studio của
+  `vuonvuonvang` bị chọn NHẦM kênh `nong.nghiep.xanh.17` ở dropdown "1. Chọn kênh" — không có gì báo
+  lỗi, 16 video thật của `vuonvuonvang` bị gắn nhầm `channel_id`. **Chưa sửa tại nguồn** (chưa có
+  validation nào ở `/import` đối chiếu handle trong CSV với kênh đang chọn, kiểu guard OAuth ở trên) —
+  mới dọn xong hậu quả 1 lần bằng tay. Cân nhắc làm ở Đợt 2 hoặc M6.
+- **Cách dọn 2 bug trên khỏi DB thật** (`scripts/cleanup-wrong-account-sync.mjs`, mặc định dry-run,
+  cần `--confirm` mới ghi): phân biệt "video thật bị gắn nhầm kênh" (Bug 2 → GẮN LẠI `channel_id`)
+  với "video của tài khoản lạ, không thuộc kênh nào" (Bug 1 → XOÁ) **bằng chính `video_link`** —
+  handle TikTok nhúng trong link luôn là sự thật, không dựa vào `first_seen_at` (cả 2 bug đều có thể
+  xảy ra "hôm nay" nên timestamp không phân biệt được). Đã chạy trên DB thật: gắn lại 15 video, xoá
+  24 video + snapshot của tài khoản lạ, xoá 2 dòng `data_snapshot` sai (151 follower), xoá 2 dòng
+  `channel_oauth` (2 kênh cần "Kết nối" lại từ đầu, đi qua guard mới).
+- **Null vs 0 xuyên suốt `lib/dashboard.ts`** — `sumViews([])`/mọi row `videoViews: null` giờ trả
+  `null` (đọc là "chưa có số đo"), không phải `0` ("đo được, bằng 0"). Kéo theo: `bucketWeeklyViews`
+  emit `null` cho tuần không có số đo (biểu đồ vẽ **đứt đoạn**, không tụt về 0 — sửa trong
+  `trend-chart.tsx`'s `ChartSvg`, vẽ nhiều `<path>`/`<polyline>` riêng theo từng đoạn liền mạch thay
+  vì 1 đường nối hết); `ChannelPeriodStat.views`/`previousViews` nullable, `viewShare`/`efficiency`
+  lọc bỏ kênh không có số đo thay vì hiện "0%" gây hiểu lầm (cùng cách `growth` đã lọc `followersNow`
+  từ trước). `videos` (đếm `content_video`) **không** đổi — luôn là số biết chắc, không có khái niệm
+  "chưa đo" như `views`. Test mới ở `lib/dashboard.test.ts` khoá lại đúng case rows rỗng/toàn null —
+  trước đó 121 test cũ đều pass dù chưa test case này, đúng như lo ngại lúc lập kế hoạch.
+- **Tổng số video của kênh** (`data_snapshot.video_count`, Display API tự báo) **đã được lấy từ M3b,
+  chỉ chưa hiển thị ở đâu cả**. Nối vào subtitle "Video gần đây": lệch với số `content_video` trong
+  DB thì nói rõ cả hai ("N video đã biết trong hệ thống · TikTok báo tổng M video") thay vì im lặng
+  chọn 1 trong 2.
+- **`period.comparedFrom`/`comparedTo`** tách thành 2 trường ngày riêng thay vì chuỗi gộp
+  `"2026-08-08/2026-08-14"` (tính đúng từ M4 nhưng **chưa màn nào hiển thị** — "so với kỳ trước"
+  không ai biết là kỳ nào). Tổng quan giờ có dòng "So với kỳ trước (DD/MM – DD/MM)" ngay trên
+  `TeamStatsRow`. `docs/API_SPEC.md` đã cập nhật ví dụ JSON.
+- **Creator sửa được "Tên kênh" của kênh mình phụ trách; Handle TikTok vẫn chỉ Manager.** RLS trên
+  `channel` là `for all using (is_manager())` (row-level, không có cột) nên không nới trực tiếp
+  được — dùng hàm Postgres `security definer` `update_channel_name()` (migration `20260821000002`)
+  tự kiểm tra `auth.uid() = channel.current_creator_id` trước khi cho sửa. Cố tình **không** mở rộng
+  sang `tiktok_handle`: đó là mỏ neo guard chống sai tài khoản OAuth ở trên dùng để đối chiếu — cho
+  Creator tự sửa thì guard mất tác dụng. Đổi handle (Manager, qua `PATCH /api/channels/:id` như cũ)
+  giờ ghi `audit_log`.
+- **Kiểm chứng bằng dữ liệu thật** (không phải chỉ tsc/vitest): viết 1 file test tạm
+  (`lib/_verify-live.test.ts`, xoá ngay sau khi chạy) gọi thẳng `getDashboard()`/`getChannelPeriodStats()`
+  bằng admin client vào DB thật — xác nhận `period.comparedFrom/comparedTo` đúng, 2 kênh không còn
+  hiện follower 151 nữa, khoảng ngày không có dữ liệu trả `null` thật (không phải suy luận từ code).
+
+## Team — nhóm Creator (21/08/2026, ngoài kế hoạch gốc) — có gì dùng được ngay
+
+Yêu cầu phát sinh giữa chừng lúc bàn Đợt 2 ("ví dụ 1 manager quản lý 2 team"). Trước khi viết
+migration đã hỏi 2 câu quan trọng nhất (CLAUDE.md: schema/phân quyền là loại quyết định khó sửa về
+sau, không tự suy đoán): **(1)** có nhiều Manager, mỗi người chỉ thấy team mình không? **(2)** Creator
+trong team A có còn thấy số liệu team B không (hệ thống đang cố ý cho cross-channel visibility)?
+Cả 2 câu đều chọn phương án ít rủi ro nhất → **Team chỉ là nhãn tổ chức/lọc, không đổi RLS, không đổi
+ai-thấy-được-gì**. `docs/PRODUCT_SPEC.md` mục 2 hoá ra đã tiên liệu đúng việc này từ đầu dự án
+("schema không hard-code 1 Manager").
+
+- **Schema tối giản đúng 1 bảng + 1 cột**: `team (id, name)` + `creator.team_id` (nullable, FK).
+  `channel` **không có** `team_id` riêng — team của 1 kênh luôn suy ra qua
+  `current_creator_id → creator.team_id`, tránh 2 nguồn sự thật. Xoá 1 team không xoá Creator trong
+  đó (`on delete set null`), chỉ làm họ thành chưa gán team — an toàn, dễ đảo ngược.
+- **`lib/teams.ts`** mirror đúng pattern `lib/creators.ts` (list/create/update/delete, không tách
+  admin client vì `team` có RLS đọc-mọi-người/ghi-Manager bình thường, không như `channel_oauth`).
+- **`/creators`**: thêm `TeamManager` (tạo/sửa/xoá, Manager-only) phía trên nút "+ Tạo tài khoản";
+  form tạo/sửa Creator có thêm `TeamSelect`; thẻ Creator hiện badge tên team cạnh tên.
+- **Lọc Tổng quan theo team** (`TeamFilterSelect`, `?teamId=`) — cùng cơ chế `?creatorId=` đã có, có
+  thể kết hợp cả hai cùng lúc (rỗng nếu không giao nhau, là câu trả lời đúng chứ không phải lỗi).
+- ⚠️ **Bắt được lúc code, không phải lúc review**: filter Creator cũ có option mặc định ghi "Toàn
+  team" — giờ "Team" là thực thể thật nằm ngay cạnh nó trong cùng hàng filter, chữ này sẽ đọc nhầm
+  thành "chọn team". Đổi thành "Tất cả Creator" (khớp chữ `channels-table.tsx` đã dùng sẵn).
+- **`GET/POST /api/teams`, `PATCH/DELETE /api/teams/:id`** — thêm cho khớp quy ước mọi resource khác
+  trong `docs/API_SPEC.md` đều có route thật dù UI gọi thẳng lib function qua Server Action.
+- **Kiểm chứng bằng dữ liệu thật, tự dọn sạch**: tạo 1 team QA, gán creator `sukai` (đang giữ cả 2
+  kênh thật), gọi `getDashboard({teamId})` xác nhận lọc đúng `channelCount: 2`, rồi gỡ gán + xoá team
+  — không để lại dấu vết trong DB thật.
+
+## Creator upload file Studio (21/08/2026, Đợt 2 mục #9) — có gì dùng được ngay
+
+Quyết định sản phẩm đã hỏi trước khi code (docs/USER_FLOW.md cũ nói Creator không có tab "Dữ liệu",
+nhưng vận hành thực tế đã khác) — chốt: **Có**, Creator import được file Studio cho đúng kênh mình
+phụ trách. `manual_entry` (tự gõ số tay) **không đổi**, vẫn chỉ Manager — khác nhau ở chỗ import là
+nộp file máy TikTok sinh ra (không tự khai số), không phạm nguyên tắc "người hưởng thưởng không tự
+khai số tính thưởng".
+
+- **RLS là chỗ chặn thật** (`20260821000004_creator_studio_import.sql`), không phải check ở route —
+  đúng triết lý đã ghi ngay đầu `0006_rls.sql`. Thêm policy INSERT+UPDATE (không DELETE) cho 5 bảng
+  `runStudioImport()` ghi tới, scope theo `channel.current_creator_id = auth.uid()`.
+- ⚠️ **Điểm dễ sai nhất, suýt bỏ sót**: `data_snapshot` có **2 đường ghi hợp lệ** (studio_import +
+  manual_entry) dùng chung 1 bảng. Nới RLS cho Creator mà không thêm điều kiện `source = 'studio_import'`
+  vào chính policy đó sẽ vô tình mở luôn đường cho Creator tự ghi `manual_entry` qua thẳng client SDK,
+  bỏ qua `requireManager()` ở route — vì RLS mới là lớp chặn thật, check ở route chỉ là lớp phụ. 4
+  bảng còn lại (`content_video`, `video_snapshot`, `follower_activity`, `audience_snapshot`) không có
+  "biến thể tay" nên chỉ cần scope theo quyền sở hữu kênh, không cần thêm điều kiện nguồn.
+- **Route** (`app/api/channels/[id]/import/route.ts`): `requireManager()` → `requireUser()` +
+  check `current_creator_id === user.id` khi role là creator (pattern giống hệt `oauth/start`).
+- **Nav Creator đổi "Kết nối" → "Dữ liệu"** (khớp Manager) — `/import` giờ M/C, `DataTabs` (sub-tab
+  Nhập file Studio / Kết nối Display API) hiện cho cả 2 vai trò thay vì chỉ Manager.
+- **Kiểm chứng bằng phiên đăng nhập THẬT, không phải service role** — đúng quy trình QA đã có của dự
+  án (mục dưới), nhưng lần này qua `supabase-js` (`signInWithPassword`) thay vì browser, vì cái cần
+  test là RLS SQL, không phải UI: tạo 1 creator QA, **gán tạm 1 kênh thật cho họ** (đúng quy ước "gán
+  tạm rồi gán lại đúng Creator cũ"), rồi bằng phiên của chính họ — xác nhận ghi được `studio_import`
+  cho kênh mình, **KHÔNG** ghi được `manual_entry` dù cùng kênh (đây chính là rò rỉ phải chặn), không
+  đụng được kênh khác. Cả 5 case đều đúng như thiết kế. Khôi phục lại `current_creator_id` gốc + xoá
+  tài khoản QA + xoá hết row test trước khi báo xong.
+
+## Đợt 2 (phần 1) — biểu đồ theo tháng + polish thẻ Creator (21/08/2026)
+
+- **`TrendChart`**: thêm toggle Tuần/Tháng, cả 2 mức chia tính sẵn server-side trong cùng 1 lần gọi
+  (giống hệt cách 3 tab metric Lượt xem/Follower/Video đã bundle từ M4 — đổi granularity không refetch).
+  `lib/dashboard.ts` refactor `bucketWeekly*` thành gọi lõi dùng chung tham số hoá theo `(keyOf, labelOf)`
+  (`bucketViewsBy`/`bucketLastFollowersBy`/`bucketVideoCountsBy`), tránh viết lại 3 hàm gần giống hệt
+  cho tháng. Cả team-level (`getDashboard`) lẫn channel-detail đều tận dụng chung 1 lần fetch 180 ngày
+  (khớp `HISTORY_DAYS` sẵn có) — tuần chỉ là lọc-trong-bộ-nhớ của tập tháng, không query thêm.
+- ⚠️ **`rankCreatorPerformance` — bug thật, đã có test khoá lại**: 1 creator đang hoạt động duy nhất
+  luôn được gán badge "Dẫn đầu view" dù không có ai để so — `withChannels.reduce(...)` trên mảng 1
+  phần tử luôn trả về chính phần tử đó. Sửa: chỉ gán "leader" khi có ≥2 creator có kênh.
+- **Đã kiểm tra lại, KHÔNG sửa**: nhận định ban đầu "thanh progress dưới mỗi kênh vẽ full-width bất
+  kể số" hoá ra sai — đọc lại code thấy `width` đã tính đúng theo tỉ lệ `channel.views / maxViews`
+  từ trước. Bài học: đọc code trước khi "sửa", đừng tin hoàn toàn nhận định lúc chỉ xem ảnh chụp.
+- **`/creators`**: tài khoản đã vô hiệu hoá tách khỏi lưới chính, gấp lại trong `<details>` — trước
+  đây chiếm nửa màn hình ngang hàng với creator đang hoạt động dù toàn số 0/—.
+
+## Tab "Nhập tay" ở `/import` (21/08/2026, Đợt 2 #5)
+
+`/import/manual-entry` (Manager-only) — chọn kênh rồi tái dùng nguyên `ManualEntryForm` đã có ở Chi
+tiết kênh (`manual-entry-picker.tsx` chỉ là 1 `<select>` bọc ngoài, `key={channelId}` để form tự
+reset trạng thái đóng/mở khi đổi kênh). `DataTabs` giờ nhận `isManager` để chèn thêm tab "Nhập tay"
+chỉ cho Manager — Creator vẫn thấy đúng 2 tab (Import Studio + Kết nối), không có Nhập tay.
+
+## Chi tiết kênh — thiết kế lại (21/08/2026, Đợt 2 #1) — có gì dùng được ngay
+
+- **Thứ tự khối đổi hẳn**: 4 ô số → biểu đồ + tỷ lệ khán giả mới → **"Số liệu đã lưu theo ngày" (+
+  Nhập tay đi kèm)** → heatmap + hashtag → video gần đây. Trước đây bảng ngày — thứ chi tiết/đáng tin
+  nhất, thấy được từng ngày/từng nguồn/ngày nào thiếu — nằm CUỐI trang, dưới cả video/hashtag ít quan
+  trọng hơn. Khớp nguyên tắc đầu CLAUDE.md: "trả lời dữ liệu đang thế nào trước".
+- **Heatmap "Giờ vàng đăng bài"** trước đây chỉ có màu, không số, không thang tham chiếu — không đọc
+  ra kết luận gì được ngoài "đậm nhạt khác nhau". Thêm: ô đậm nhất (giá trị cao nhất) tự hiện số ngay
+  trên lưới; thang màu 6 bậc + số "cao nhất N follower/giờ" ở dưới.
+- **Empty state của heatmap/hashtag nói rõ thiếu gì**: "Chưa có dữ liệu FollowerActivity.csv — cần
+  import file Studio có kèm FollowerActivity.csv (tuỳ chọn, không phải mọi lần export đều có)" thay
+  vì chỉ "chưa có dữ liệu". Tương tự cho bảng hashtag.
+
+## Team — thiết kế lại + rollup + trang chi tiết (21/08/2026, phản hồi sau khi dùng thử) — có gì dùng được ngay
+
+Sau khi tính năng Team cơ bản xong (mục "Team — nhóm Creator" phía trên), dùng thử trực tiếp qua
+Browser pane (đăng nhập thật) phát hiện panel quản lý Team quá sơ sài — chỉ chữ thuần, không avatar,
+không đường phân cách, "Sửa"/"Xoá" là link chữ trần. Liền sau đó, thêm 3 yêu cầu: team hiện được số
+liệu tổng hợp, bấm vào team xem được từng thành viên, đổi tên trang "Creator" → "Nhân sự".
+
+- **`aggregateChannelStats(channelIds, statsByChannel)`** (mới, `lib/dashboard.ts`, có test) — rút ra
+  từ logic rollup-theo-creator vốn đã viết inline trong `creators/page.tsx`, giờ dùng chung cho CẢ
+  rollup-theo-creator lẫn rollup-theo-team (team chỉ là tập kênh rộng hơn — toàn bộ kênh của mọi
+  creator trong team). Nhờ vậy `/creators` và `/creators/team/:id` không thể lệch số nhau — cùng đi
+  qua 1 hàm. `RollupStat` gồm cả `followersNow` (tổng hiện tại) lẫn `followerGain` (tăng trong kỳ) —
+  khớp đúng quy ước `TeamStatsRow` đã dùng ở Tổng quan (value = tồn kho, delta = tăng thêm).
+- **`/creators/team/[id]`** (trang mới) — breadcrumb, 3 `StatTile` (Lượt xem/Follower/Tương tác) của
+  cả team, danh sách từng thành viên tái dùng nguyên `CreatorCard`. Manager-only như trang chính.
+- **`TeamSection` (creator-form.tsx)** — tên team giờ là `Link` sang trang chi tiết (bọc `<h2>`,
+  không bọc luôn phần đếm creator/kênh — chỉ tên mới bấm được), kèm 3 `RollupStatChip` (Lượt xem/
+  Follower/Tương tác) hiện ngay trên danh sách thẻ, không cần bấm vào mới thấy số.
+- ⚠️ **`TeamManager`/`TeamRow` viết lại hoàn toàn** — bản đầu chỉ có text link "Sửa"/"Xoá" sát nhau,
+  không avatar, không đường kẻ giữa các dòng, đọc "xấu" hẳn so với phần còn lại của app (đã dùng
+  avatar tròn + `border-t border-line-soft` + nút bo viền ở `ConnectionsClient`/`ChannelRow` từ
+  M3b/M4). Sửa: icon "người" trong vòng tròn cyan-bg mỗi team (giống avatar), pill đếm creator, nút
+  "Sửa" bo viền thật, nút xoá icon-only (thùng rác, viền đỏ khi hover) thay vì chữ "Xoá" trần. Bài
+  học: khi thêm 1 tính năng mới (Team) đừng chỉ lo đúng logic — style phải soi lại đúng những
+  component list-row đã có sẵn trong app (`ConnectionsClient`, `ChannelRow`), không tự nghĩ ra một
+  kiểu list-row mới.
+- **Đổi tên trang "Creator" → "Nhân sự"** (`layout.tsx` nav label + H1) — **route giữ nguyên**
+  `/creators`, không đổi URL (không có lý do đổi với app nội bộ, không ai bookmark theo dõi).
+- **Kiểm chứng trực tiếp trong phiên đăng nhập thật** (Browser pane, không phải service role) sau
+  mỗi vòng sửa — bắt được: (1) panel Team đầu tiên đúng là xấu như phản hồi, (2) sau khi viết lại,
+  rollup + link + trang chi tiết đều hoạt động đúng bằng dữ liệu thật (team "test" có sukai, 2 kênh,
+  737k view/-64%, 10,8k follower/+1.055, 3,52% tương tác — khớp đúng số của riêng sukai vì team đó
+  hiện chỉ có 1 người).
+
+## Team → Nhân sự → Kênh — dựng lại drill-down (21/08/2026, vòng 3 phản hồi) — có gì dùng được ngay
+
+`/creators/team/[id]` (vòng 2 ở trên) dùng thử thêm một lần nữa thì lộ 2 vấn đề thật: thẻ Creator luôn
+mở sẵn cho MỌI người bất kể đang xem team nào (chỉ có tiêu đề section phân biệt, không đóng/mở được —
+4-5 người là cuộn dài); và bấm vào một Creator hay một kênh trong thẻ **không đi đâu cả** — `CreatorCard`
+không có `Link`, danh sách kênh trong thẻ chỉ là `<span>`. Yêu cầu mới: team → xổ bảng thành viên → bấm
+một người → trang riêng của người đó → trong đó bấm một kênh → sang trang kênh. Đã hỏi trước khi làm
+(kiểu hiển thị dropdown, trang Nhân sự cần gì, giữ hay bỏ `/creators/team/[id]`, có thêm chọn kỳ không)
+— quyết định: bảng dòng gọn (không giữ thẻ lớn), trang Nhân sự đủ 4 thẻ số + biểu đồ + bảng kênh + bảng
+ngày + sửa tại chỗ, **bỏ hẳn** `/creators/team/[id]`, thêm `DateRangePicker`.
+
+- **`lib/dashboard.ts` — 3 hàm dùng chung mới, có test đầy đủ:**
+  - `RollupStat` thêm `videos`/`previousVideos`/`engagementRateDeltaPct` — trước đây rollup chỉ có
+    view/follower/tương tác, trang Nhân sự cần thêm ô "Video đã đăng" và delta thật cho tương tác
+    (trang team cũ hiển thị cứng `deltaText="—"` vì không có số).
+  - `buildCreatorPerformance(creators, statsByChannel)` — gom đúng cái vòng lặp rollup-theo-creator
+    từng bị copy-paste giống hệt nhau ở `creators/page.tsx` và `creators/team/[id]/page.tsx` (khối
+    "for creator of creators { aggregateChannelStats(...) }"). `/creators` và `/creators/[id]` giờ
+    không thể lệch số nhau vì cùng đi qua 1 hàm.
+  - `mergeDailyRowsByDate(rows, channelCount)` — gộp nhiều kênh của 1 người về 1 dòng/ngày cho
+    `DailyTable` ở trang Nhân sự. Giữ đúng luật null-vs-0 (`sumViews`): 1 ngày `null` nếu KHÔNG kênh
+    nào có số, chứ không phải 0 giả. `source` lấy nguồn **yếu nhất** trong ngày (đúng thứ tự CLAUDE.md)
+    — 1 ngày gộp chỉ đáng tin bằng kênh tệ nhất. `isComplete` đòi cả 2: mọi dòng góp vào tự nó đã đủ,
+    **và** đủ số kênh kỳ vọng góp mặt ngày đó (1 kênh im lặng vắng mặt — ví dụ bị rate-limit — không
+    được đọc thành "đầy đủ"). Kiểm chứng bằng dữ liệu thật ngay khi build xong: 1 ngày (17/08) chỉ 1/2
+    kênh của sukai đồng bộ → đúng như thiết kế, dòng đó tự hiện "đã đối chiếu · thiếu dữ liệu" và cột
+    Video hiện "—" chứ không phải 0.
+- **`/creators` viết lại** — `team-accordion.tsx` (file mới, client component): mỗi team là 1 panel
+  đóng mặc định (mở sẵn nếu chỉ có đúng 1 team, hoặc khi tới từ link `?team=<id>`/`_unassigned`), tiêu
+  đề panel luôn hiện 3 chip rollup dù đang đóng. Mở ra là bảng CSS-grid dòng gọn từng creator (tên +
+  email + kênh phụ trách + view/follower/tương tác + trạng thái + badge) — thay hẳn thẻ lớn `CreatorCard`
+  2 cột luôn-mở. Bấm tên → `/creators/[id]`; bấm "Sửa" → thay nguyên dòng bằng form (đúng pattern
+  `ChannelRow` đã dùng, không phải panel bung riêng — nhất quán với phần còn lại của app thay vì bịa
+  kiểu tương tác mới). Người đã vô hiệu hoá không còn tách `<details>` riêng ở cuối trang nữa — nằm
+  cuối panel team của chính họ (badge trạng thái đủ phân biệt, đỡ thêm 1 lượt bấm). **Rank badge luôn
+  tính trên TOÀN BỘ creator** (bug thật ở bản trước: cùng 1 người có thể "Dẫn đầu view" ở trang team
+  nhưng "Cần chú ý" ở `/creators` vì mỗi màn hình tự tính rank trên tập dữ liệu khác nhau — giờ tính
+  1 lần, dùng chung). Thêm `DateRangePicker` (bỏ cứng "7 ngày gần nhất").
+- **`/creators/[id]` (route mới) — trang riêng từng Nhân sự**, bố cục bám `channels/[id]/page.tsx` để
+  2 trang chi tiết đọc giống nhau: breadcrumb, avatar + pill team (bấm về `/creators?team=<id>`, accordion
+  tự mở đúng panel + cuộn tới), `DateRangePicker`, 4 `StatTile`, `TrendChart` (tuần/tháng, 3 tab Lượt
+  xem/Follower/Video — dùng thẳng `bucketWeeklyViews`/`bucketWeeklyLastFollowers`/`bucketWeeklyVideoCounts`
+  trên dữ liệu RAW nhiều-kênh, không qua `mergeDailyRowsByDate` — các hàm bucket này đã tự gộp đúng
+  nhiều kênh qua `groupByChannel`, đưa dữ liệu đã gộp vào sẽ làm sai phần follower theo tuần/tháng),
+  bảng "Kênh phụ trách" bấm được sang `/channels/[id]` (đây là chỗ vá ngõ cụt chính), `DailyTable` với
+  dữ liệu qua `mergeDailyRowsByDate`, nút "Sửa thông tin" mở `CreatorEditForm` (tách từ `CreatorCard`
+  cũ, dùng chung với dòng trong accordion — 1 form, 2 nơi gọi).
+- **`daily-table.tsx` nới props** — `channelHandle` (dùng để tự ghép tên file CSV) đổi thành
+  `csvFilename` (caller tự ghép), thêm `subtitle?`/`emptyText?` — trang kênh giữ nguyên hành vi cũ qua
+  giá trị mặc định, trang Nhân sự truyền câu chữ khác ("tổng hợp mọi kênh phụ trách...").
+- **Xoá `/creators/team/[id]`** và `creator-form.tsx`'s `CreatorCard`/`TeamSection` (~230 dòng) — không
+  còn ai gọi. `updateCreatorAction` thêm `revalidatePath('/creators/[id]')` (trước chỉ revalidate
+  `/creators`, sửa từ trang chi tiết sẽ không thấy đổi ngay).
+- **Kiểm chứng bằng phiên đăng nhập thật** (Browser pane, Manager thật, cùng tài khoản phiên trước) —
+  đi hết cả vòng: `/creators` → mở panel "test" → bấm "sukai" → `/creators/[id]` đúng người, 4 thẻ số
+  + biểu đồ + bảng kênh có số → bấm kênh "nong.nghiep.xanh.17" → sang đúng `/channels/[id]` → quay lại,
+  bấm pill team "test" → về `/creators?team=<id>` panel tự mở + cuộn tới; đổi kỳ "30 ngày qua" → số đổi,
+  `?team=` không mất (merge đúng); "Sửa" ở cả 2 nơi (dòng trong accordion, nút trên trang chi tiết) mở
+  form, Lưu/Huỷ đều hoạt động, không lỗi console, mọi request 200. Bucket "Chưa gán team" + 1 tài khoản
+  đã vô hiệu hoá/0 kênh (còn sót từ QA đợt M2) hiện đúng — số 0/"—" đúng chỗ, không badge rank.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

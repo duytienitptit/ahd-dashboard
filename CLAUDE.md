@@ -111,50 +111,53 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M4 xong toàn bộ + M3c (nhập tay) xong sớm theo phản hồi (21/08/2026). Việc tiếp theo: bắt đầu code
-M5 (KPI Cycle).** Lịch sử chi tiết từng milestone (quyết định lúc code, deviation, bug bắt được lúc
-kiểm chứng) đã chuyển sang [docs/PROGRESS.md](docs/PROGRESS.md) — file này chỉ giữ trạng thái
-**hiện tại** và việc **đang treo**, không phải nhật ký đầy đủ.
+**M4 + M3c + Đợt 1 (sửa dữ liệu) + Đợt 2 (thiết kế lại UI) + tính năng Team + dựng lại drill-down
+Team → Nhân sự → Kênh đều đã xong (21/08/2026).**
+Chi tiết đầy đủ từng phần ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục "Đợt 1 sửa dữ liệu", "Đợt 2...",
+"Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down"). Checklist ở
+[docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team" và "Team → Nhân sự → Kênh".
 
-🔑 **`TOKEN_ENCRYPTION_KEY`: KHÔNG được sinh khoá mới nữa.** Khoá trên Vercel đã được chứng minh hợp lệ
-(21/08/2026 — 2 kênh `nong.nghiep.xanh.17` + `vuonvuonvang` kết nối thành công, mà `lib/crypto/token.ts`
-throw cứng nếu khoá không đủ 32 byte hex). Token thật đang nằm trong `channel_oauth` **mã hoá bằng
-khoá đó**. Sinh khoá mới = mất toàn bộ token, phải OAuth lại từ đầu. Nếu `.env.local` cần chạy sync ở
-máy: **copy nguyên giá trị từ Vercel Environment Variables xuống**, không tạo giá trị mới.
+⚠️⚠️ **54 file đang sửa dở, CHƯA COMMIT** (`git status` xác nhận ngay) — toàn bộ việc trong mục trên.
+Đã hỏi người dùng, họ chủ động chọn "để tôi review trước", không phải quên. **4 migration đã lên
+thẳng Supabase thật rồi** (`db push` chạy trực tiếp mỗi lần, không đợi commit) — nghĩa là **schema
+production đã đổi** (bảng `team`, cột `creator.team_id`, RLS mới cho Creator-upload, hàm
+`update_channel_name`) **nhưng code dùng nó thì chưa lên GitHub/Vercel**. Trước khi làm gì tiếp:
+đọc kỹ diff các file đã sửa, không tự ý commit/push nếu người dùng chưa bảo — nhưng cũng đừng viết
+migration mới coi như những cái này chưa tồn tại, chúng ĐÃ chạy thật rồi.
 
-Display API đã kết nối thật cho 2 kênh. ⏳ **Lần sync đầu là bootstrap** — ghi `video_views = null`
-(chưa có mốc để trừ), chỉ gieo `video_snapshot`. Phải qua lần sync THỨ HAI mới có số view-trong-kỳ
-thật, và số sạch trọn 24h chỉ có từ lần cron thứ ba (03:00 → 03:00) — delta đầu tiên ứng với khoảng
-thời gian lẻ, đừng dùng nó đối chiếu Studio. M0 còn 1 mục kiểm chứng treo (đo view-trong-ngày thật),
-mở khoá được sau khi đủ 2-3 lần sync.
+⚠️ **Cả 2 kênh đang MẤT KẾT NỐI Display API** (`channel_oauth` rỗng, cố ý xoá sau sự cố sai tài
+khoản — xem PROGRESS.md mục "Đợt 1"). Việc người dùng cần làm: vào `/connections`, bấm "Kết nối"
+lại cho cả 2 kênh bằng **đúng** tài khoản TikTok của từng kênh.
 
-Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`).
-Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`.
+⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
+lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
+nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" trước khi tải file lên.
+
+🔑 `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không sinh khoá mới**. Cần dùng ở `.env.local` thì
+copy nguyên giá trị từ Vercel Environment Variables xuống.
+
+Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — **bản đang chạy trên
+Vercel là code CŨ**, chưa có gì trong 51 file sửa dở ở trên, vì chưa push. Đang test bằng
+`npm run dev` local (Manager thật đã đăng nhập thử qua Browser pane trong phiên vừa rồi).
+Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, commit gần
+nhất `9dc9784` (trước toàn bộ việc ở trên).
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
-đặt ở Vercel Project Settings → Functions, không có trong code. TTFB `iad1` mặc định 2.1-2.5s → sau
-khi đổi `hkg1` còn ~0.2s. Đã thử 2 cách đặt qua code (`vercel.json` `"regions"`, `preferredRegion` ở
-`app/layout.tsx`) — **đều không ăn**, phải đổi qua dashboard Vercel; chi tiết ở
+đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
 
 Supabase ở Tokyo còn function ở Hong Kong → mỗi round-trip tới DB ~50ms. Nếu về sau một màn hình
-nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trước khi đổ lỗi cho DB** — chi phí nằm ở
-số lượt, không phải khối lượng dữ liệu. Cùng lý do đó, `getCurrentUser()` trong `lib/auth.ts` bọc
-`cache()` của React — **giữ nguyên**, không bọc thì mỗi lần chuyển tab tốn gấp đôi round-trip.
+nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trước khi đổ lỗi cho DB**. Cùng lý do đó,
+`getCurrentUser()` trong `lib/auth.ts` bọc `cache()` của React — **giữ nguyên**.
 
 ### Việc tiếp theo
 
-**Bắt đầu code M5** (KPI Cycle, [docs/TASKS.md](docs/TASKS.md)) — `POST /api/kpi-cycles` trước
-(tự chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
-công thức đã có sẵn ở [docs/API_SPEC.md](docs/API_SPEC.md) mục "Công thức progress". M4 đã chừa sẵn
-chỗ cắm: `kpiSummary`/`myChannels.hasActiveKpi` trong `lib/dashboard.ts` hiện luôn rỗng/false vì
-`kpi_cycle` chưa có row — M5 tạo cycle xong thì 2 chỗ đó cần nối lại cho đúng nghĩa (không phải viết
-lại từ đầu, chỉ thay phần luôn-rỗng bằng query thật).
-
-**Việc riêng chỉ người dùng làm được, không chặn M5** (cập nhật 21/08/2026):
-1. ✅ Xong — 2 kênh đã kết nối Display API thật.
-2. Chờ đủ 2-3 lần cron chạy, rồi đối chiếu số `display_api` với `studio_import` đã có từ M3a — trả
-   lời nốt câu hỏi 🔬 còn treo của [docs/DISPLAY_API.md](docs/DISPLAY_API.md) (đo view-trong-ngày
-   thật) và xác nhận `isComplete` của `vuonvuonvang` (xem mảng `incomplete[]` trong kết quả sync).
+1. **Người dùng review 54 file đã sửa**, rồi bảo commit/push khi sẵn sàng — không tự làm thay.
+2. Sau khi push: vào `/connections` kết nối lại 2 kênh bằng đúng tài khoản TikTok thật.
+3. **M5 (KPI Cycle)** — chưa bắt đầu, không bị chặn bởi 2 mục trên. `POST /api/kpi-cycles` trước (tự
+   chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
+   công thức ở [docs/API_SPEC.md](docs/API_SPEC.md) mục "Công thức progress". `kpiSummary`/
+   `myChannels.hasActiveKpi` trong `lib/dashboard.ts` hiện luôn rỗng/false vì `kpi_cycle` chưa có
+   row — M5 tạo cycle xong thì nối lại 2 chỗ đó.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).

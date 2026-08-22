@@ -7,7 +7,7 @@ import type { ChannelSummary } from "@/lib/channels";
 import type { ChannelPeriodStat } from "@/lib/dashboard";
 import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromStart } from "@/lib/format";
 
-import { createChannelAction, updateChannelAction, type ChannelFormState } from "./actions";
+import { createChannelAction, updateChannelAction, updateChannelNameAction, type ChannelFormState } from "./actions";
 
 const initialState: ChannelFormState = { error: null };
 
@@ -155,32 +155,94 @@ export function ChannelRow({
   stat,
   creators,
   isManager,
+  currentUserId,
 }: {
   channel: ChannelSummary;
   stat: ChannelPeriodStat | undefined;
   creators: CreatorOption[];
   isManager: boolean;
+  /** Lets a Creator rename the channel they're currently assigned to (CLAUDE.md vấn đề #11) —
+   *  `undefined` when the caller doesn't need this (e.g. no signed-in-user context available). */
+  currentUserId?: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const canEditName = isManager || (currentUserId !== undefined && channel.currentCreator?.id === currentUserId);
+
   const boundAction = updateChannelAction.bind(null, channel.id);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
   const wasPending = useRef(false);
+
+  const boundNameAction = updateChannelNameAction.bind(null, channel.id);
+  const [nameState, nameFormAction, namePending] = useActionState(boundNameAction, initialState);
+  const wasNamePending = useRef(false);
 
   useEffect(() => {
     if (wasPending.current && !pending && !state.error) setEditing(false);
     wasPending.current = pending;
   }, [pending, state.error]);
 
+  useEffect(() => {
+    if (wasNamePending.current && !namePending && !nameState.error) setEditing(false);
+    wasNamePending.current = namePending;
+  }, [namePending, nameState.error]);
+
+  if (editing && !isManager) {
+    // Creator's own channel — name only. Handle TikTok, Creator phụ trách, Đang hoạt động are all
+    // Manager-only (handle especially: it's the OAuth wrong-account guard's anchor).
+    return (
+      <form action={nameFormAction} className="border-t border-line-soft px-5 py-4">
+        <div className="flex items-end gap-3">
+          <label className="block flex-grow">
+            <span className="mb-1.5 block text-[12.5px] font-bold">Tên kênh</span>
+            <input
+              name="name"
+              required
+              defaultValue={channel.name}
+              className="h-[40px] w-full rounded-input border border-line px-3 text-sm outline-none focus:border-ink"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={namePending}
+            className="h-[38px] rounded-btn bg-red px-4 text-[13.5px] font-bold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {namePending ? "Đang lưu…" : "Lưu"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="h-[38px] rounded-btn border border-line px-4 text-[13.5px] font-semibold hover:bg-surface"
+          >
+            Huỷ
+          </button>
+        </div>
+        <div className="mt-2">
+          <ErrorBox error={nameState.error} />
+        </div>
+      </form>
+    );
+  }
+
   if (editing) {
     return (
       <form action={formAction} className="border-t border-line-soft px-5 py-4">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-5">
           <label className="block">
             <span className="mb-1.5 block text-[12.5px] font-bold">Tên kênh</span>
             <input
               name="name"
               required
               defaultValue={channel.name}
+              className="h-[40px] w-full rounded-input border border-line px-3 text-sm outline-none focus:border-ink"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[12.5px] font-bold">Handle TikTok</span>
+            <input
+              name="tiktokHandle"
+              required
+              defaultValue={channel.tiktokHandle}
               className="h-[40px] w-full rounded-input border border-line px-3 text-sm outline-none focus:border-ink"
             />
           </label>
@@ -253,7 +315,7 @@ export function ChannelRow({
       </div>
 
       <div className="text-right">
-        <div className="text-sm font-bold">{stat ? formatCompact(stat.views) : "—"}</div>
+        <div className="text-sm font-bold">{stat?.views !== null && stat?.views !== undefined ? formatCompact(stat.views) : "—"}</div>
         {stat ? (
           <div className={`mt-0.5 text-[11.5px] font-semibold ${stat.viewsDeltaPct !== null && stat.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
             {formatDeltaPct(stat.viewsDeltaPct)}
@@ -279,7 +341,7 @@ export function ChannelRow({
         </span>
       </div>
 
-      {isManager ? (
+      {canEditName ? (
         <button
           type="button"
           onClick={() => setEditing(true)}

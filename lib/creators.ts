@@ -11,6 +11,9 @@ export type CreatorSummary = {
   isActive: boolean;
   channelCount: number;
   channels: { id: string; name: string; tiktokHandle: string }[];
+  /** `null` = chưa gán team, same shape as a channel's `currentCreator`. Team is purely an
+   *  organizational grouping (CLAUDE.md, 21/08/2026) — does not restrict who sees what. */
+  team: { id: string; name: string } | null;
 };
 
 export type CreateCreatorInput = {
@@ -19,11 +22,13 @@ export type CreateCreatorInput = {
   password: string;
   /** The Manager creating the account — becomes `creator.manager_id`. */
   managerId: string;
+  teamId?: string | null;
 };
 
 export type UpdateCreatorInput = {
   name?: string;
   isActive?: boolean;
+  teamId?: string | null;
 };
 
 /**
@@ -35,7 +40,8 @@ export async function listCreators(supabase: SupabaseServerClient): Promise<Crea
   // Independent queries — run in parallel, not one-after-another (neither depends on the other's
   // result), to save a Supabase round trip on every screen that lists creators.
   const [{ data: creators, error }, { data: channels, error: channelsError }] = await Promise.all([
-    supabase.from("creator").select("id, name, email, is_active").order("name", { ascending: true }),
+    // Embedded via the team_id FK — one round trip, not a third parallel query.
+    supabase.from("creator").select("id, name, email, is_active, team:team(id, name)").order("name", { ascending: true }),
     supabase.from("channel").select("id, name, tiktok_handle, current_creator_id").not("current_creator_id", "is", null),
   ]);
   if (error) throw error;
@@ -58,6 +64,9 @@ export async function listCreators(supabase: SupabaseServerClient): Promise<Crea
       isActive: creator.is_active,
       channelCount: assigned.length,
       channels: assigned,
+      // Embedded via team_id FK; PostgREST returns null, not [], when unassigned — same cast
+      // reasoning as `currentCreator` in lib/channels.ts (untyped client, no generated types).
+      team: (creator as unknown as { team: { id: string; name: string } | null }).team,
     };
   });
 }
@@ -99,6 +108,7 @@ export async function createCreator(
     name: input.name,
     email: input.email,
     manager_id: input.managerId,
+    team_id: input.teamId ?? null,
   });
 
   if (insertError) {
@@ -117,6 +127,7 @@ export async function updateCreator(
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.isActive !== undefined) patch.is_active = input.isActive;
+  if (input.teamId !== undefined) patch.team_id = input.teamId;
 
   if (Object.keys(patch).length > 0) {
     const { error } = await supabase.from("creator").update(patch).eq("id", id);

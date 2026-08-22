@@ -21,6 +21,7 @@ Cron đồng bộ chạy ~03:00 giờ VN (sau khi ngày hôm trước đã khép
 ```mermaid
 erDiagram
     MANAGER ||--o{ CREATOR : "quản lý"
+    TEAM ||--o{ CREATOR : "gồm (tuỳ chọn)"
     CREATOR ||--o{ CHANNEL : "phụ trách hiện tại"
     CHANNEL ||--o{ CHANNEL_OWNERSHIP_HISTORY : "lịch sử sở hữu"
     CREATOR ||--o{ CHANNEL_OWNERSHIP_HISTORY : "từng phụ trách"
@@ -44,7 +45,14 @@ erDiagram
         text name
         text email UK
         uuid manager_id FK
+        uuid team_id FK "nullable — chưa gán team"
         boolean is_active
+        timestamptz created_at
+    }
+
+    TEAM {
+        uuid id PK
+        text name UK
         timestamptz created_at
     }
 
@@ -163,6 +171,20 @@ erDiagram
         text note
     }
 ```
+
+## `team` — nhãn tổ chức, KHÔNG phải biên giới phân quyền
+
+Quyết định 21/08/2026 (đã hỏi người dùng trước khi viết migration, vì đây là loại quyết định khó sửa
+về sau): thêm `team` để nhóm Creator (ví dụ "1 manager quản lý 2 team") **thuần cho mục đích lọc/hiển
+thị** — `getDashboard()` nhận `teamId` để lọc xuống đúng kênh của team đó, giống hệt cách `creatorId`
+đã lọc. **Không đổi RLS, không đổi ai-thấy-được-gì**: vẫn đúng 1 tầng Manager (thấy toàn bộ) + Creator
+(cross-channel visibility, đã chốt từ đầu dự án — xem `0006_rls.sql`). Nếu sau này cần Team thật sự
+là biên giới phân quyền (nhiều Manager, mỗi người chỉ thấy team mình), đó là quyết định RLS mới, phải
+hỏi lại, không tự suy diễn từ quyết định này.
+
+`channel` cố tình **không có** cột `team_id` riêng — team của một kênh luôn suy ra qua
+`current_creator_id → creator.team_id`, để chỉ có đúng 1 chỗ team membership có thể lệch (chính
+`creator.team_id`), không phải 2.
 
 ## Ràng buộc chính
 

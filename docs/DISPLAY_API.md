@@ -171,6 +171,27 @@ Nếu sandbox không đủ: nộp duyệt app chính thức, hồ sơ sạch m�
    vai trò nguồn chốt sổ cho tới khi có phép đo này — nhưng tín hiệu ban đầu rất tích cực, rủi ro kiến
    trúc ở điểm này thấp hơn đáng kể so với lúc chưa kiểm chứng.
 
+6. ⚠️ **Sự cố thật 21/08/2026: chính tài khoản test `kidshoppppala` ở mục 1 và 5 phía trên bị kết nối
+   nhầm vào CẢ HAI kênh thật** (`nong.nghiep.xanh.17` và `vuonvuonvang`) khi bấm "Kết nối" trên
+   `/connections` lần đầu — số liệu ghi vào production là của tài khoản test này (151 follower, 24
+   video), không phải kênh thật. Nguyên nhân nhiều khả năng: trình duyệt vẫn đang đăng nhập TikTok
+   bằng tài khoản test `kidshoppppala` (dùng xuyên suốt M0 để probe sandbox) từ trước, thay vì đổi
+   sang đúng tài khoản TikTok của từng kênh trước khi bấm "Kết nối"/Authorize.
+
+   Guard chống sai tài khoản (so `share_url` vừa Authorize với `channel.tiktok_handle`,
+   `lib/tiktok/verify-account.ts`) **đã tồn tại từ M0 nhưng chỉ cảnh báo, không chặn** — đây là lý do
+   sự cố lọt qua mà không ai để ý (banner cảnh báo chỉ hiện 1 lần ngay sau khi kết nối, không phải
+   trạng thái thường trực). **Đã sửa (21/08/2026)**: mismatch giờ **chặn hẳn**, không lưu token —
+   xem `app/api/oauth/callback/route.ts`. Tài khoản TikTok chưa có video nào (không có `share_url` để
+   đối chiếu — chính là điểm mù duy nhất guard không tự xác minh được) vẫn lưu token nhưng
+   `channel_oauth.account_verified = false`, và `lib/tiktok/sync.ts` **từ chối sync** cho tới khi có
+   người xác nhận tay qua `POST /api/channels/:id/oauth/verify`. Chi tiết dọn dữ liệu sai:
+   [PROGRESS.md](PROGRESS.md) mục "Đợt 1 sửa dữ liệu".
+
+   **Bài học vận hành**: trước khi bấm "Kết nối" cho một kênh thật, kiểm tra trình duyệt đang đăng
+   nhập TikTok bằng đúng tài khoản của kênh đó — đừng dựa hoàn toàn vào guard, nó chỉ là lưới an
+   toàn thứ hai.
+
 6. **Redirect URI bắt buộc `https://` VÀ không được là `localhost` dưới bất kỳ hình thức nào.**
    ✅ Kiểm chứng 20/08/2026: không chỉ `http://localhost` — **`https://localhost:3000/...` cũng bị
    TikTok từ chối thẳng** lúc khai báo, kèm thông báo "Enter a valid redirect uri (localhost is not

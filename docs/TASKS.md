@@ -371,6 +371,93 @@ M7 chưa cần tới vì Display API đã khả thi) — quá chi tiết, gây r
 **giữ nguyên 5 bậc** — không đổi business rule đã chốt từ M1, chỉ đổi phần **giải thích cho người
 dùng** để khớp với thực tế đang chạy.
 
+## Đợt 1 & Đợt 2 — sửa lỗi + thiết kế lại sau khi dùng thử bản deploy đầu (21/08/2026)
+
+Không phải milestone theo kế hoạch gốc — phát sinh từ 11 vấn đề gặp lúc dùng thử M4 lần đầu trên
+deploy thật + dữ liệu thật. Tách 2 đợt vì lẫn cả bug dữ liệu, tính năng thiếu, và thiết kế — không
+sửa chung một lượt. Chi tiết kỹ thuật đầy đủ ở [PROGRESS.md](PROGRESS.md) mục "Đợt 1 sửa dữ liệu".
+
+**Đợt 1 — sửa dữ liệu, xong 21/08/2026:**
+- [x] Chặn hẳn (không chỉ cảnh báo) khi tài khoản TikTok Authorize không khớp `channel.tiktok_handle`
+      + cột `channel_oauth.account_verified` + badge "Chưa xác minh" thường trực ở `/connections`
+- [x] Dọn 2 bug đã ghi nhận thật trên DB production (sai tài khoản TikTok + import CSV nhầm kênh) —
+      `scripts/cleanup-wrong-account-sync.mjs`
+- [x] Null vs 0 xuyên suốt `lib/dashboard.ts` (`sumViews`, `bucketWeeklyViews`, `ChannelPeriodStat`) +
+      biểu đồ vẽ đứt đoạn thay vì tụt về 0 (`trend-chart.tsx`)
+- [x] Hiển thị tổng số video của kênh (`data_snapshot.video_count`) cạnh số video đã biết trong DB
+- [x] `period.comparedFrom`/`comparedTo` tách 2 trường + hiển thị ở Tổng quan
+- [x] Creator sửa được "Tên kênh" của kênh mình phụ trách (hàm Postgres `security definer`
+      `update_channel_name`); Handle TikTok vẫn chỉ Manager
+
+**Đợt 2 — thiết kế lại UI, xong 21/08/2026:**
+- [x] **Chi tiết kênh — thiết kế lại xong**: bảng "Số liệu đã lưu theo ngày" (+ nút Nhập tay đi kèm)
+      dời lên ngay sau biểu đồ, trước heatmap/hashtag/video — trước đây nằm cuối cùng. Heatmap thêm
+      thang màu + số ("Ít hoạt động ←→ Nhiều hoạt động", số cao nhất) + tự hiện số trên ô đậm nhất.
+      Empty state của heatmap/hashtag nói rõ cần file/kết nối gì để có dữ liệu, không chỉ "chưa có".
+- [x] **Biểu đồ xu hướng: thêm mức chia theo tháng — xong.** `TrendChart` có toggle Tuần/Tháng cạnh
+      tab metric, cả 2 mức tính sẵn server-side (không refetch khi đổi). `bucketWeekly*`/`bucketMonthly*`
+      dùng chung 1 lõi tham số hoá (`bucketViewsBy`/`bucketLastFollowersBy`/`bucketVideoCountsBy`).
+- [x] **Thêm tab "Nhập tay" ở `/import` — xong.** `/import/manual-entry` (Manager-only), chọn kênh
+      rồi tái dùng nguyên `ManualEntryForm` đã có ở Chi tiết kênh (không viết lại). Chỗ cũ vẫn giữ.
+- [x] **Creator upload file Studio — đã hỏi và chốt "Có" (21/08/2026), đã code + verify xong.**
+      RLS mới (`20260821000004_creator_studio_import.sql`) scope theo `current_creator_id = auth.uid()`
+      + `source = 'studio_import'` (chặn rò rỉ sang `manual_entry`). Verify bằng phiên đăng nhập thật
+      (tạo QA creator, gán tạm 1 kênh thật, test 5 case, dọn sạch) — xem PROGRESS.md mục "Creator
+      upload file Studio".
+- [x] **Thẻ Creator — 2/3 mục xong, 1 mục hoá ra không phải bug**:
+      - Thanh progress theo tỉ lệ thật: **kiểm tra lại thấy code đã đúng từ trước** (`width` tính theo
+        `channel.views / maxViews`, không phải full-width cố định) — nhận định ban đầu đọc nhầm ảnh
+        chụp, không sửa gì.
+      - [x] Thu gọn tài khoản đã vô hiệu hoá — tách section riêng, `<details>` gấp lại mặc định.
+      - [x] Bỏ badge "Dẫn đầu view" khi chỉ có 1 creator có dữ liệu — `rankCreatorPerformance()` giờ
+        yêu cầu ≥2 creator có kênh mới gán "leader" (bug thật, đã có test khoá lại).
+
+## Team — nhóm Creator (21/08/2026, ngoài kế hoạch gốc)
+
+Yêu cầu phát sinh giữa lúc làm Đợt 2 ("1 manager quản lý 2 team"). Đã hỏi trước khi viết migration —
+xác nhận Team **chỉ là nhãn tổ chức/lọc**, không đổi ai-thấy-được-gì (vẫn 1 Manager, Creator vẫn
+cross-channel visibility như cũ). Chi tiết: [PROGRESS.md](PROGRESS.md) mục "Team".
+
+- [x] Migration `20260821000003_team.sql` — bảng `team`, cột `creator.team_id` (nullable)
+- [x] `lib/teams.ts` (CRUD) + `lib/creators.ts` nối `team`/`teamId`
+- [x] `/creators`: `TeamManager` (tạo/sửa/xoá team), chọn team lúc tạo/sửa Creator, badge team trên thẻ
+- [x] Lọc Tổng quan theo team (`?teamId=`, `TeamFilterSelect` cạnh `CreatorFilterSelect`)
+- [x] `GET/POST /api/teams`, `PATCH/DELETE /api/teams/:id` — đúng quy ước mọi resource khác đều có route
+- [x] Kiểm chứng bằng dữ liệu thật (tạo team, gán creator, lọc dashboard, xoá sạch) — xem PROGRESS.md
+
+**Vòng 2, cùng ngày — dùng thử trực tiếp qua Browser pane rồi phản hồi thêm:**
+- [x] `TeamManager`/`TeamRow` viết lại — panel ban đầu bị chê "xấu" (chữ trần, không avatar, không
+      đường kẻ). Giờ khớp style `ConnectionsClient`/`ChannelRow` (icon avatar, divider, nút bo viền).
+- [x] `aggregateChannelStats()` — hàm rollup dùng chung cho cả Creator lẫn Team, có test
+- [x] Team hiện số liệu tổng hợp (Lượt xem/Follower/Tương tác) ngay trên danh sách, không cần bấm vào
+- [x] ~~`/creators/team/[id]` — bấm tên team ra trang chi tiết, xem từng thành viên~~ — thay bằng
+      accordion ngay trên `/creators` (xem "Team → Nhân sự → Kênh" bên dưới, cùng ngày)
+- [x] Đổi tên trang "Creator" → "Nhân sự" (nav label + H1, route `/creators` giữ nguyên)
+- [x] Kiểm chứng bằng phiên đăng nhập thật (Browser pane, không phải service role)
+
+## Team → Nhân sự → Kênh — dựng lại drill-down (21/08/2026, vòng 3 phản hồi)
+
+`/creators/team/[id]` (vòng 2 ở trên) hoá ra không đạt: thẻ Creator luôn mở sẵn cho MỌI người bất kể
+team (cuộn dài), và bấm vào một Creator/kênh trong thẻ không đi đâu — ngõ cụt, phải quay lại `/channels`
+lọc tay. Yêu cầu: bấm team → xổ ra bảng thành viên; bấm một người → trang riêng của người đó; trong đó
+bấm một kênh → sang trang kênh. Chi tiết đầy đủ: [PROGRESS.md](PROGRESS.md) mục "Team → Nhân sự → Kênh".
+
+- [x] `lib/dashboard.ts`: `RollupStat` thêm `videos`/`previousVideos`/`engagementRateDeltaPct`;
+      `buildCreatorPerformance()` (gom vòng lặp rollup-theo-creator từng lặp lại ở 2 trang);
+      `mergeDailyRowsByDate()` (gộp nhiều kênh về 1 dòng/ngày, null-vs-0 đúng luật, nguồn = yếu nhất
+      trong ngày, `isComplete` tính cả số kênh có mặt) — test đầy đủ cho cả 3
+- [x] `/creators` viết lại: accordion đóng mặc định theo team (`team-accordion.tsx`, mới) — mỗi team
+      là 1 panel, mở ra bảng dòng gọn từng creator (không còn thẻ lớn `CreatorCard`); rank luôn tính
+      trên TOÀN BỘ creator (không tính lại riêng mỗi màn hình như trước — badge từng đổi nghĩa giữa
+      `/creators` và trang team cũ); thêm `DateRangePicker` (`?from=&to=`, bỏ cứng "7 ngày")
+- [x] `/creators/[id]` (route mới) — trang riêng từng Nhân sự: 4 `StatTile`, `TrendChart` (tuần/tháng),
+      bảng "Kênh phụ trách" bấm được sang `/channels/[id]` (vá ngõ cụt), `DailyTable` gộp qua
+      `mergeDailyRowsByDate`, sửa thông tin tại chỗ (`CreatorEditForm` tách từ `CreatorCard` cũ)
+- [x] Xoá `/creators/team/[id]`; team pill trên trang Nhân sự trỏ về `/creators?team=<id>` (hoặc
+      `_unassigned`) — accordion tự mở đúng panel + cuộn tới
+- [x] Kiểm chứng bằng phiên đăng nhập thật (Browser pane) — accordion mở/đóng, điều hướng
+      team→creator→kênh, sửa tại chỗ (cả 2 nơi), đổi khoảng ngày, không lỗi console
+
 ## M5 — KPI Cycle
 
 - [ ] `POST /api/kpi-cycles` — tự chụp `followersAtStart` từ `data_snapshot` mới nhất, chặn trùng khoảng ngày (409)

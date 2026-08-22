@@ -101,15 +101,20 @@ export function refreshAccessToken(refreshToken: string): Promise<TokenResponse>
 export const OAUTH_STATE_COOKIE = "tiktok_oauth_state";
 export const OAUTH_STATE_MAX_AGE_SECONDS = 600; // 10 minutes — plenty to click through TikTok's consent screen
 
-export function encodeOauthStateCookie(state: string, channelId: string): string {
-  return Buffer.from(JSON.stringify({ state, channelId })).toString("base64url");
+/** `ack` = the Manager/Creator already saw a previous "tài khoản không khớp" block for this channel
+ *  and explicitly chose "Vẫn kết nối" — see app/api/oauth/callback/route.ts. Carried through the
+ *  state cookie (not a request param at callback time) because TikTok, not our own app, controls
+ *  the redirect back; anything the callback needs has to travel via this cookie or the `state`
+ *  round trip. Defaults to `false` for the normal connect flow. */
+export function encodeOauthStateCookie(state: string, channelId: string, ack = false): string {
+  return Buffer.from(JSON.stringify({ state, channelId, ack })).toString("base64url");
 }
 
-export function decodeOauthStateCookie(cookieValue: string): { state: string; channelId: string } | null {
+export function decodeOauthStateCookie(cookieValue: string): { state: string; channelId: string; ack: boolean } | null {
   try {
     const parsed = JSON.parse(Buffer.from(cookieValue, "base64url").toString("utf8"));
     if (typeof parsed?.state === "string" && typeof parsed?.channelId === "string") {
-      return { state: parsed.state, channelId: parsed.channelId };
+      return { state: parsed.state, channelId: parsed.channelId, ack: parsed.ack === true };
     }
     return null;
   } catch {

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aggregateChannelStats,
   aggregateHashtagStats,
+  bucketMonthlyViews,
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
   bucketWeeklyViews,
   buildActivityHeatmap,
+  buildCreatorPerformance,
+  type ChannelPeriodStat,
   type DailyRow,
   engagementRate,
   groupByChannel,
@@ -13,6 +17,7 @@ import {
   isoWeekStart,
   latestFollowers,
   latestViewerRatio,
+  mergeDailyRowsByDate,
   pctChange,
   previousPeriod,
   rankCreatorPerformance,
@@ -116,6 +121,184 @@ describe("sumViews / sumEngagementParts / engagementRate", () => {
   it("returns null engagement rate when there are no views", () => {
     expect(engagementRate([row({ channelId: "a", date: "2026-08-15" })])).toBeNull();
   });
+
+  it("returns null (not 0) when there are no rows at all", () => {
+    expect(sumViews([])).toBeNull();
+  });
+
+  it("returns null (not 0) when every row's videoViews is null — the bootstrap-sync case: the row exists but there's no baseline to diff against yet (docs/DISPLAY_API.md)", () => {
+    const bootstrapRows = [
+      row({ channelId: "a", date: "2026-08-15", videoViews: null }),
+      row({ channelId: "a", date: "2026-08-16", videoViews: null }),
+    ];
+    expect(sumViews(bootstrapRows)).toBeNull();
+  });
+});
+
+function channelStat(partial: Partial<ChannelPeriodStat> & { channelId: string }): ChannelPeriodStat {
+  return {
+    views: 0,
+    previousViews: 0,
+    viewsDeltaPct: null,
+    videos: 0,
+    previousVideos: 0,
+    viewsPerVideo: null,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    previousLikes: 0,
+    previousComments: 0,
+    previousShares: 0,
+    engagementRate: null,
+    engagementRateDeltaPct: null,
+    followersNow: null,
+    followersBefore: null,
+    followersGain: null,
+    followersRatePct: null,
+    spark: [],
+    ...partial,
+  };
+}
+
+describe("aggregateChannelStats", () => {
+  it("sums views/followerGain/engagement across the given channels — same math for a Creator's channels or a Team's channels", () => {
+    const statsByChannel = new Map([
+      ["a", channelStat({ channelId: "a", views: 100000, previousViews: 80000, followersNow: 5000, followersGain: 500, likes: 1000, comments: 200, shares: 100 })],
+      ["b", channelStat({ channelId: "b", views: 50000, previousViews: 50000, followersNow: 3000, followersGain: 200, likes: 500, comments: 50, shares: 50 })],
+    ]);
+
+    const rollup = aggregateChannelStats(["a", "b"], statsByChannel);
+    expect(rollup.totalViews).toBe(150000);
+    expect(rollup.followersNow).toBe(8000);
+    expect(rollup.followerGain).toBe(700);
+    expect(rollup.engagementRate).toBeCloseTo(1900 / 150000);
+    expect(rollup.viewsDeltaPct).toBe(15); // (150000-130000)/130000
+  });
+
+  it("ignores a channel id with no entry in the map instead of crashing or counting it as 0 wrongly", () => {
+    const statsByChannel = new Map([["a", channelStat({ channelId: "a", views: 100, previousViews: 100 })]]);
+    const rollup = aggregateChannelStats(["a", "missing-channel"], statsByChannel);
+    expect(rollup.totalViews).toBe(100);
+  });
+
+  it("returns totalViews: 0 and engagementRate: null for an empty channel list (e.g. a team with no channels yet)", () => {
+    const rollup = aggregateChannelStats([], new Map());
+    expect(rollup.totalViews).toBe(0);
+    expect(rollup.engagementRate).toBeNull();
+  });
+
+  it("sums videos and derives engagementRateDeltaPct from current vs previous engagement", () => {
+    const statsByChannel = new Map([
+      [
+        "a",
+        channelStat({
+          channelId: "a",
+          views: 1000,
+          previousViews: 1000,
+          videos: 5,
+          previousVideos: 3,
+          likes: 100,
+          comments: 0,
+          shares: 0,
+          previousLikes: 50,
+          previousComments: 0,
+          previousShares: 0,
+        }),
+      ],
+    ]);
+    const rollup = aggregateChannelStats(["a"], statsByChannel);
+    expect(rollup.videos).toBe(5);
+    expect(rollup.previousVideos).toBe(3);
+    expect(rollup.engagementRate).toBeCloseTo(0.1); // 100/1000
+    expect(rollup.engagementRateDeltaPct).toBe(100); // 0.1 vs 0.05 previous → +100%
+  });
+
+  it("returns engagementRateDeltaPct: null when there's no previous-period views to compare against", () => {
+    const statsByChannel = new Map([["a", channelStat({ channelId: "a", views: 100, previousViews: 0, likes: 10 })]]);
+    const rollup = aggregateChannelStats(["a"], statsByChannel);
+    expect(rollup.engagementRateDeltaPct).toBeNull();
+  });
+});
+
+describe("buildCreatorPerformance", () => {
+  it("builds one rollup + channel breakdown per creator, keyed by creator id", () => {
+    const statsByChannel = new Map([
+      ["ch1", channelStat({ channelId: "ch1", views: 1000, previousViews: 800, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2 })],
+      ["ch2", channelStat({ channelId: "ch2", views: 500, previousViews: 500, followersNow: 50, followersGain: 5, videos: 1 })],
+    ]);
+    const creators = [
+      { id: "c1", channels: [{ id: "ch1", name: "Kênh 1", tiktokHandle: "@k1" }] },
+      { id: "c2", channels: [{ id: "ch2", name: "Kênh 2", tiktokHandle: "@k2" }] },
+    ];
+
+    const result = buildCreatorPerformance(creators, statsByChannel);
+    expect(result.get("c1")?.totalViews).toBe(1000);
+    expect(result.get("c1")?.channels).toEqual([
+      { id: "ch1", name: "Kênh 1", tiktokHandle: "@k1", views: 1000, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2, engagementRate: null },
+    ]);
+    expect(result.get("c2")?.totalViews).toBe(500);
+  });
+
+  it("falls back to 0/null per channel when a channel has no entry in statsByChannel (e.g. brand new)", () => {
+    const creators = [{ id: "c1", channels: [{ id: "ch-unsynced", name: "Kênh mới", tiktokHandle: "@moi" }] }];
+    const result = buildCreatorPerformance(creators, new Map());
+    expect(result.get("c1")?.channels[0]).toMatchObject({ views: 0, viewsDeltaPct: null, followersNow: null, videos: 0 });
+  });
+});
+
+describe("mergeDailyRowsByDate", () => {
+  it("sums same-date rows across channels, keeping the weakest source of the day", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-15", videoViews: 100, followers: 1000, source: "studio_import" }),
+      row({ channelId: "b", date: "2026-08-15", videoViews: 200, followers: 500, source: "display_api" }),
+    ];
+    const merged = mergeDailyRowsByDate(rows, 2);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].videoViews).toBe(300);
+    expect(merged[0].followers).toBe(1500);
+    expect(merged[0].source).toBe("display_api"); // weaker than studio_import
+    expect(merged[0].isComplete).toBe(true);
+  });
+
+  it("keeps a metric null when NOT ONE contributing channel has a known value that day — never a bogus 0", () => {
+    const rows = [row({ channelId: "a", date: "2026-08-15", videoViews: null, followers: null })];
+    const merged = mergeDailyRowsByDate(rows, 1);
+    expect(merged[0].videoViews).toBeNull();
+    expect(merged[0].followers).toBeNull();
+  });
+
+  it("sums a metric across channels even when one of them is null that day (treats the null as not contributing, not as 0 for everyone)", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-15", videoViews: 100 }),
+      row({ channelId: "b", date: "2026-08-15", videoViews: null }),
+    ];
+    const merged = mergeDailyRowsByDate(rows, 2);
+    expect(merged[0].videoViews).toBe(100);
+  });
+
+  it("marks a date incomplete when fewer channels contributed than expected (one silently missing that day)", () => {
+    const rows = [row({ channelId: "a", date: "2026-08-15", videoViews: 100 })];
+    const merged = mergeDailyRowsByDate(rows, 2); // caller expects 2 channels, only 1 showed up
+    expect(merged[0].isComplete).toBe(false);
+  });
+
+  it("marks a date incomplete when any contributing row itself is incomplete, even if every channel showed up", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-15", videoViews: 100, isComplete: true }),
+      row({ channelId: "b", date: "2026-08-15", videoViews: 100, isComplete: false }),
+    ];
+    const merged = mergeDailyRowsByDate(rows, 2);
+    expect(merged[0].isComplete).toBe(false);
+  });
+
+  it("sorts merged rows ascending by date regardless of input order", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-16", videoViews: 1 }),
+      row({ channelId: "a", date: "2026-08-15", videoViews: 1 }),
+    ];
+    const merged = mergeDailyRowsByDate(rows, 1);
+    expect(merged.map((r) => r.date)).toEqual(["2026-08-15", "2026-08-16"]);
+  });
 });
 
 describe("latestFollowers", () => {
@@ -180,6 +363,44 @@ describe("bucketWeeklyViews", () => {
     expect(buckets).toHaveLength(2);
     expect(buckets[0].value).toBe(150);
     expect(buckets[1].value).toBe(30);
+  });
+
+  it("emits null (a chart gap), not a plotted 0, for a week where every row's videoViews is null", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-19", videoViews: null }), // week of 08-17 — no measurement
+      row({ channelId: "a", date: "2026-08-24", videoViews: 30 }), // next week — real data
+    ];
+    const buckets = bucketWeeklyViews(rows);
+    expect(buckets[0].value).toBeNull();
+    expect(buckets[1].value).toBe(30);
+  });
+
+  it("still sums a week's known rows even when that same week also has a null row", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-17", videoViews: 100 }),
+      row({ channelId: "a", date: "2026-08-18", videoViews: null }), // partial gap, same week
+    ];
+    expect(bucketWeeklyViews(rows)[0].value).toBe(100);
+  });
+});
+
+describe("bucketMonthlyViews", () => {
+  it("sums views within a calendar month and sorts chronologically, so tháng 7 với tháng 8", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-07-15", videoViews: 100 }),
+      row({ channelId: "a", date: "2026-07-28", videoViews: 50 }), // same month
+      row({ channelId: "a", date: "2026-08-03", videoViews: 30 }), // next month
+    ];
+    const buckets = bucketMonthlyViews(rows);
+    expect(buckets).toEqual([
+      { label: "Th7", value: 150 },
+      { label: "Th8", value: 30 },
+    ]);
+  });
+
+  it("emits null for a month where every row's videoViews is null", () => {
+    const rows = [row({ channelId: "a", date: "2026-07-15", videoViews: null })];
+    expect(bucketMonthlyViews(rows)[0].value).toBeNull();
   });
 });
 
@@ -278,6 +499,16 @@ describe("rankCreatorPerformance", () => {
   it("excludes creators with zero channels instead of ranking them", () => {
     const ranks = rankCreatorPerformance([{ creatorId: "a", totalViews: 0, avgViewsDeltaPct: null, channelCount: 0 }]);
     expect(ranks.has("a")).toBe(false);
+  });
+
+  it("does NOT badge a lone active creator as leader — nothing to be ahead of", () => {
+    const ranks = rankCreatorPerformance([{ creatorId: "a", totalViews: 500000, avgViewsDeltaPct: 0, channelCount: 2 }]);
+    expect(ranks.get("a")).toBe("stable");
+  });
+
+  it("a lone creator can still be flagged growth/attention off their own trend", () => {
+    const ranks = rankCreatorPerformance([{ creatorId: "a", totalViews: 500000, avgViewsDeltaPct: 15, channelCount: 2 }]);
+    expect(ranks.get("a")).toBe("growth");
   });
 });
 

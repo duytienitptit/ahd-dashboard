@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { AuthorizationError, requireManager } from "@/lib/auth";
-import { createChannel, updateChannel } from "@/lib/channels";
+import { AuthorizationError, requireManager, requireUser } from "@/lib/auth";
+import { createChannel, updateChannel, updateChannelName } from "@/lib/channels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ValidationError, normalizeTiktokHandle } from "@/lib/validation";
 
@@ -58,12 +58,41 @@ export async function updateChannelAction(
     await requireManager();
 
     const name = String(formData.get("name") ?? "").trim();
+    const rawHandle = String(formData.get("tiktokHandle") ?? "").trim();
     const supabase = await createSupabaseServerClient();
     await updateChannel(supabase, channelId, {
       name: name || undefined,
+      tiktokHandle: rawHandle ? normalizeTiktokHandle(rawHandle) : undefined,
       creatorId: readCreatorId(formData),
       isActive: formData.get("isActive") === "on",
     });
+  } catch (error) {
+    return { error: toMessage(error) };
+  }
+
+  revalidatePath("/channels");
+  return { error: null };
+}
+
+/**
+ * Creator-safe rename — CLAUDE.md vấn đề #11. Deliberately not `requireManager()`: any signed-in
+ * user can call this action, but `updateChannelName()` (via the `update_channel_name` SECURITY
+ * DEFINER function) only actually renames a channel the caller is currently assigned to — see
+ * supabase/migrations/20260821000002_creator_edit_channel_name.sql.
+ */
+export async function updateChannelNameAction(
+  channelId: string,
+  _prevState: ChannelFormState,
+  formData: FormData,
+): Promise<ChannelFormState> {
+  try {
+    await requireUser();
+
+    const name = String(formData.get("name") ?? "").trim();
+    if (!name) return { error: "Vui lòng nhập tên kênh." };
+
+    const supabase = await createSupabaseServerClient();
+    await updateChannelName(supabase, channelId, name);
   } catch (error) {
     return { error: toMessage(error) };
   }

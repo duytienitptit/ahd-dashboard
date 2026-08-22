@@ -10,6 +10,12 @@ export type ChannelOauthStatus = {
   daysUntilExpiry: number | null;
   lastSyncAt: string | null;
   lastSyncStatus: "ok" | "failed" | "rate_limited" | null;
+  /** false = TikTok account behind this connection was never confirmed to match the channel's
+   *  handle (either not yet checked, or its zero-video account had no share_url to check at all).
+   *  lib/tiktok/sync.ts refuses to sync while this is false — shown as a persistent badge, not a
+   *  one-time banner, per the 21/08/2026 wrong-account incident (a banner only shown once is
+   *  exactly how that went unnoticed). */
+  accountVerified: boolean;
 };
 
 /**
@@ -32,7 +38,7 @@ export async function getOauthStatusList(
 
   const { data: oauthRows, error: oauthError } = await supabase
     .from("channel_oauth")
-    .select("channel_id, refresh_expires_at, last_sync_at, last_sync_status");
+    .select("channel_id, refresh_expires_at, last_sync_at, last_sync_status, account_verified");
   if (oauthError) throw oauthError;
 
   const byChannel = new Map((oauthRows ?? []).map((row) => [row.channel_id as string, row]));
@@ -54,6 +60,7 @@ export async function getOauthStatusList(
       daysUntilExpiry,
       lastSyncAt: (oauth?.last_sync_at as string | null) ?? null,
       lastSyncStatus: (oauth?.last_sync_status as ChannelOauthStatus["lastSyncStatus"]) ?? null,
+      accountVerified: Boolean(oauth?.account_verified),
     };
   });
 }

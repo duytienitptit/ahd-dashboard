@@ -28,8 +28,9 @@ export async function GET(request: NextRequest) {
     const from = parseDateParam(request, "from") ?? addDaysToDateString(to, -6);
     if (from > to) throw new ValidationError('Tham số "from" phải không muộn hơn "to".');
     const creatorId = request.nextUrl.searchParams.get("creatorId");
+    const teamId = request.nextUrl.searchParams.get("teamId");
 
-    const dashboard = await getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId });
+    const dashboard = await getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId, teamId });
     return NextResponse.json(dashboard);
   } catch (error) {
     return errorResponse(error);

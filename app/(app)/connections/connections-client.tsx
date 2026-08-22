@@ -10,16 +10,22 @@ type ChannelOauthStatus = {
   daysUntilExpiry: number | null;
   lastSyncAt: string | null;
   lastSyncStatus: "ok" | "failed" | "rate_limited" | null;
+  accountVerified: boolean;
 };
 
 type SyncResult = {
   date: string;
   synced: number;
   failed: number;
+  unverified: number;
   incomplete: { channelId: string; expectedVideos: number; gotVideos: number }[];
 };
 
-type Message = { type: "error" | "warning" | "connected"; text: string };
+type Message =
+  | { type: "error" | "warning" | "connected"; text: string }
+  // account_mismatch was blocked outright (nothing saved) — needs its own shape so the "Vẫn kết
+  // nối" button can retry oauth/start with ?ack=1 for the right channel.
+  | { type: "mismatch"; channelId: string; expected: string; actual: string };
 
 const WARN_THRESHOLD_DAYS = 30;
 
@@ -30,6 +36,11 @@ function initials(name: string): string {
 function statusBadge(row: ChannelOauthStatus) {
   if (!row.connected) {
     return { label: "Mất kết nối", bg: "bg-red-bg", fg: "text-red-dark", dot: "bg-red" };
+  }
+  // Persistent, not a one-time banner — the 21/08/2026 wrong-account incident went unnoticed
+  // exactly because the warning only showed once, right after connecting.
+  if (!row.accountVerified) {
+    return { label: "Chưa xác minh", bg: "bg-amber-bg", fg: "text-amber-dark", dot: "bg-amber" };
   }
   if ((row.daysUntilExpiry ?? Infinity) < WARN_THRESHOLD_DAYS) {
     return { label: "Sắp hết hạn", bg: "bg-amber-bg", fg: "text-amber-dark", dot: "bg-amber" };
@@ -63,16 +74,34 @@ export function ConnectionsClient({
     if (res.ok) setStatus(await res.json());
   }
 
-  async function handleConnect(channelId: string) {
+  async function handleConnect(channelId: string, opts: { ack?: boolean } = {}) {
     setConnectingId(channelId);
     setMessage(null);
     try {
-      const res = await fetch(`/api/channels/${channelId}/oauth/start`);
+      const res = await fetch(`/api/channels/${channelId}/oauth/start${opts.ack ? "?ack=1" : ""}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Không tạo được URL kết nối.");
       window.location.assign(body.url);
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Đã có lỗi xảy ra." });
+      setConnectingId(null);
+    }
+  }
+
+  /** Manual confirm for a connection Display API itself can't verify (zero-video TikTok account —
+   *  see app/api/channels/[id]/oauth/verify/route.ts). Distinct from handleConnect: no new OAuth
+   *  round trip, just flips account_verified on the connection already saved. */
+  async function handleVerify(channelId: string) {
+    setConnectingId(channelId);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/channels/${channelId}/oauth/verify`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Xác nhận thất bại.");
+      await refreshStatus();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Đã có lỗi xảy ra." });
+    } finally {
       setConnectingId(null);
     }
   }
@@ -118,7 +147,26 @@ export function ConnectionsClient({
         ) : null}
       </div>
 
-      {message ? (
+      {message?.type === "mismatch" ? (
+        <div role="alert" className="mb-3.5 rounded-card border border-line bg-red-bg px-[18px] py-3.5 text-[13px]">
+          <div className="font-bold text-red-dark">
+            Không kết nối — tài khoản TikTok vừa Authorize là{" "}
+            <strong>@{message.actual}</strong>, nhưng kênh này là <strong>@{message.expected}</strong>.
+          </div>
+          <div className="mt-1.5 text-red-dark">
+            Nếu đây đúng là tài khoản của kênh (ví dụ handle đổi tên gần đây), bấm nút dưới để vẫn kết
+            nối. Nếu không chắc, đăng xuất tài khoản TikTok đó trên trình duyệt rồi thử lại.
+          </div>
+          <button
+            type="button"
+            disabled={connectingId === message.channelId}
+            onClick={() => handleConnect(message.channelId, { ack: true })}
+            className="mt-2.5 flex h-8 items-center rounded-btn border border-red-dark px-3.5 text-[12.5px] font-bold text-red-dark hover:bg-red-bg/60 disabled:opacity-60"
+          >
+            {connectingId === message.channelId ? "Đang mở…" : "Vẫn kết nối"}
+          </button>
+        </div>
+      ) : message ? (
         <div
           role="alert"
           className={`mb-3.5 rounded-card border border-line px-[18px] py-3.5 text-[13px] font-medium ${
@@ -137,6 +185,7 @@ export function ConnectionsClient({
         <div className="mb-3.5 rounded-card border border-line px-[18px] py-3.5 text-[13px]">
           Đồng bộ xong: <strong>{syncResult.synced}</strong> kênh thành công,{" "}
           <strong>{syncResult.failed}</strong> lỗi
+          {syncResult.unverified > 0 ? `, ${syncResult.unverified} kênh bỏ qua vì chưa xác minh` : ""}
           {syncResult.incomplete.length > 0 ? `, ${syncResult.incomplete.length} kênh thiếu video` : ""}.
         </div>
       ) : null}
@@ -223,7 +272,18 @@ export function ConnectionsClient({
                       )}
                     </div>
 
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
+                      {row.connected && !row.accountVerified ? (
+                        <button
+                          type="button"
+                          disabled={connectingId === row.channelId}
+                          onClick={() => handleVerify(row.channelId)}
+                          title="Chỉ bấm khi chắc chắn tài khoản TikTok vừa Authorize đúng là kênh này"
+                          className="flex h-8 items-center rounded-btn border border-amber-dark px-3.5 text-[12.5px] font-bold text-amber-dark hover:bg-amber-bg disabled:opacity-60"
+                        >
+                          {connectingId === row.channelId ? "Đang xác nhận…" : "Xác nhận đúng tài khoản"}
+                        </button>
+                      ) : null}
                       {showConnectButton ? (
                         <button
                           type="button"

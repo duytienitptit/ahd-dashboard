@@ -1,4 +1,6 @@
+import { AuthorizationError } from "@/lib/auth";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ValidationError } from "@/lib/validation";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -30,6 +32,10 @@ export type CreateChannelInput = {
 
 export type UpdateChannelInput = {
   name?: string;
+  /** Manager-only — see updateChannelName() below for the Creator-safe rename path. Changing this
+   *  is worth an audit_log entry: it's the OAuth wrong-account guard's anchor (docs/DISPLAY_API.md,
+   *  app/api/oauth/callback/route.ts), so the route handler logs it, not this function. */
+  tiktokHandle?: string;
   creatorId?: string | null;
   isActive?: boolean;
 };
@@ -160,6 +166,7 @@ export async function updateChannel(
 ): Promise<ChannelSummary> {
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name;
+  if (input.tiktokHandle !== undefined) patch.tiktok_handle = input.tiktokHandle;
   // channel_ownership_history is kept in sync by the DB trigger in
   // 20260820000007_ownership_trigger.sql — writing current_creator_id here is enough.
   if (input.creatorId !== undefined) patch.current_creator_id = input.creatorId;
@@ -170,5 +177,30 @@ export async function updateChannel(
     if (error) throw error;
   }
 
+  return getChannelById(supabase, id);
+}
+
+/**
+ * Creator-safe rename — routes through the `update_channel_name` SECURITY DEFINER function
+ * (20260821000002_creator_edit_channel_name.sql) instead of a direct table update, since RLS on
+ * `channel` is Manager-only and can't express "this one column, for the assigned Creator only".
+ * The function itself checks `auth.uid() = channel.current_creator_id`, so this must run on a
+ * session-bound client (`createSupabaseServerClient()`), never the admin client — otherwise
+ * `auth.uid()` inside the function would resolve to nothing and every call would be rejected.
+ */
+export async function updateChannelName(
+  supabase: SupabaseServerClient,
+  id: string,
+  name: string,
+): Promise<ChannelSummary> {
+  const { error } = await supabase.rpc("update_channel_name", { p_channel_id: id, p_name: name });
+  if (error) {
+    // Map the function's own errcodes (20260821000002_creator_edit_channel_name.sql) to the app's
+    // error types so the route's generic try/catch still surfaces a real message instead of the
+    // errorResponse() fallback's "đã có lỗi xảy ra" for anything it doesn't recognize.
+    if (error.code === "42501") throw new AuthorizationError(403, error.message);
+    if (error.code === "22023") throw new ValidationError(error.message);
+    throw error;
+  }
   return getChannelById(supabase, id);
 }

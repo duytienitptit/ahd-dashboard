@@ -5,6 +5,9 @@ import { getCurrentOwnershipStart, listChannels } from "@/lib/channels";
 import { getCurrentUser } from "@/lib/auth";
 import {
   aggregateHashtagStats,
+  bucketMonthlyLastFollowers,
+  bucketMonthlyVideoCounts,
+  bucketMonthlyViews,
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
   bucketWeeklyViews,
@@ -46,17 +49,20 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
   const historyFrom = addDaysToDateString(to, -(HISTORY_DAYS - 1));
   const trendFrom = isoWeekStart(addDaysToDateString(to, -55));
 
-  const [ownershipStart, periodStats, historyRows, trendPostedDates, heatmap, videos] = await Promise.all([
+  const [ownershipStart, periodStats, historyRows, postedDates, heatmap, videos] = await Promise.all([
     getCurrentOwnershipStart(supabase, id),
     getChannelPeriodStats(supabase, { channelIds: [id], from, to, comparedFrom, comparedTo }),
     fetchDailyRows(supabase, [id], historyFrom, to),
-    fetchPostedVnDates(supabase, [id], trendFrom, to),
+    fetchPostedVnDates(supabase, [id], historyFrom, to),
     fetchActivityHeatmap(supabase, id),
     fetchChannelVideos(supabase, id),
   ]);
 
   const stat = periodStats.get(id);
+  // Week granularity is a subset of the 180-day fetch above (same pattern as getDashboard()) — no
+  // second query for it.
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
+  const trendPostedDates = postedDates.filter((d) => d >= trendFrom);
   const viewerRatio = latestViewerRatio(historyRows);
   const hashtagStats = aggregateHashtagStats(videos.map((v) => ({ hashtags: v.hashtags, views: v.latestViews })));
 
@@ -112,7 +118,7 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
         />
         <StatTile
           label="Lượt xem"
-          value={stat ? formatCompact(stat.views) : "—"}
+          value={stat?.views !== null && stat?.views !== undefined ? formatCompact(stat.views) : "—"}
           unit="view"
           deltaText={formatDeltaPct(stat?.viewsDeltaPct ?? null)}
           deltaGood={!stat || stat.viewsDeltaPct === null ? null : stat.viewsDeltaPct >= 0}
@@ -138,14 +144,43 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
       <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">
         <TrendChart
           title="Diễn biến của kênh"
-          subtitle={`Theo tuần · ${bucketWeeklyViews(trendRows).length} tuần gần nhất`}
           tabs={[
-            { key: "views", label: "Lượt xem", points: bucketWeeklyViews(trendRows), format: "compact" },
-            { key: "followers", label: "Follower", points: bucketWeeklyLastFollowers(trendRows), format: "compact" },
-            { key: "videos", label: "Video", points: bucketWeeklyVideoCounts(trendPostedDates), format: "count" },
+            {
+              key: "views",
+              label: "Lượt xem",
+              points: { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
+              format: "compact",
+            },
+            {
+              key: "followers",
+              label: "Follower",
+              points: { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
+              format: "compact",
+            },
+            {
+              key: "videos",
+              label: "Video",
+              points: { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
+              format: "count",
+            },
           ]}
         />
         <NewViewerRatioCard ratio={viewerRatio} />
+      </div>
+
+      {/* Bảng số liệu ngày lên vị trí chính (docs/TASKS.md Đợt 2 #1) — đây là dữ liệu chi tiết,
+          đáng tin nhất (thấy được từng ngày, từng nguồn, ngày nào thiếu), trước đây nằm cuối
+          trang dưới cả video/hashtag ít dùng hơn. CLAUDE.md: "trả lời dữ liệu đang thế nào trước". */}
+      {user.role === "manager" ? (
+        <div className="mb-3.5">
+          <ManualEntryForm channelId={id} todayVn={to} />
+        </div>
+      ) : null}
+      <div className="mb-3.5">
+        <DailyTable
+          rows={historyRows}
+          csvFilename={`${channel.tiktokHandle.replace(/^@/, "")}_${new Date().toISOString().slice(0, 10)}.csv`}
+        />
       </div>
 
       <div className="mb-3.5 grid gap-3.5 lg:grid-cols-2">
@@ -153,17 +188,11 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
         <HashtagTable stats={hashtagStats} />
       </div>
 
-      <div className="mb-3.5">
-        <VideoList videos={videos} />
+      <div>
+        {/* channel.latestStats.videos is TikTok's own reported total (data_snapshot.video_count via
+            v_channel_latest) — already fetched by listChannels() above, just never surfaced before. */}
+        <VideoList videos={videos} totalVideoCount={channel.latestStats?.videos ?? null} />
       </div>
-
-      {user.role === "manager" ? (
-        <div className="mb-3.5">
-          <ManualEntryForm channelId={id} todayVn={to} />
-        </div>
-      ) : null}
-
-      <DailyTable rows={historyRows} channelHandle={channel.tiktokHandle} />
     </div>
   );
 }

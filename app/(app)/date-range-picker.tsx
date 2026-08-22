@@ -31,7 +31,10 @@ export function DateRangePicker({ from, to }: { from: string; to: string }) {
   }
 
   return (
-    <div className="relative">
+    // shrink-0: khi ngồi cùng hàng flex với 1 nút "+ Tạo..." mở ra thành form rộng (Kênh, Nhân sự),
+    // flexbox mặc định co hết các item lại thay vì để item này giữ nguyên độ rộng — chữ "7 ngày qua"
+    // bị bóp xuống 3 dòng. Xem thêm flex-wrap ở hàng cha (channels/page.tsx, creators/page.tsx).
+    <div className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

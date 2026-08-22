@@ -27,25 +27,34 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/conn
   const connected = params.connected === "1";
   const warning = typeof params.warning === "string" ? params.warning : null;
 
-  // account_mismatch is a WARNING, not a blocking error — the token was still saved (see
-  // app/api/oauth/callback/route.ts: `share_url` reliability was never confirmed in M0, so this
-  // check must not be able to lock someone out of a legitimate connection).
-  const initialMessage = oauthError
-    ? { type: "error" as const, text: OAUTH_ERROR_MESSAGES[oauthError] ?? `Kết nối thất bại: ${oauthError}` }
-    : connected
-      ? warning === "account_mismatch"
-        ? {
-            type: "warning" as const,
-            text: `Đã kết nối, nhưng tài khoản TikTok vừa Authorize (@${params.actual ?? "?"}) có vẻ không khớp
-              kênh @${params.expected ?? "?"} — kiểm tra lại, ngắt và kết nối lại đúng tài khoản nếu sai.`,
-          }
-        : warning === "account_changed"
-          ? {
-              type: "warning" as const,
-              text: "Đã kết nối, nhưng tài khoản TikTok khác với lần kết nối trước — kiểm tra lại nếu không cố ý đổi tài khoản.",
-            }
-          : { type: "connected" as const, text: "Đã kết nối thành công." }
-      : null;
+  // account_mismatch now BLOCKS (app/api/oauth/callback/route.ts) — nothing was saved, so this is an
+  // error, not a warning on top of a successful connect. Carries enough (channelId + both handles)
+  // for ConnectionsClient to offer "Vẫn kết nối" without the human retyping anything: that retry just
+  // re-runs oauth/start with ?ack=1, which the callback honors as an explicit override.
+  const initialMessage =
+    oauthError === "account_mismatch"
+      ? {
+          type: "mismatch" as const,
+          channelId: typeof params.channelId === "string" ? params.channelId : "",
+          expected: typeof params.expected === "string" ? params.expected : "?",
+          actual: typeof params.actual === "string" ? params.actual : "?",
+        }
+      : oauthError
+        ? { type: "error" as const, text: OAUTH_ERROR_MESSAGES[oauthError] ?? `Kết nối thất bại: ${oauthError}` }
+        : connected
+          ? warning === "unverified"
+            ? {
+                type: "warning" as const,
+                text: "Đã lưu kết nối, nhưng tài khoản TikTok này chưa có video nào nên không tự đối chiếu " +
+                  "handle được. Xác nhận thủ công ở dòng \"Chưa xác minh\" bên dưới nếu chắc chắn đúng tài khoản.",
+              }
+            : warning === "account_changed"
+              ? {
+                  type: "warning" as const,
+                  text: "Đã kết nối, nhưng tài khoản TikTok khác với lần kết nối trước — kiểm tra lại nếu không cố ý đổi tài khoản.",
+                }
+              : { type: "connected" as const, text: "Đã kết nối thành công." }
+          : null;
 
   // requireUser() above resolves the role; getOauthStatusList() itself needs the admin client
   // (channel_oauth has zero RLS policies — not even Manager reads it through the server client).
@@ -61,7 +70,10 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/conn
 
   return (
     <div className="px-8 py-10">
-      {isManager ? <DataTabs /> : null}
+      {/* Both roles can reach /import now (21/08/2026, Creator Studio upload) — show the sub-tab
+          bar for everyone so it's obvious /import exists, not just Manager. isManager still hides
+          the Nhập tay tab from Creator — that one stays a Manager-only exception. */}
+      <DataTabs isManager={isManager} />
       <ConnectionsClient initialStatus={statusList} initialMessage={initialMessage} isManager={isManager} />
     </div>
   );

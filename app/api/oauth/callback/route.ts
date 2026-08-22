@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { getCurrentUser } from "@/lib/auth";
 import { encryptToken } from "@/lib/crypto/token";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DisplayApiProvider } from "@/lib/tiktok/display-api-provider";
@@ -53,13 +54,36 @@ export async function GET(request: NextRequest) {
     // Wrong-account guard: the browser that clicked "Authorize" may have been logged into a
     // different TikTok account than the channel's own — see lib/tiktok/verify-account.ts. A single
     // lightweight call (not listAllVideos, which paginates and risks the route's timeout).
+    //
+    // Incident 21/08/2026: this used to only WARN, not block — both connected channels ended up
+    // holding the same wrong account's token, and every sync after that silently wrote that
+    // account's numbers into data_snapshot. `share_url` reliability was never confirmed in M0, so a
+    // false positive is still possible — but the fix for that is an explicit "Vẫn kết nối" retry
+    // (the `ack` flag below), not letting every mismatch through by default.
     const firstVideoLink = await new DisplayApiProvider().peekFirstVideoLink(token.accessToken);
     const authorizedHandle = firstVideoLink ? extractHandleFromVideoLink(firstVideoLink) : null;
     const expectedHandle = normalizeHandle(channel.tiktok_handle);
     const accountMismatch = Boolean(authorizedHandle && authorizedHandle !== expectedHandle);
 
+    if (accountMismatch && !decoded.ack) {
+      // Nothing written — an unconfirmed mismatch must never reach channel_oauth. The connect
+      // button on /connections re-runs oauth/start with ?ack=1 if the human confirms it's correct.
+      return clearStateCookie(
+        redirectTo(
+          `?oauthError=account_mismatch&channelId=${encodeURIComponent(decoded.channelId)}` +
+            `&expected=${encodeURIComponent(expectedHandle)}&actual=${encodeURIComponent(authorizedHandle!)}`,
+        ),
+      );
+    }
+
+    // Can't verify at all (TikTok account has zero videos → no share_url to check) — save the
+    // token so the connection isn't blocked outright, but account_verified stays false and
+    // lib/tiktok/sync.ts refuses to sync it until a human confirms via POST .../oauth/verify.
+    const verified = authorizedHandle !== null; // matched (accountMismatch false here) or ack'd override
+
     // Reconnect case: flag if the authorized account's open_id differs from what was stored before —
-    // legitimate if fixing a past mistake, but worth surfacing either way.
+    // legitimate if fixing a past mistake, but worth surfacing either way. Read before the upsert
+    // below overwrites it.
     const { data: existing } = await supabase
       .from("channel_oauth")
       .select("tiktok_open_id")
@@ -76,22 +100,27 @@ export async function GET(request: NextRequest) {
         refresh_token: encryptToken(token.refreshToken),
         refresh_expires_at: token.refreshExpiresAt,
         scopes: token.scopeGranted || TIKTOK_SCOPES,
+        account_verified: verified,
       },
       { onConflict: "channel_id" },
     );
     if (error) throw error;
 
-    // Both checks are WARNINGS, not blocks: `share_url` reliability was never confirmed in M0 (only
-    // the 4 metric fields were), so a false "mismatch" here — e.g. an unexpected share_url format —
-    // must not lock a Manager/Creator out of a legitimate connection. Still save the token; surface
-    // the warning so a human can double-check. Mismatch takes priority (more actionable, has the
-    // two handles to compare) if somehow both fire at once.
-    if (accountMismatch) {
-      return clearStateCookie(
-        redirectTo(
-          `?connected=1&warning=account_mismatch&expected=${encodeURIComponent(expectedHandle)}&actual=${encodeURIComponent(authorizedHandle!)}`,
-        ),
-      );
+    if (accountMismatch && decoded.ack) {
+      // Explicit override of the guard above — worth a permanent record, same spirit as any other
+      // "someone chose to bypass a safety check" entry.
+      const actor = (await getCurrentUser().catch(() => null))?.email ?? "unknown";
+      await supabase.from("audit_log").insert({
+        entity_type: "channel_oauth",
+        entity_id: decoded.channelId,
+        action: "connected_override_mismatch",
+        actor,
+        note: `Xác nhận kết nối dù handle không khớp — kênh mong đợi @${expectedHandle}, tài khoản Authorize @${authorizedHandle}.`,
+      });
+    }
+
+    if (!verified) {
+      return clearStateCookie(redirectTo("?connected=1&warning=unverified"));
     }
     if (accountChanged) {
       return clearStateCookie(redirectTo("?connected=1&warning=account_changed"));

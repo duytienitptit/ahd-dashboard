@@ -40,27 +40,60 @@ nếu kênh chưa có `data_snapshot` nào (đọc qua `v_channel_latest`, xem [
 ### `GET /api/creators` — M/C
 ```json
 [{ "id": "...", "name": "Nguyễn A", "email": "a@company.com", "channelCount": 2, "isActive": true,
-   "channels": [{ "id": "...", "name": "Kênh A", "tiktokHandle": "@kenh_a" }] }]
+   "channels": [{ "id": "...", "name": "Kênh A", "tiktokHandle": "@kenh_a" }],
+   "team": { "id": "...", "name": "Team 1" } }]
 ```
 `channels` thêm ở M2 (không có trong bản đặc tả gốc) — màn `/creators` cần liệt kê "kênh phụ trách"
-theo từng Creator (design/Creators.dc.html).
+theo từng Creator (design/Creators.dc.html). `team` thêm 21/08/2026 (mục "Team" bên dưới) —
+`null` khi Creator chưa gán team, cùng shape null-khi-chưa-gán với `channel.currentCreator`.
 
 ### `POST /api/creators` — M
 Tạo tài khoản Creator (Admin cấp, không có self-signup).
 ```json
-{ "name": "Nguyễn A", "email": "a@company.com", "password": "<temp>" }
+{ "name": "Nguyễn A", "email": "a@company.com", "password": "<temp>", "teamId": "..." }
 ```
-→ `201`. Tạo user trong Supabase Auth trước, insert row `creator` sau — lỗi ở bước insert thì xoá lại
-auth user vừa tạo (không sẽ mắc kẹt ở `email_exists` mãi mãi). Không gửi email mời (chưa có SMTP) —
-mật khẩu tạm chỉ hiện lại một lần ở màn hình `/creators` ngay sau khi tạo, Manager tự gửi riêng.
+`teamId` optional, bỏ qua = chưa gán team. → `201`. Tạo user trong Supabase Auth trước, insert row
+`creator` sau — lỗi ở bước insert thì xoá lại auth user vừa tạo (không sẽ mắc kẹt ở `email_exists`
+mãi mãi). Không gửi email mời (chưa có SMTP) — mật khẩu tạm chỉ hiện lại một lần ở màn hình
+`/creators` ngay sau khi tạo, Manager tự gửi riêng.
 
 ### `PATCH /api/creators/:id` — M
 Không có trong bản đặc tả gốc — thêm ở M2 để Manager đổi tên hoặc vô hiệu hoá một Creator (ví dụ nghỉ
 việc) mà không phải sửa thẳng trong Supabase. **Không xoá tài khoản.**
 ```json
-{ "name": "...", "isActive": false }
+{ "name": "...", "isActive": false, "teamId": null }
 ```
+`teamId`: bỏ qua field = không đổi; `null` = gỡ khỏi team hiện tại; uuid = gán/đổi team.
 → Trả về `creator` sau khi sửa, cùng shape với `GET /api/creators`.
+
+---
+
+## Team
+
+Thêm 21/08/2026, ngoài bản đặc tả gốc — nhãn tổ chức nhóm Creator (ví dụ "1 manager quản lý 2 team"),
+**không phải biên giới phân quyền**: không đổi ai thấy được gì, chỉ để lọc màn Tổng quan/quản lý
+Creator theo team. Chi tiết quyết định: [DATABASE_ERD.md](DATABASE_ERD.md) mục "`team`".
+
+### `GET /api/teams` — M/C
+```json
+[{ "id": "...", "name": "Team 1", "creatorCount": 3 }]
+```
+
+### `POST /api/teams` — M
+```json
+{ "name": "Team 1" }
+```
+→ `201`, trả về team vừa tạo (`creatorCount: 0`).
+
+### `PATCH /api/teams/:id` — M
+Đổi tên — team không có field nào khác để sửa.
+```json
+{ "name": "Team mới" }
+```
+
+### `DELETE /api/teams/:id` — M
+Xoá team. `creator.team_id` là `on delete set null` — Creator trong team **không** bị xoá, chỉ thành
+chưa gán team.
 
 ---
 
@@ -214,14 +247,26 @@ Query: `?from=`, `?to=` (khoảng thời gian; mặc định 7 ngày qua, neo th
 (optional, thêm 21/08/2026 theo phản hồi sau khi xong M4) — lọc `teamStats`/`trend`/`growth`/
 `viewShare`/`efficiency`/`channelCount`/`dataFreshness` xuống đúng các kênh Creator đó đang phụ
 trách; không ảnh hưởng `myChannels` (luôn là kênh của người đang đăng nhập, bất kể filter này).
-"So với kỳ trước" (`comparedTo`, mọi `deltaPct`/`deltaAbs`) tự giãn theo đúng **độ dài** của
-`[from, to]` đang chọn — chu kỳ 14 ngày thì so với 14 ngày liền trước, không cố định 7 ngày
-(`previousPeriod()` trong `lib/dashboard.ts`).
+`?teamId=` (optional, thêm 21/08/2026 cùng tính năng Team — mục "Team" bên dưới) — lọc theo cùng cách
+nhưng xuống đúng các kênh có Creator thuộc team đó; có thể kết hợp với `?creatorId=` cùng lúc (kết
+quả rỗng nếu 2 điều kiện không giao nhau — là câu trả lời đúng, không phải lỗi).
+"So với kỳ trước" (`period.comparedFrom`/`comparedTo`, mọi `deltaPct`/`deltaAbs`) tự giãn theo đúng
+**độ dài** của `[from, to]` đang chọn — chu kỳ 14 ngày thì so với 14 ngày liền trước, không cố định
+7 ngày (`previousPeriod()` trong `lib/dashboard.ts`). Hai trường ngày riêng — không phải chuỗi
+`"2026-08-08/2026-08-14"` gộp — để không màn hình nào render "so với kỳ trước" mà bỏ sót không nói
+kỳ đó là ngày nào (CLAUDE.md, vấn đề 21/08/2026).
+
+`trend` trả **cả 2 mức chia** `week` (8 tuần gần nhất) và `month` (6 tháng gần nhất, thêm 21/08/2026
+— docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client chuyển đổi không cần gọi lại API, giống hệt
+cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm `{label, value}` có
+**`value: null`** khi không một ngày nào trong khoảng đó có số đo thật (khác `0` — số đo được và
+đúng là 0). Client phải vẽ đứt đoạn ở điểm `null`, không được vẽ như một điểm 0 thật (CLAUDE.md,
+vấn đề #7, 21/08/2026).
 
 ```json
 { "role": "manager",
   "channelCount": 8,
-  "period": { "from": "2026-08-15", "to": "2026-08-21", "comparedTo": "2026-08-08/2026-08-14" },
+  "period": { "from": "2026-08-15", "to": "2026-08-21", "comparedFrom": "2026-08-08", "comparedTo": "2026-08-14" },
 
   "teamStats": {
     "views":          { "value": 2418000, "deltaPct": 12 },
@@ -232,10 +277,14 @@ trách; không ảnh hưởng `myChannels` (luôn là kênh của người đang
   },
   "dataFreshness": { "latestDate": "2026-08-16", "source": "studio_import",
                      "label": "đã đối chiếu", "reconciledThrough": "2026-08-16" },
-  "trend": { "granularity": "week",
-             "views":     [{ "label": "T27", "value": 1820000 }],
-             "followers": [{ "label": "T27", "value": 51200 }],
-             "videos":    [{ "label": "T27", "value": 14 }] },
+  "trend": {
+    "week":  { "views": [{ "label": "T27", "value": 1820000 }],
+               "followers": [{ "label": "T27", "value": 51200 }],
+               "videos": [{ "label": "T27", "value": 14 }] },
+    "month": { "views": [{ "label": "Th7", "value": 7300000 }],
+               "followers": [{ "label": "Th7", "value": 48900 }],
+               "videos": [{ "label": "Th7", "value": 56 }] }
+  },
   "growth":     [{ "channelId": "...", "channelName": "…", "followers": 7700, "gain": 600, "ratePct": 8.5 }],
   "viewShare":  [{ "channelId": "...", "channelName": "…", "views": 470000, "sharePct": 19.4 }],
   "efficiency": [{ "channelId": "...", "channelName": "…", "videos": 18, "viewsPerVideo": 26111 }],

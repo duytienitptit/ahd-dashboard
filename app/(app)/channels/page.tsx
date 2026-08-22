@@ -44,14 +44,14 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Sea
             <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Kênh</h1>
             <p className="mt-1.5 text-[13px] text-ink-3">{channels.length} kênh</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <DateRangePicker from={from} to={to} />
             {isManager ? <CreateChannelForm creators={creatorOptions} /> : null}
           </div>
         </div>
 
         <FilterPendingOverlay>
-          <ChannelsTable rows={rows} creators={creatorOptions} isManager={isManager} />
+          <ChannelsTable rows={rows} creators={creatorOptions} isManager={isManager} currentUserId={user.id} />
         </FilterPendingOverlay>
       </FilterTransitionProvider>
     </div>

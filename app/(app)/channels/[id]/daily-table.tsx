@@ -37,8 +37,23 @@ const PAGE_SIZE = 10;
 /** The only client component on the Chi tiết kênh page — "Xem thêm N bản ghi trước đó" needs local
  *  expand state; everything else on the page is server-rendered. Rows arrive ascending (oldest
  *  first, same order the rest of the page uses for chart bucketing) and are reversed here for
- *  display, newest first, matching design/ChannelDetail.dc.html. */
-export function DailyTable({ rows, channelHandle }: { rows: DailyRow[]; channelHandle: string }) {
+ *  display, newest first, matching design/ChannelDetail.dc.html.
+ *
+ *  Reused by the Nhân sự detail page with `rows` pre-merged across a creator's channels
+ *  (`mergeDailyRowsByDate`) — `csvFilename`/`subtitle`/`emptyText` let that caller say "kênh của
+ *  X" instead of hardcoding "kênh này" everywhere the channel-detail page's copy used to assume
+ *  a single channel. */
+export function DailyTable({
+  rows,
+  csvFilename,
+  subtitle = "Mỗi ngày một bản ghi, nguồn ưu tiên cao nhất hiện có",
+  emptyText = "Chưa có số liệu ngày nào cho kênh này.",
+}: {
+  rows: DailyRow[];
+  csvFilename: string;
+  subtitle?: string;
+  emptyText?: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   const withDelta = withChange(rows).slice().reverse();
   const visible = expanded ? withDelta : withDelta.slice(0, PAGE_SIZE);
@@ -52,11 +67,11 @@ export function DailyTable({ rows, channelHandle }: { rows: DailyRow[]; channelH
             <span className="text-[15px] font-bold">Số liệu đã lưu theo ngày</span>
             <SourcePriorityInfo />
           </div>
-          <div className="mt-[3px] text-xs text-ink-3">Mỗi ngày một bản ghi, nguồn ưu tiên cao nhất hiện có</div>
+          <div className="mt-[3px] text-xs text-ink-3">{subtitle}</div>
         </div>
         {withDelta.length > 0 ? (
           <ExportCsvButton
-            filename={`${channelHandle.replace(/^@/, "")}_${new Date().toISOString().slice(0, 10)}.csv`}
+            filename={csvFilename}
             headers={["Ngày", "Follower", "Thay đổi", "Lượt xem", "Video", "Nguồn", "Đầy đủ"]}
             rows={withDelta.map((row) => [
               row.date,
@@ -72,7 +87,7 @@ export function DailyTable({ rows, channelHandle }: { rows: DailyRow[]; channelH
       </div>
 
       {withDelta.length === 0 ? (
-        <p className="py-6 text-center text-[12.5px] text-ink-3">Chưa có số liệu ngày nào cho kênh này.</p>
+        <p className="py-6 text-center text-[12.5px] text-ink-3">{emptyText}</p>
       ) : (
         <>
           <div className="overflow-x-auto">

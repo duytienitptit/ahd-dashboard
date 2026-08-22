@@ -1,8 +1,9 @@
 import { getCurrentUser } from "@/lib/auth";
 import { listCreators } from "@/lib/creators";
 import { getDashboard } from "@/lib/dashboard";
-import { formatDeltaPct, formatSignedNumber } from "@/lib/format";
+import { formatDeltaPct, formatShortDate, formatSignedNumber } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { listTeams } from "@/lib/teams";
 import { resolvePeriodParams } from "@/lib/time";
 
 import { CreatorFilterSelect } from "./creator-filter";
@@ -18,9 +19,10 @@ import {
 import { DateRangePicker } from "./date-range-picker";
 import { ExportCsvButton } from "./export-csv-button";
 import { FilterPendingOverlay, FilterTransitionProvider } from "./filter-transition";
+import { TeamFilterSelect } from "./team-filter";
 import { TrendChart } from "./trend-chart";
 
-type SearchParams = Promise<{ from?: string; to?: string; creatorId?: string }>;
+type SearchParams = Promise<{ from?: string; to?: string; creatorId?: string; teamId?: string }>;
 
 // Tổng quan — one route, one component, branching on role (docs/USER_FLOW.md). GET /api/dashboard
 // exists as a real endpoint too (docs/API_SPEC.md), but this page calls getDashboard() directly,
@@ -32,11 +34,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const params = await searchParams;
   const { from, to } = resolvePeriodParams(params);
   const creatorId = params.creatorId ?? null;
+  const teamId = params.teamId ?? null;
 
   const supabase = await createSupabaseServerClient();
-  const [dashboard, creators] = await Promise.all([
-    getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId }),
+  const [dashboard, creators, teams] = await Promise.all([
+    getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId, teamId }),
     listCreators(supabase),
+    listTeams(supabase),
   ]);
   const { channelCount, teamStats } = dashboard;
 
@@ -49,6 +53,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             <DataFreshnessLine channelCount={channelCount} freshness={dashboard.dataFreshness} />
           </div>
           <div className="flex items-center gap-2">
+            <TeamFilterSelect teams={teams.map((t) => ({ id: t.id, name: t.name }))} selected={teamId} />
             <CreatorFilterSelect
               creators={creators.map((c) => ({ id: c.id, name: c.name }))}
               selected={creatorId}
@@ -87,16 +92,35 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             </div>
           ) : null}
 
+          <p className="mb-2.5 text-[12.5px] text-ink-3">
+            So với kỳ trước ({formatShortDate(dashboard.period.comparedFrom)} –{" "}
+            {formatShortDate(dashboard.period.comparedTo)})
+          </p>
           <TeamStatsRow teamStats={dashboard.teamStats} />
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">
             <TrendChart
               title="Xu hướng toàn team"
-              subtitle={`${channelCount} kênh đang hoạt động · ${dashboard.trend.views.length} tuần gần nhất`}
+              subtitlePrefix={`${channelCount} kênh đang hoạt động`}
               tabs={[
-                { key: "views", label: "Lượt xem", points: dashboard.trend.views, format: "compact" },
-                { key: "followers", label: "Follower", points: dashboard.trend.followers, format: "compact" },
-                { key: "videos", label: "Video", points: dashboard.trend.videos, format: "count" },
+                {
+                  key: "views",
+                  label: "Lượt xem",
+                  points: { week: dashboard.trend.week.views, month: dashboard.trend.month.views },
+                  format: "compact",
+                },
+                {
+                  key: "followers",
+                  label: "Follower",
+                  points: { week: dashboard.trend.week.followers, month: dashboard.trend.month.followers },
+                  format: "compact",
+                },
+                {
+                  key: "videos",
+                  label: "Video",
+                  points: { week: dashboard.trend.week.videos, month: dashboard.trend.month.videos },
+                  format: "count",
+                },
               ]}
             />
             <KpiSummaryCard kpiSummary={dashboard.kpiSummary} />

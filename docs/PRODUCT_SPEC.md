@@ -21,6 +21,10 @@ cả khi không đặt KPI nào thì hệ thống vẫn phải có giá trị nh
 | Creator | Xem KPI + tiến độ kênh mình phụ trách, xem chéo số liệu kênh khác |
 
 - Cấu trúc: 1 Manager duy nhất, mô hình phẳng. Schema không hard-code 1 Manager (mở rộng multi-team sau này không cần thiết kế lại).
+  **21/08/2026: đã thêm `team`** (bảng `team`, `creator.team_id`) đúng như tiên liệu ở đây — nhưng
+  **chỉ là nhãn tổ chức/lọc**, chưa phải biên giới phân quyền (vẫn 1 Manager thấy toàn bộ, Creator vẫn
+  cross-channel visibility). Nếu sau này thật sự có nhiều Manager mỗi người chỉ thấy team riêng, đó là
+  quyết định RLS mới, cần hỏi lại — xem [DATABASE_ERD.md](DATABASE_ERD.md) mục "`team`".
 - Sở hữu kênh: công ty sở hữu toàn bộ, Creator chỉ vận hành. Hiện có **8 kênh**, có sẵn data thật để seed.
 - Nền tảng: Web dashboard, desktop-first.
 - Đăng nhập: email/password nội bộ. Admin (Manager) tạo tài khoản cho Creator — không có tự đăng ký.

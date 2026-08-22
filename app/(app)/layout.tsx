@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser, type AppRole } from "@/lib/auth";
+import { initialsFromEnd } from "@/lib/format";
 
 import { NavLinks } from "./nav-links";
 
@@ -11,26 +12,20 @@ const NAV_ITEMS: Record<AppRole, { href: string; label: string }[]> = {
   manager: [
     { href: "/", label: "Tổng quan" },
     { href: "/channels", label: "Kênh" },
-    { href: "/creators", label: "Creator" },
+    // Trang vẫn ở route /creators (đổi URL không có lợi gì, không ai bookmark trong app nội bộ) —
+    // chỉ đổi nhãn hiển thị (21/08/2026, theo yêu cầu) vì trang giờ gồm cả Team, không chỉ Creator.
+    { href: "/creators", label: "Nhân sự" },
     { href: "/import", label: "Dữ liệu" },
   ],
   creator: [
     { href: "/", label: "Tổng quan" },
     { href: "/channels", label: "Kênh" },
-    // Không phải "Dữ liệu" như Manager — Creator không có /import, chỉ kết nối kênh mình phụ trách.
-    { href: "/connections", label: "Kết nối" },
+    // Cùng "Dữ liệu" như Manager từ 21/08/2026 — Creator giờ upload được file Studio cho kênh
+    // mình phụ trách (theo vận hành thực tế, xem CLAUDE.md). /import có DataTabs điều hướng sang
+    // /connections, nên chỉ cần 1 mục nav trỏ vào /import là đủ, không cần 2 mục riêng.
+    { href: "/import", label: "Dữ liệu" },
   ],
 };
-
-/** Last two words' initials — matches design/Creators.dc.html's avatar rule. */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return parts
-    .slice(-2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-}
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await getCurrentUser();
@@ -69,7 +64,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
           <div className="flex h-8 w-8 items-center justify-center rounded-pill bg-ink text-[12px] font-bold text-white">
-            {initials(user.name)}
+            {initialsFromEnd(user.name)}
           </div>
           <form action="/auth/signout" method="post">
             <button

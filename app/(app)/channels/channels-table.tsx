@@ -29,10 +29,12 @@ export function ChannelsTable({
   rows,
   creators,
   isManager,
+  currentUserId,
 }: {
   rows: Row[];
   creators: CreatorOption[];
   isManager: boolean;
+  currentUserId: string;
 }) {
   const [search, setSearch] = useState("");
   const [creatorId, setCreatorId] = useState("all");
@@ -196,6 +198,7 @@ export function ChannelsTable({
                   stat={row.stat}
                   creators={creators}
                   isManager={isManager}
+                  currentUserId={currentUserId}
                 />
               ))
             )}
