@@ -77,6 +77,11 @@ function toVideo(raw: RawVideo): TikTokVideo {
   };
 }
 
+export type PeekFirstVideoResult =
+  | { status: "ok"; videoLink: string }
+  | { status: "no_videos" } // API call succeeded — the account genuinely has zero public videos
+  | { status: "failed"; reason: string }; // API call itself failed — rate limit, bad/missing scope, network
+
 export class DisplayApiProvider implements TikTokDataProvider {
   /**
    * One lightweight `video/list` call (`max_count: 1`, no metric fields) for just a single video's
@@ -85,16 +90,24 @@ export class DisplayApiProvider implements TikTokDataProvider {
    * narrow Display-API-specific helper, same reasoning as oauth.ts living outside the interface.
    * Deliberately NOT `listAllVideos()` — that paginates up to 60 pages, which risked exceeding the
    * callback route's request timeout for a channel with many videos, just to read one field.
+   *
+   * Three-way result, not a nullable — collapsing "call failed" and "account has 0 videos" into the
+   * same `null` is exactly the bug found 24/08/2026 (docs/DISPLAY_API.md bẫy #9 follow-up): a failed
+   * check (rate limit, missing scope) got read by the callback as "unverifiable, save anyway",
+   * masking real problems as the same soft warning shown for a genuinely empty account.
    */
-  async peekFirstVideoLink(accessToken: string): Promise<string | null> {
+  async peekFirstVideoLink(accessToken: string): Promise<PeekFirstVideoResult> {
     const res = await callApi<{ videos: RawVideo[] }>("/video/list/", {
       token: accessToken,
       method: "POST",
       fields: VIDEO_BASE_FIELDS,
       body: { max_count: 1 },
     });
-    if (!res.ok || !res.data) return null;
-    return res.data.videos?.[0]?.share_url ?? null;
+    if (!res.ok) return { status: "failed", reason: `${res.errorCode ?? "?"} — ${res.errorMessage ?? ""}` };
+    if (!res.data) return { status: "failed", reason: "empty response body" };
+
+    const videoLink = res.data.videos?.[0]?.share_url;
+    return videoLink ? { status: "ok", videoLink } : { status: "no_videos" };
   }
 
   async getUserInfo(accessToken: string): Promise<TikTokUserStats> {

@@ -1,5 +1,5 @@
 {
   "crons": [
-    { "path": "/api/sync/display-api", "schedule": "0 20 * * *" }
+    { "path": "/api/sync/display-api", "schedule": "30 16 * * *" }
   ]
 }

@@ -14,7 +14,9 @@ Lý do chọn ngày VN cho `date`: TikTok Studio export **tổng theo ngày**, k
 thể quy đổi múi giờ cho một con số đã cộng dồn cả ngày. Studio vào thẳng không cần đổi; chỉ Display
 API (Unix timestamp UTC) cần **một** phép đổi tường minh sang giờ VN trước khi lấy phần ngày.
 
-Cron đồng bộ chạy ~03:00 giờ VN (sau khi ngày hôm trước đã khép lại).
+Cron đồng bộ chạy ~23:30 giờ VN (24/08/2026, đổi từ 03:00 — sát ranh giới ngày lịch VN hơn, để
+`video_snapshot.date` đúng nghĩa "ảnh chụp cuối ngày D" thay vì lệch sang sáng hôm sau. Chi tiết:
+[DISPLAY_API.md](DISPLAY_API.md) bẫy #12).
 
 ---
 

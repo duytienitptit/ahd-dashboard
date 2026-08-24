@@ -251,6 +251,53 @@ lời mời trong app TikTok), rồi mới bấm "Kết nối" lại.
     `lib/tiktok/sync.ts`, có test riêng bao gồm cả tình huống "Chạy đồng bộ ngay" bấm cùng ngày cron
     đã chạy.
 
+12. 🐞 **CHƯA SỬA (24/08/2026) — bấm "Chạy đồng bộ ngay" nhiều lần trong một ngày làm CỤT số view
+    của ngày đó.** Đây là mặt trái của chính cách sửa ở bẫy #11. `determineSyncDate()` gán delta vào
+    ngày lịch của lần sync TRƯỚC, còn `data_snapshot` thì upsert **ghi đè** theo
+    `(channel_id, date, source)`. Ghép lại:
+
+    | Lúc | Ghi vào ngày | Số view ghi | Hậu quả |
+    | :--- | :--- | :--- | :--- |
+    | Cron 03:00 ngày 24 | 23 | 24h của ngày 23 | ✓ đúng |
+    | Bấm sync 14:05 ngày 24 | 24 | 11h đầu ngày 24 | tạm ổn |
+    | Bấm sync 14:10 ngày 24 | 24 | **5 phút** | ❌ đè mất 11h |
+    | Cron 03:00 ngày 25 | 24 | 13h cuối | ❌ đè tiếp |
+
+    Ngày 24 kết thúc chỉ còn quãng `[14:10 → 03:00]`, mất trắng phần từ đầu ngày tới lần bấm cuối.
+    Bẫy #11 đã cân nhắc nút "Chạy đồng bộ ngay" nhưng chỉ để **chống double-count**, và chọn ghi đè
+    để đạt mục tiêu đó — ghi đè đúng là không cộng trùng, nhưng đổi lại thì mất dữ liệu. Test
+    `sync.test.ts` có ca "same-day manual re-sync" nhưng chỉ khẳng định `date`, không hề chạm tới
+    chuyện giá trị bị đè. Rất khó phát hiện bằng mắt: view/ngày dao động tự nhiên rất mạnh nên một
+    con số thấp bất thường trông vẫn hợp lý.
+
+    **Phương án (đã chốt hướng, chưa code):** bỏ hẳn cách suy delta từ `last_sync_at`. `video_snapshot`
+    vốn đã lưu view **luỹ kế trọn đời** theo `(content_video_id, date)` và mỗi lần sync trong ngày chỉ
+    làm mới giá trị của đúng ngày đó — tức nó đã là "ảnh chụp cuối ngày D". Nên định nghĩa lại:
+
+    > `view ngày D = Σ_video ( luỹ_kế(video, D) − luỹ_kế(video, D−1) )`
+
+    Tính lại từ đầu sau mỗi lần sync. **Idempotent** — bấm sync 10 lần/ngày chỉ làm ảnh chụp ngày D
+    chính xác hơn, không bao giờ mất gì, và không double-count. Đồng thời vô hiệu hoá luôn bẫy #13.
+    Video xuất hiện lần đầu ở ngày D: chỉ cộng trọn view nếu `posted_at` nằm trong ngày D; nếu
+    `posted_at` cũ hơn (thấy muộn do rate limit / mới kết nối) thì **loại khỏi tổng và đặt
+    `is_complete = false`**, đừng cộng trọn — đó chính là kiểu rò ở bẫy #10.
+
+    Kèm theo: **dời cron từ 03:00 sang 23:30 giờ VN**, để `video_snapshot.date = D` đúng nghĩa đen là
+    "cuối ngày lịch D" thay vì "03:00 sáng hôm sau". Giữ 03:00 thì công thức trên vẫn chạy nhưng mỗi
+    ngày bị lệch 3 tiếng, và phép so display_api ↔ studio_import (mục "Vẫn còn thiếu phép đo gốc" ở
+    bẫy #5) không bao giờ khớp được. Chọn 23:30 chứ không phải 23:55 để chừa đệm chống Vercel Cron
+    chạy trễ vượt qua nửa đêm — trôi qua ranh giới ngày sẽ làm 2 lần chạy rơi vào cùng một ngày lịch.
+
+13. 🐞 **CHƯA SỬA (24/08/2026) — kết nối lại không reset trạng thái sync.** Upsert ở
+    `app/api/oauth/callback/route.ts` ghi 8 cột (`tiktok_open_id`, 2 token, 2 hạn, `scopes`,
+    `account_verified`) nhưng **không đụng `last_sync_at` / `last_sync_status` / `last_sync_error`**.
+    Kênh ngắt 15/08 rồi nối lại 24/08 → lần sync đầu gán delta 9 ngày vào **ngày 15/08**, và so với
+    baseline `video_snapshot` cũ (lookback 30 ngày). Nếu nối lại bằng tài khoản TikTok **khác** thì
+    baseline là video của tài khoản cũ, video tài khoản mới đều "chưa từng thấy" → rò view trọn đời
+    y hệt bẫy #10. Nhánh bootstrap không cứu được vì nó chỉ kích hoạt khi `last_sync_at IS NULL`, mà
+    kết nối lại thì không bao giờ null. **Sửa:** hoặc reset 3 cột đó trong upsert của callback, hoặc
+    áp phương án ở bẫy #12 (không còn phụ thuộc `last_sync_at` nữa thì lỗi này tự biến mất).
+
 ## Việc cần kiểm chứng (M0)
 
 > Bộ kiểm chứng đã viết sẵn: [`tools/m0-display-api-probe/`](../tools/m0-display-api-probe/README.md)

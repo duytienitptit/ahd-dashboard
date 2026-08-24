@@ -7,7 +7,7 @@ import { errorResponse } from "@/lib/http";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DisplayApiProvider } from "@/lib/tiktok/display-api-provider";
 import { syncAllChannels } from "@/lib/tiktok/sync";
-import { nowVnDateString } from "@/lib/time";
+import { sampleDateForRun } from "@/lib/time";
 
 function isValidCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
@@ -21,7 +21,10 @@ function isValidCronSecret(request: NextRequest): boolean {
 
 async function runSync() {
   const supabase = createSupabaseAdminClient();
-  const result = await syncAllChannels(supabase, new DisplayApiProvider(), nowVnDateString());
+  // sampleDateForRun(), not nowVnDateString() — a run that slips past midnight VN (Vercel Cron
+  // running late) must still close out the day it was scheduled for, not the new one. See its doc
+  // comment in lib/time.ts and docs/DISPLAY_API.md bẫy #12.
+  const result = await syncAllChannels(supabase, new DisplayApiProvider(), sampleDateForRun());
   return NextResponse.json(result);
 }
 

@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getCurrentUser } from "@/lib/auth";
 import { encryptToken } from "@/lib/crypto/token";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DisplayApiProvider } from "@/lib/tiktok/display-api-provider";
-import { decodeOauthStateCookie, exchangeCodeForToken, OAUTH_STATE_COOKIE, TIKTOK_SCOPES } from "@/lib/tiktok/oauth";
+import { decodeOauthStateCookie, exchangeCodeForToken, missingScopes, OAUTH_STATE_COOKIE } from "@/lib/tiktok/oauth";
 import { extractHandleFromVideoLink, normalizeHandle } from "@/lib/tiktok/verify-account";
 
 // GET /api/oauth/callback — public, TikTok redirects the Manager's or Creator's browser here.
@@ -51,23 +50,45 @@ export async function GET(request: NextRequest) {
     if (channelError) throw channelError;
     if (!channel) return clearStateCookie(redirectTo("?oauthError=channel_not_found"));
 
+    // Scope check BEFORE the wrong-account guard below — TikTok's authorize screen lets the human
+    // untick individual scopes. Missing `video.list` means the guard's own peek call is guaranteed
+    // to fail, which would otherwise get misread as "verify_failed" instead of the real cause.
+    const missing = missingScopes(token.scopeGranted);
+    if (missing.length > 0) {
+      return clearStateCookie(redirectTo(`?oauthError=missing_scopes&missing=${encodeURIComponent(missing.join(","))}`));
+    }
+
     // Wrong-account guard: the browser that clicked "Authorize" may have been logged into a
     // different TikTok account than the channel's own — see lib/tiktok/verify-account.ts. A single
     // lightweight call (not listAllVideos, which paginates and risks the route's timeout).
     //
     // Incident 21/08/2026: this used to only WARN, not block — both connected channels ended up
     // holding the same wrong account's token, and every sync after that silently wrote that
-    // account's numbers into data_snapshot. `share_url` reliability was never confirmed in M0, so a
-    // false positive is still possible — but the fix for that is an explicit "Vẫn kết nối" retry
-    // (the `ack` flag below), not letting every mismatch through by default.
-    const firstVideoLink = await new DisplayApiProvider().peekFirstVideoLink(token.accessToken);
-    const authorizedHandle = firstVideoLink ? extractHandleFromVideoLink(firstVideoLink) : null;
+    // account's numbers into data_snapshot. Fixed 21/08/2026 to block outright on mismatch.
+    //
+    // Hardened further 24/08/2026 (docs/DISPLAY_API.md bẫy #9 follow-up): `peekFirstVideoLink` used
+    // to collapse "the check itself failed" (rate limit, network) and "account genuinely has zero
+    // videos" into the same `null` — a failed check silently got treated as unverifiable-but-fine.
+    // Now a three-way result, and a failed check blocks the same as a confirmed mismatch would.
+    //
+    // The old "Vẫn kết nối" bypass (an `ack` flag overriding a confirmed mismatch) is gone — removed
+    // 24/08/2026 by request. Its only legitimate real-world cause is `channel.tiktok_handle` being
+    // stale (the channel renamed on TikTok), and the correct fix for that is updating the stored
+    // handle, not permanently recording an override of a safety check. See app/(app)/connections/
+    // connections-client.tsx for the update-handle-then-retry flow this now offers instead.
+    const peek = await new DisplayApiProvider().peekFirstVideoLink(token.accessToken);
+    if (peek.status === "failed") {
+      // Nothing written — an unverifiable connection must never reach channel_oauth silently as
+      // "unverified but saved". Surface it as a distinct, retryable error instead.
+      return clearStateCookie(redirectTo(`?oauthError=verify_failed&reason=${encodeURIComponent(peek.reason)}`));
+    }
+
+    const authorizedHandle = peek.status === "ok" ? extractHandleFromVideoLink(peek.videoLink) : null;
     const expectedHandle = normalizeHandle(channel.tiktok_handle);
     const accountMismatch = Boolean(authorizedHandle && authorizedHandle !== expectedHandle);
 
-    if (accountMismatch && !decoded.ack) {
-      // Nothing written — an unconfirmed mismatch must never reach channel_oauth. The connect
-      // button on /connections re-runs oauth/start with ?ack=1 if the human confirms it's correct.
+    if (accountMismatch) {
+      // Nothing written — see the comment block above for why there is no override path anymore.
       return clearStateCookie(
         redirectTo(
           `?oauthError=account_mismatch&channelId=${encodeURIComponent(decoded.channelId)}` +
@@ -79,7 +100,7 @@ export async function GET(request: NextRequest) {
     // Can't verify at all (TikTok account has zero videos → no share_url to check) — save the
     // token so the connection isn't blocked outright, but account_verified stays false and
     // lib/tiktok/sync.ts refuses to sync it until a human confirms via POST .../oauth/verify.
-    const verified = authorizedHandle !== null; // matched (accountMismatch false here) or ack'd override
+    const verified = authorizedHandle !== null; // peek.status === "ok" and handle matched
 
     // Reconnect case: flag if the authorized account's open_id differs from what was stored before —
     // legitimate if fixing a past mistake, but worth surfacing either way. Read before the upsert
@@ -99,24 +120,33 @@ export async function GET(request: NextRequest) {
         access_expires_at: token.accessExpiresAt,
         refresh_token: encryptToken(token.refreshToken),
         refresh_expires_at: token.refreshExpiresAt,
-        scopes: token.scopeGranted || TIKTOK_SCOPES,
+        scopes: token.scopeGranted,
         account_verified: verified,
+        authorized_handle: authorizedHandle ? `@${authorizedHandle}` : null,
+        // Reset sync bookkeeping on every (re)connect (docs/DISPLAY_API.md bẫy #13) — otherwise a
+        // reconnect after a gap, or with a different TikTok account, keeps the old `last_sync_at`
+        // and the next sync attributes its delta to a stale date against a stale baseline instead
+        // of correctly bootstrapping. `syncChannel` (lib/tiktok/sync.ts) treats null as bootstrap.
+        last_sync_at: null,
+        last_sync_status: null,
+        last_sync_error: null,
       },
       { onConflict: "channel_id" },
     );
-    if (error) throw error;
-
-    if (accountMismatch && decoded.ack) {
-      // Explicit override of the guard above — worth a permanent record, same spirit as any other
-      // "someone chose to bypass a safety check" entry.
-      const actor = (await getCurrentUser().catch(() => null))?.username ?? "unknown";
-      await supabase.from("audit_log").insert({
-        entity_type: "channel_oauth",
-        entity_id: decoded.channelId,
-        action: "connected_override_mismatch",
-        actor,
-        note: `Xác nhận kết nối dù handle không khớp — kênh mong đợi @${expectedHandle}, tài khoản Authorize @${authorizedHandle}.`,
-      });
+    if (error) {
+      // 23505 = unique_violation on channel_oauth_tiktok_open_id_key (0824 migration) — this TikTok
+      // account is already the connection for a DIFFERENT channel. Surface which one instead of a
+      // generic 500; nothing was written, since the upsert itself is what failed.
+      if ((error as { code?: string }).code === "23505") {
+        const { data: holder } = await supabase
+          .from("channel_oauth")
+          .select("channel_id, channel:channel_id(name)")
+          .eq("tiktok_open_id", token.openId)
+          .maybeSingle();
+        const holderName = (holder as unknown as { channel: { name: string } | null } | null)?.channel?.name ?? "một kênh khác";
+        return clearStateCookie(redirectTo(`?oauthError=open_id_taken&otherChannel=${encodeURIComponent(holderName)}`));
+      }
+      throw error;
     }
 
     if (!verified) {

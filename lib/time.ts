@@ -23,6 +23,29 @@ export function vnMidnightIso(dateStr: string): string {
   return `${dateStr}T00:00:00+07:00`;
 }
 
+/**
+ * Which VN calendar day a Display API sync run's numbers belong to — normally today VN, except in
+ * the [00:00, 02:00) VN window, where it's still YESTERDAY's sample (docs/DISPLAY_API.md bẫy #12).
+ *
+ * lib/tiktok/sync.ts (B1, 24/08/2026) attributes each day's view count to the exact pair of
+ * end-of-day `video_snapshot` rows (today's vs yesterday's) — every calendar day needs a real
+ * sample at its end, or that day's number becomes unmeasurable (null, not a wrong guess). The cron
+ * is scheduled for 23:30 VN specifically so a normal run lands right before the boundary, but
+ * Vercel Cron can run late; a run that slips past midnight must still close out the day it was
+ * MEANT to sample, not silently start sampling the new day one run early (which would leave the
+ * day that just ended with no closing sample at all). Deliberately not tied to the cron's literal
+ * 23:30 schedule — the manual "Chạy đồng bộ ngay" button goes through the same function, so it
+ * behaves the same way on the rare click that happens to land at 1am.
+ *
+ * `hourCycle: "h23"` (not the default, or `hour12: false`) — some ICU builds render midnight as
+ * "24" instead of "00" under `hour12: false`, which would silently defeat the < 2 check below.
+ */
+export function sampleDateForRun(now: Date = new Date()): string {
+  const hour = Number(new Intl.DateTimeFormat("en-CA", { timeZone: VN_TIME_ZONE, hour: "2-digit", hourCycle: "h23" }).format(now));
+  const today = nowVnDateString(now);
+  return hour < 2 ? addDaysToDateString(today, -1) : today;
+}
+
 /** Whole calendar days from `a` to `b` (positive when `b` is later). Pure date-string arithmetic. */
 export function daysBetweenDateStrings(a: string, b: string): number {
   const [ay, am, ad] = a.split("-").map(Number);

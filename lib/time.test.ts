@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addDaysToDateString, daysBetweenDateStrings, nowVnDateString, resolvePeriodParams } from "./time";
+import { addDaysToDateString, daysBetweenDateStrings, nowVnDateString, resolvePeriodParams, sampleDateForRun } from "./time";
 
 describe("addDaysToDateString", () => {
   it("shifts forward and backward across a month boundary", () => {
@@ -54,5 +54,26 @@ describe("nowVnDateString", () => {
   it("formats a given Date as YYYY-MM-DD in Asia/Ho_Chi_Minh", () => {
     // 2026-08-21T18:30:00Z is 2026-08-22 01:30 in UTC+7 — crosses midnight, a real regression risk.
     expect(nowVnDateString(new Date("2026-08-21T18:30:00Z"))).toBe("2026-08-22");
+  });
+});
+
+describe("sampleDateForRun", () => {
+  // All instants below expressed in UTC; VN wall-clock time (UTC+7) noted in each comment —
+  // cross-checked against Intl output directly, not hand math (the +7h wrap across midnight is
+  // exactly the kind of off-by-one this function exists to get right).
+  it("is today VN for the normal 23:30 cron run", () => {
+    expect(sampleDateForRun(new Date("2026-08-24T16:30:00Z"))).toBe("2026-08-24"); // 2026-08-24 23:30 VN
+  });
+
+  it("is still YESTERDAY when a delayed run slips just past midnight VN", () => {
+    expect(sampleDateForRun(new Date("2026-08-23T17:15:00Z"))).toBe("2026-08-23"); // 2026-08-24 00:15 VN
+  });
+
+  it("rolls forward to today VN once the 02:00 grace window ends (boundary itself counts as today)", () => {
+    expect(sampleDateForRun(new Date("2026-08-23T19:00:00Z"))).toBe("2026-08-24"); // 2026-08-24 02:00 VN
+  });
+
+  it("is today VN for an ordinary daytime manual sync", () => {
+    expect(sampleDateForRun(new Date("2026-08-24T07:00:00Z"))).toBe("2026-08-24"); // 2026-08-24 14:00 VN
   });
 });

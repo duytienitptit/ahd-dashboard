@@ -215,9 +215,9 @@ kênh họ đang phụ trách. Dùng cho màn cảnh báo hạn token.
 Kéo `user/info` + toàn bộ video của mọi kênh active → ghi `video_snapshot`, tính view trong ngày bằng
 **chênh lệch theo từng video**, ghi `data_snapshot(source=display_api)`.
 
-- **`GET`** — Vercel Cron gọi hằng ngày 03:00 giờ VN. Cron của Vercel **luôn gửi GET, không phải
-  POST** (giới hạn nền tảng, không cấu hình được) — kiểm `Authorization: Bearer $CRON_SECRET`, không
-  qua session.
+- **`GET`** — Vercel Cron gọi hằng ngày 23:30 giờ VN (`vercel.json`, đổi từ 03:00 — 24/08/2026, xem
+  [DISPLAY_API.md](DISPLAY_API.md) bẫy #12). Cron của Vercel **luôn gửi GET, không phải POST** (giới
+  hạn nền tảng, không cấu hình được) — kiểm `Authorization: Bearer $CRON_SECRET`, không qua session.
 - **`POST`** — M, nút "Chạy đồng bộ ngay" trên `/connections`.
 
 Cả hai chạy chung logic, cùng response:

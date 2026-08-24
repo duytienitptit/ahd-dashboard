@@ -651,6 +651,180 @@ của ai**, chỉ thêm cột tra cứu mới, không ai bị đăng xuất hay 
   trực quan bằng browser thật cả 4 vị trí (không chỉ dựa test) — số `108k` khớp nhau tuyệt đối ở
   Tổng quan, kênh, Creator, Team.
 
+## Siết kết nối Display API + sửa cách tính view/ngày (24/08/2026, phát hiện lúc điều tra "bấm Kết nối không hiện màn login")
+
+Bắt đầu từ câu hỏi thực tế: bấm "Kết nối" trên `/connections` không hiện màn hình TikTok nào cả, và
+xoá-rồi-nối-lại một kênh cũng không cần Authorize lại. Điều tra ra nguyên nhân gốc + kéo theo phát
+hiện 2 lỗi tính số liệu nghiêm trọng hơn câu hỏi ban đầu. Chẩn đoán bằng 2 script read-only
+(`scripts/diagnose-oauth.mjs`, `scripts/diagnose-data.mjs`, giữ lại trong repo) trước khi sửa gì —
+kết quả 24/08: dữ liệu production **sạch**, các lỗ hổng dưới đây chưa kịp gây thiệt hại thật. Chi
+tiết kỹ thuật đầy đủ từng bẫy: [DISPLAY_API.md](DISPLAY_API.md) #9 (mở rộng), #10 (thay thế bởi B1),
+#12, #13 (mới).
+
+### Nhóm A — kết nối OAuth
+
+- **`disable_auto_auth=1`** (`lib/tiktok/oauth.ts` `buildAuthorizeUrl()`) — đây là câu trả lời cho
+  câu hỏi gốc. TikTok mặc định (`disable_auto_auth=0`) bỏ qua màn authorize khi trình duyệt còn
+  session hợp lệ VÀ tài khoản đó từng cấp quyền cho app rồi. Với 9 kênh = 9 tài khoản TikTok dùng
+  chung 1 OAuth client, mặc định này có nghĩa: không có bất kỳ màn hình nào để người bấm nhận ra
+  mình đang cấp quyền bằng tài khoản của kênh khác — đúng cách sự cố `@kidshoppppala` 21/08 xảy ra,
+  và suýt lặp lại 24/08 với `@ghientrongcay` (may mắn được guard so handle chặn). **Không** bắt đăng
+  nhập lại — session TikTok còn thì màn authorize vẫn hiện sẵn tài khoản đó; đổi tài khoản vẫn phải
+  tự đăng xuất tiktok.com. Xoá-kênh-rồi-nối-lại "không cần Authorize" hoá ra đúng bản chất: grant
+  nằm trên server TikTok theo `(client_key, tài khoản)`, xoá hàng `channel_oauth` không liên quan gì
+  tới grant đó — và chưa chỗ nào từng gọi revoke (xem "Ngắt kết nối" bên dưới).
+- **`peekFirstVideoLink()` (`lib/tiktok/display-api-provider.ts`) đổi từ `string | null` sang union
+  `{status: "ok"|"no_videos"|"failed"}`** — bug thật: mọi lỗi gọi API (rate limit, thiếu scope, lỗi
+  mạng) từng bị gộp chung với "tài khoản 0 video" thành cùng một `null`, khiến callback lưu token và
+  hiện "chưa xác minh — có thể do 0 video" cho một kết nối **thực ra chưa hề được kiểm tra**. Người
+  vận hành đọc nhầm rồi bấm "Xác nhận đúng tài khoản" là đúng kịch bản 21/08 lặp lại qua cửa khác.
+  Giờ `failed` chặn hẳn, không lưu gì.
+- **Kiểm scope thực nhận** (`missingScopes()`, `lib/tiktok/oauth.ts`) — màn authorize cho bỏ tick
+  scope, callback trước đây không kiểm và còn `scopes: scopeGranted || TIKTOK_SCOPES` (ghi cả scope
+  chưa hề được cấp vào DB). Giờ thiếu `video.list`/`user.info.stats`/`user.info.basic` thì không lưu.
+  Cố tình kiểm TRƯỚC bước đối chiếu handle — thiếu `video.list` thì `peekFirstVideoLink` chắc chắn
+  fail, kiểm scope trước để báo đúng nguyên nhân thay vì "verify_failed" mập mờ.
+- **Migration `20260824000001_oauth_hardening.sql` — `UNIQUE(tiktok_open_id)` + cột
+  `authorized_handle`.** Người dùng xác nhận rõ: không có trường hợp hợp lệ nào 1 tài khoản TikTok
+  nối 2 kênh → constraint chặn cứng ở tầng DB, lớp phòng thủ thứ hai độc lập với guard so handle ở
+  tầng app (guard có đường vòng: không đối chiếu được, hoặc — trước đây — nút bypass). Kiểm production
+  trước khi viết migration (kiểm 1 của `diagnose-oauth.mjs`): sạch, 6 open_id khác nhau, áp được ngay
+  không cần dọn dữ liệu trước. **⚠️ Migration viết xong nhưng CHƯA áp lên Supabase** — máy này không
+  có Supabase CLI, không có `psql`/gói `pg`, và `.env.local` chỉ chứa URL + REST key (không có DSN
+  Postgres) nên không có cách nào tự chạy DDL. Cần chạy tay qua Supabase Dashboard → SQL Editor.
+- **Bỏ hẳn nút "Vẫn kết nối"** (cờ `ack` xuyên suốt `lib/tiktok/oauth.ts` state cookie,
+  `oauth/start/route.ts`, `connections-client.tsx`) — theo yêu cầu, sau khi chỉ ra: nguyên nhân thật
+  duy nhất của một mismatch được xác nhận (không phải lỗi đối chiếu) là `channel.tiktok_handle` bị
+  cũ (kênh đổi handle trên TikTok). Bypass lưu vĩnh viễn một mismatch thay vì sửa nguyên nhân của nó.
+  Banner mismatch giờ có 2 lối ra thật: đăng xuất+thử lại, hoặc (Manager) nút cập nhật handle kênh
+  rồi tự kết nối lại ngay (gọi `PATCH /api/channels/:id` rồi `handleConnect` lại, không bắt mở form
+  Sửa kênh riêng).
+- **Nút "Ngắt kết nối"** (`POST /api/channels/:id/oauth/disconnect`, quyền giống `/oauth/start` —
+  Creator ngắt được kênh mình) gọi thật `POST /v2/oauth/revoke/` (best-effort, `lib/tiktok/oauth.ts`
+  `revokeToken()`) rồi xoá hàng `channel_oauth`. Gọi từ **3 nơi** qua `lib/tiktok/disconnect.ts`: nút
+  riêng, `DELETE /api/channels/:id`, và `deleteChannelAction`. ⚠️ **Bẫy thứ tự đã tránh**:
+  `channel_oauth` cascade-xoá theo `channel` (migration 0003), và `deleteChannel()` có thể chặn (KPI
+  final) — gọi revoke TRƯỚC `deleteChannel()` sẽ lỡ tay xoá mất kết nối của một kênh vẫn còn sống nếu
+  delete bị chặn. Giải pháp: đọc token TRƯỚC `deleteChannel()`, chỉ thực sự gọi revoke SAU khi
+  `deleteChannel()` đã xác nhận thành công (`readChannelOauthAccessToken` +
+  `revokeAfterChannelDeleted`, tách riêng khỏi `revokeAndClearChannelOauth` dùng cho nút đứng riêng).
+- **`authorized_handle` hiện thường trực** dưới tên kênh trên bảng `/connections` — trước đây không
+  có màn nào cho biết một kết nối đang thực sự trỏ tới tài khoản TikTok nào, đúng lý do sự cố 21/08
+  không ai để ý kịp thời (badge "chưa xác minh" từng chỉ là banner 1 lần).
+
+### Nhóm B — cách tính view/ngày (B1)
+
+Trong lúc điều tra nhóm A, dựng lại đường đi của con số `96.528` view/ngày bất thường ở kênh "Làm
+Nông Thông Thái" (24/08) lộ ra 2 lỗi độc lập với nhóm A, nằm ở `lib/tiktok/sync.ts`:
+
+1. **Bấm "Chạy đồng bộ ngay" nhiều lần/ngày CẮT CỤT số view của ngày đó** — `data_snapshot` upsert
+   ghi đè theo `(channel_id, date, source)`, còn `determineSyncDate()` cũ gán ngày + tính delta dựa
+   vào `last_sync_at` của lần TRƯỚC. Bấm sync lần 2 trong ngày → delta chỉ còn tính từ lần đầu (vài
+   phút/giờ) thay vì từ hôm qua, đè mất phần đã tích luỹ trước đó.
+2. **Kết nối lại không reset `last_sync_at`** → sync đầu sau khi nối lại gán delta vào NGÀY CỦA LẦN
+   SYNC CŨ, so với baseline có thể của tài khoản cũ (rò view trọn đời — bẫy #10 kiểu cũ).
+
+**Sửa gốc, không phải vá:** `computeViewsDelta()` (`lib/tiktok/video-delta.ts`) bỏ hẳn khái niệm
+"bootstrap"/`last_sync_at`. Công thức mới: `view(D) = Σ_video max(0, luỹ_kế(video,D) −
+luỹ_kế(video,D−1))`, đọc từ `video_snapshot` — baseline luôn là **đúng ngày `D−1`**, không phải "mới
+nhất trong 30 ngày" (`HISTORY_LOOKBACK_DAYS` xoá luôn, không còn cần). Video không có baseline: cộng
+trọn nếu `posted_at` rơi đúng ngày `D` (thật sự mới đăng), loại khỏi tổng nếu không (`is_complete =
+false`) — đây là nơi bẫy #10 được giải quyết triệt để thay vì né bằng flag `isBootstrap`.
+
+- **Idempotent thật sự**: `video_snapshot` upsert theo `(content_video_id, date)`, nên sync lại
+  trong ngày chỉ làm mới ảnh chụp của đúng ngày đó — không bao giờ mất, không bao giờ cộng trùng.
+  A8 (reset `last_sync_at` khi nối lại) trở nên **không cần thiết** — công thức mới không phụ thuộc
+  `last_sync_at` nữa, một baseline thiếu tự nhiên rơi vào nhánh "thấy muộn" ở trên.
+- **`null` vs `0` cho `video_views` — soát kỹ trước khi đổi, vì suýt sai.** Ý định ban đầu là "cứ
+  ghi số thật + `is_complete=false`, không cần `null` nữa" — SAI: `lib/dashboard.ts`'s `sumViews()`
+  chỉ lọc theo `videoViews !== null`, KHÔNG theo `is_complete`; biểu đồ xu hướng vẽ `null` thành
+  khoảng trống còn `0` thành một điểm dữ liệu thật (đã có test khoá hành vi này,
+  `dashboard.test.ts`). Ghi `0` cho ngày "không đo được gì" sẽ khiến biểu đồ vẽ sai một điểm coi như
+  view thật sự bằng 0. Giữ nguyên quy tắc cũ: `null` khi KHÔNG video nào đóng góp được số nào (mọi
+  video đều "thấy muộn"), số thật (kể cả một phần) khi có ít nhất 1 video đo được, `0` thật khi kênh
+  đúng là không có video nào.
+- **`sampleDateForRun()` (mới, `lib/time.ts`)** — ngày lịch VN của một lần sync; tự lùi 1 ngày nếu
+  chạy trong khoảng 00:00–02:00 VN, chống Vercel Cron trôi qua nửa đêm làm mất hẳn mẫu cuối ngày.
+  `hourCycle: "h23"` cố ý (không phải `hour12: false`) — một số bản ICU render nửa đêm thành "24"
+  thay vì "00" dưới `hour12: false`, sẽ âm thầm vô hiệu hoá phép so `< 2`.
+- **Cron `vercel.json`: `0 20 * * *` (03:00 VN) → `30 16 * * *` (23:30 VN)** — để `video_snapshot`
+  ghi đúng nghĩa "ảnh chụp cuối ngày lịch D", lệch còn 30 phút thay vì 3 tiếng. Đây cũng là điều kiện
+  để phép so `display_api` ↔ `studio_import` (mục "Vẫn còn thiếu phép đo gốc",
+  [DISPLAY_API.md](DISPLAY_API.md) #5) có thể khớp được về sau.
+- **`determineSyncDate()` xoá hẳn, cùng `lib/tiktok/sync.test.ts`** (toàn bộ file chỉ test hàm này).
+  Test mới: `computeViewsDelta` thêm ca "video thấy muộn bị loại khỏi tổng" (`video-delta.test.ts`),
+  `sampleDateForRun` 4 ca (`time.test.ts`, số học UTC↔VN xác minh bằng Node trước khi viết, không
+  tính tay — một ví dụ tính tay ban đầu sai lệch 1 ngày, bắt được trước khi vào test). 141/141 test
+  qua (số không đổi: -5 từ `sync.test.ts` xoá, +1 `video-delta.test.ts`, +4 `time.test.ts`).
+- **`scripts/backfill-daily-views.mjs` (mới)** — tính lại `video_views`/`is_complete` cho những ngày
+  đã bị 2 lỗi trên ghi sai, dùng đúng công thức B1 port thủ công (không import được từ `lib/` — script
+  `.mjs` thuần, cùng quy ước với `diagnose-*.mjs`). Mặc định dry-run; `--from=`/`--to=` để giới hạn
+  khoảng ngày (không hard-code 23-24/08). **Viết xong, chưa chạy** — cần migration áp lên trước
+  (không bắt buộc về mặt kỹ thuật cho script này, nhưng nên làm nhóm A xong trước để tránh 1 lần dọn
+  dữ liệu nữa nếu phát sinh thêm sai lệch trong lúc đó).
+
+### Bug phát hiện lúc chạy backfill — `video_snapshot`/`data_snapshot` cũ lệch quy ước ngày
+
+Chạy dry-run `backfill-daily-views.mjs` thật (24/08/2026) cho kết quả sai — bắt được TRƯỚC khi ai kịp
+`--confirm`, nhờ so số ra với số gốc thay vì tin luôn kết quả "trông hợp lý". Số recompute cho ngày
+`D` khớp **tuyệt đối, tới từng đơn vị** với số gốc đã lưu cho ngày `D-1`, ở cả 4/4 kênh bị đổi số
+(Cùng Anh Đi Muôn Nơi, Vườn Của Hant, Vườn Của Mây, Bơ Trồng Gì Đấy?) — khớp chính xác kiểu này không
+thể là trùng hợp.
+
+**Nguyên nhân**: `sync.ts` CŨ (bản đang chạy thật, trước khi bản vá B1 ở trên được deploy) ghi 2 cột
+ngày theo 2 quy ước khác nhau — `video_snapshot.date = today` (ngày đồng hồ lúc sync chạy) nhưng
+`data_snapshot.date = nowVnDateString(last_sync_at)` (ngày của lần sync TRƯỚC, qua `determineSyncDate`
+đã xoá). Với cron đều đặn 1 lần/ngày, 2 giá trị này **luôn lệch nhau đúng 1 ngày**. `backfill-daily-
+views.mjs` giả định 2 cột dùng chung 1 ngày (đúng cho dữ liệu code MỚI sẽ ghi, sai cho dữ liệu đang
+có) → join nhầm cặp `video_snapshot`, tính đúng công thức nhưng dán nhãn lùi 1 ngày. Ngày 24/08 còn
+rối hơn (nhiều lần "Chạy đồng bộ ngay" thủ công trong ngày phá vỡ luôn quy tắc lệch-đều-1-ngày) — nên
+không chỉ đơn giản là "cộng thêm 1 ngày vào label" là xong.
+
+**Đã khoá `--confirm` trong `backfill-daily-views.mjs`** ngay khi phát hiện (comment đầu file giải
+thích rõ, script vẫn giữ lại — hữu ích về sau cho dữ liệu nhất quán quy ước ngày viết bởi code mới).
+
+**Quyết định (người dùng chọn, sau khi được trình bày 2 phương án)**: không cố dựng lại số cũ đầy rủi
+ro đoán sai — **xoá sạch toàn bộ tầng dữ liệu display_api của cả 6 kênh đang kết nối** (không riêng 4
+kênh bị lệch số — kể cả 2 kênh vừa nối sạch hôm nay, đồng nhất một điểm xuất phát mới cho mọi kênh) và
+để code mới (B1) dựng lại từ đầu. `scripts/reset-display-api.mjs` (mới) — dry-run mặc định, `--confirm`
+mới ghi thật:
+- Gọi `POST /v2/oauth/revoke/` thật (best-effort) rồi xoá `channel_oauth` — **không chỉ xoá DB**, còn
+  gỡ uỷ quyền phía TikTok thật, để lần kết nối lại đi qua đúng 1 lượt Authorize thật (không làm bước
+  này thì lặp lại đúng lỗ hổng vừa vá ở A1/A5: grant cũ sống bên TikTok, kết nối lại không hiện màn
+  authorize).
+- Xoá `data_snapshot` **chỉ nơi `source = 'display_api'`** — không đụng `studio_import`/
+  `manual_entry` cùng kênh/ngày (khác dòng theo unique constraint).
+- Xoá `content_video` của kênh — `video_snapshot` cascade xoá theo (FK `on delete cascade`), không
+  cần xoá riêng.
+- Không đụng `follower_activity`/`audience_snapshot` — 2 bảng đó chỉ Studio ghi, không liên quan.
+- Port thủ công `decryptToken()`/`revokeToken()` từ `lib/crypto/token.ts`/`lib/tiktok/oauth.ts` (script
+  `.mjs` thuần không import được TS, cùng quy ước với các script khác trong `scripts/`). Cố tình
+  **không** select cột `authorized_handle` — cột đó chỉ tồn tại sau migration 0824, script này phải
+  chạy được bất kể migration đã áp hay chưa.
+- Mỗi kênh ghi 1 dòng `audit_log` (`actor: "scripts/reset-display-api.mjs"` — thao tác chạy tay qua
+  script, không qua UI nên không có username người dùng cụ thể).
+
+✅ **Chạy thật 24/08/2026, `--confirm` — thành công toàn bộ 6/6 kênh, không kênh nào lỗi:**
+`revoke TikTok: OK` cho Làm Nông Thông Thái, Vườn Của Mây, Vườn Của Hant, Mộc Đi Rừng, Bơ Trồng Gì
+Đấy?, Cùng Anh Đi Muôn Nơi — mỗi kênh xoá đúng số `content_video` đã in ở dry-run (49/54/25/34/39/49),
+không có sai lệch giữa dry-run và lúc chạy thật. Kết quả: **cả 9 kênh giờ đều KHÔNG kết nối** (0 hàng
+`channel_oauth`) — kể cả 3 kênh chưa từng nối trước đó, tất cả cùng một điểm xuất phát sạch. Grant cũ
+trên TikTok đã được gỡ thật (không chỉ xoá DB) — lần Authorize kế tiếp của mọi kênh sẽ là một lượt
+cấp quyền thật từ đầu, không còn phụ thuộc session/grant cũ nào.
+
+### Còn treo — việc của người dùng
+
+1. **Áp migration `20260824000001_oauth_hardening.sql`** qua Supabase Dashboard → SQL Editor (không
+   tự làm được — xem lý do ở trên). Bắt buộc trước khi deploy code nhóm A: callback ghi cột
+   `authorized_handle`, chưa có cột thì mọi lần Authorize sẽ lỗi. **Gấp hơn từ sau bước reset ở
+   trên** — hiện tại không kênh nào có dữ liệu display_api mới cho tới khi deploy xong.
+2. ~~Chạy `scripts/reset-display-api.mjs`~~ — **đã xong**, xem mục trên.
+3. Deploy code, kết nối lại **cả 9 kênh** ở `/connections` — nhớ đăng xuất tiktok.com giữa mỗi kênh.
+   Bấm "Kết nối" phải thấy màn hình TikTok hiện ra thật — **không tự kiểm chứng được**, cần tài khoản
+   TikTok thật để click qua Authorize.
+4. Nhóm C (đối chiếu Studio↔display_api, hiện `is_complete` trên UI, cảnh báo lệch bất thường, route
+   hoá script chẩn đoán) — tách đợt sau, chưa bắt đầu.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

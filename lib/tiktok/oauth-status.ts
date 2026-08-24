@@ -5,6 +5,8 @@ type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
 export type ChannelOauthStatus = {
   channelId: string;
   channelName: string;
+  /** channel.tiktok_handle — the account this connection is SUPPOSED to be. */
+  expectedHandle: string;
   connected: boolean;
   refreshExpiresAt: string | null;
   daysUntilExpiry: number | null;
@@ -16,6 +18,12 @@ export type ChannelOauthStatus = {
    *  one-time banner, per the 21/08/2026 wrong-account incident (a banner only shown once is
    *  exactly how that went unnoticed). */
   accountVerified: boolean;
+  /** channel_oauth.authorized_handle — the account actually behind this connection, read from
+   *  share_url at the time of Authorize. null = never connected, or connected but unverifiable
+   *  (zero-video account). Shown persistently on /connections (24/08/2026, docs/DISPLAY_API.md bẫy
+   *  #9 follow-up) — not knowing which account a connection actually points to is how the 21/08
+   *  incident went unnoticed for as long as it did. */
+  authorizedHandle: string | null;
 };
 
 /**
@@ -31,14 +39,14 @@ export async function getOauthStatusList(
 ): Promise<ChannelOauthStatus[]> {
   if (opts.channelIds && opts.channelIds.length === 0) return []; // e.g. a Creator with no channel yet
 
-  let channelQuery = supabase.from("channel").select("id, name").order("name", { ascending: true });
+  let channelQuery = supabase.from("channel").select("id, name, tiktok_handle").order("name", { ascending: true });
   if (opts.channelIds) channelQuery = channelQuery.in("id", opts.channelIds);
   const { data: channels, error } = await channelQuery;
   if (error) throw error;
 
   const { data: oauthRows, error: oauthError } = await supabase
     .from("channel_oauth")
-    .select("channel_id, refresh_expires_at, last_sync_at, last_sync_status, account_verified");
+    .select("channel_id, refresh_expires_at, last_sync_at, last_sync_status, account_verified, authorized_handle");
   if (oauthError) throw oauthError;
 
   const byChannel = new Map((oauthRows ?? []).map((row) => [row.channel_id as string, row]));
@@ -55,12 +63,14 @@ export async function getOauthStatusList(
     return {
       channelId: channel.id,
       channelName: channel.name,
+      expectedHandle: channel.tiktok_handle,
       connected,
       refreshExpiresAt,
       daysUntilExpiry,
       lastSyncAt: (oauth?.last_sync_at as string | null) ?? null,
       lastSyncStatus: (oauth?.last_sync_status as ChannelOauthStatus["lastSyncStatus"]) ?? null,
       accountVerified: Boolean(oauth?.account_verified),
+      authorizedHandle: (oauth?.authorized_handle as string | null) ?? null,
     };
   });
 }

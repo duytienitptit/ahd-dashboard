@@ -7,6 +7,7 @@ import { getOauthStatusList } from "@/lib/tiktok/oauth-status";
 import { DataTabs } from "../data-tabs";
 import { ConnectionsClient } from "./connections-client";
 
+// Lỗi có thông tin cố định, không cần đọc thêm query param nào khác.
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   missing_state: "Phiên kết nối đã hết hạn, thử lại.",
   state_mismatch: "Phiên kết nối không khớp, thử lại.",
@@ -27,10 +28,12 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/conn
   const connected = params.connected === "1";
   const warning = typeof params.warning === "string" ? params.warning : null;
 
-  // account_mismatch now BLOCKS (app/api/oauth/callback/route.ts) — nothing was saved, so this is an
+  // account_mismatch BLOCKS (app/api/oauth/callback/route.ts) — nothing was saved, so this is an
   // error, not a warning on top of a successful connect. Carries enough (channelId + both handles)
-  // for ConnectionsClient to offer "Vẫn kết nối" without the human retyping anything: that retry just
-  // re-runs oauth/start with ?ack=1, which the callback honors as an explicit override.
+  // for ConnectionsClient to offer two ways out: log out of the wrong TikTok account and retry, or —
+  // if the channel genuinely renamed on TikTok — update the stored handle then retry. No more "Vẫn
+  // kết nối" bypass (removed 24/08/2026): it used to let a confirmed mismatch through on one click,
+  // permanently recording an override instead of fixing the one real cause (a stale handle).
   const initialMessage =
     oauthError === "account_mismatch"
       ? {
@@ -39,22 +42,41 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/conn
           expected: typeof params.expected === "string" ? params.expected : "?",
           actual: typeof params.actual === "string" ? params.actual : "?",
         }
-      : oauthError
-        ? { type: "error" as const, text: OAUTH_ERROR_MESSAGES[oauthError] ?? `Kết nối thất bại: ${oauthError}` }
-        : connected
-          ? warning === "unverified"
+      : oauthError === "open_id_taken"
+        ? {
+            type: "error" as const,
+            text:
+              `Tài khoản TikTok này đã được dùng cho kênh "${typeof params.otherChannel === "string" ? params.otherChannel : "khác"}" ` +
+              "rồi — một tài khoản TikTok chỉ nối được đúng một kênh. Kiểm tra lại đang đăng nhập đúng tài khoản của kênh này chưa.",
+          }
+        : oauthError === "missing_scopes"
+          ? {
+              type: "error" as const,
+              text:
+                `Chưa cấp đủ quyền lúc Authorize (thiếu: ${typeof params.missing === "string" ? params.missing : "?"}) — ` +
+                "thử lại và tick đủ mọi quyền TikTok yêu cầu.",
+            }
+          : oauthError === "verify_failed"
             ? {
-                type: "warning" as const,
-                text: "Đã lưu kết nối, nhưng tài khoản TikTok này chưa có video nào nên không tự đối chiếu " +
-                  "handle được. Xác nhận thủ công ở dòng \"Chưa xác minh\" bên dưới nếu chắc chắn đúng tài khoản.",
+                type: "error" as const,
+                text: "Không đối chiếu được tài khoản TikTok vừa Authorize (có thể do giới hạn tốc độ của TikTok) — thử lại sau ít phút.",
               }
-            : warning === "account_changed"
-              ? {
-                  type: "warning" as const,
-                  text: "Đã kết nối, nhưng tài khoản TikTok khác với lần kết nối trước — kiểm tra lại nếu không cố ý đổi tài khoản.",
-                }
-              : { type: "connected" as const, text: "Đã kết nối thành công." }
-          : null;
+            : oauthError
+              ? { type: "error" as const, text: OAUTH_ERROR_MESSAGES[oauthError] ?? `Kết nối thất bại: ${oauthError}` }
+              : connected
+                ? warning === "unverified"
+                  ? {
+                      type: "warning" as const,
+                      text: "Đã lưu kết nối, nhưng tài khoản TikTok này chưa có video nào nên không tự đối chiếu " +
+                        "handle được. Xác nhận thủ công ở dòng \"Chưa xác minh\" bên dưới nếu chắc chắn đúng tài khoản.",
+                    }
+                  : warning === "account_changed"
+                    ? {
+                        type: "warning" as const,
+                        text: "Đã kết nối, nhưng tài khoản TikTok khác với lần kết nối trước — kiểm tra lại nếu không cố ý đổi tài khoản.",
+                      }
+                    : { type: "connected" as const, text: "Đã kết nối thành công." }
+                : null;
 
   // requireUser() above resolves the role; getOauthStatusList() itself needs the admin client
   // (channel_oauth has zero RLS policies — not even Manager reads it through the server client).

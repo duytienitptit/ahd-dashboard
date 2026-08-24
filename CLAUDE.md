@@ -96,7 +96,8 @@ Biến môi trường: `.env.example`.
 - Tính toán `progress` ở **server-side**, không tính lại ở client (tránh lệch số giữa các màn hình).
 - **Múi giờ: cột `date` = ngày lịch `Asia/Ho_Chi_Minh`**, không phải UTC. Studio export tổng theo ngày
   nên không quy đổi múi giờ được; chỉ timestamp từ Display API cần đổi sang giờ VN trước khi lấy phần
-  ngày. `timestamptz` (created_at, hạn token) vẫn lưu UTC bình thường. Cron chạy ~03:00 giờ VN.
+  ngày. `timestamptz` (created_at, hạn token) vẫn lưu UTC bình thường. Cron chạy ~23:30 giờ VN
+  (đổi từ 03:00 ngày 24/08/2026 — xem [docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #12).
 - **Chọn nguồn khi 1 ngày có nhiều `source`**: đọc qua view **`v_channel_daily`**, không query thẳng
   `data_snapshot` — mỗi query tự chọn sẽ lệch số giữa các màn hình. Ngoại lệ duy nhất: API nhận
   `?source=` để xem riêng một nguồn. Thứ tự ở [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md).
@@ -107,6 +108,11 @@ Biến môi trường: `.env.example`.
   (video bị xoá làm hiệu sai).
 - Tiền/số liệu lớn dùng `bigint`. Không dùng float cho views/followers.
 - UI tiếng Việt. Code, tên biến, comment: tiếng Anh.
+- **Mọi link nội bộ mở tab mới** (24/08/2026, theo yêu cầu, áp dụng toàn app kể cả menu điều hướng
+  trên cùng và breadcrumb) — import `Link` từ `app/(app)/app-link.tsx` (wrapper `next/link`, tự thêm
+  `target="_blank" rel="noopener noreferrer"`), **không** import thẳng từ `"next/link"` trong bất kỳ
+  file nào dưới `app/(app)/`. Link mới thêm mà quên đổi import thì lặng lẽ rơi về hành vi cũ (thay
+  trang hiện tại) — không có lint rule chặn, tự nhớ khi thêm `<Link>` mới.
 
 ## Cách làm việc với dự án này
 
@@ -140,9 +146,31 @@ khớp nhau — 5 migration (`team`, `creator.team_id`, RLS Creator-upload, `upd
 🔑 **Tài khoản Manager thật giờ đăng nhập bằng username `andang`** (không còn dùng email nữa, đổi
 22/08/2026) — mật khẩu giữ nguyên như cũ. Xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
 
-⚠️ **Cả 2 kênh đang MẤT KẾT NỐI Display API** (`channel_oauth` rỗng, cố ý xoá sau sự cố sai tài
-khoản — xem PROGRESS.md mục "Đợt 1"). Việc người dùng cần làm: vào `/connections`, bấm "Kết nối"
-lại cho cả 2 kênh bằng **đúng** tài khoản TikTok của từng kênh.
+📡 **Display API (24/08/2026): 9 kênh, 0 ĐANG KẾT NỐI** — 6 kênh vừa bị `reset-display-api.mjs`
+ngắt kết nối thật (revoke TikTok OK cả 6/6) + xoá sạch `content_video`/`video_snapshot`/
+`data_snapshot(display_api)` để dựng lại sạch bằng code mới; 3 kênh còn lại (`Bé Na`,
+`Ngộ Không Làm Nông`, `Tiến Sĩ Sprout`) vẫn như cũ, chưa từng kết nối. **Toàn bộ 9 kênh cần
+Authorize lại từ đầu** sau khi migration + code mới lên. Sandbox đã add đủ 9 target user, **trần 10
+tài khoản/sandbox** → còn đúng 1 chỗ. Kênh thứ 11 phải nộp duyệt app chính thức (1-2 tuần).
+
+✅ **Nhóm lỗi OAuth + tính view/ngày đã sửa tại chỗ (24/08/2026), CHƯA commit/push/deploy.** Phát
+hiện lúc điều tra "bấm Kết nối không hiện màn login" — kéo theo 2 lỗi tính `video_views` nghiêm
+trọng hơn câu hỏi gốc. Toàn bộ đổi gì/vì sao/141 test qua: [docs/PROGRESS.md](docs/PROGRESS.md) mục
+"Siết kết nối Display API + sửa cách tính view/ngày". Chẩn đoán read-only luôn dùng được:
+`node scripts/diagnose-oauth.mjs`, `node scripts/diagnose-data.mjs` (24/08: dữ liệu sạch, lỗ hổng
+chưa kịp gây hại).
+
+⚠️ **`scripts/backfill-daily-views.mjs` bị KHOÁ** — dry-run thật lộ ra data cũ (ghi bởi `sync.ts`
+trước bản vá) có `video_snapshot.date`/`data_snapshot.date` lệch quy ước ngày, script join sai lệch
+1 ngày. Quyết định (theo yêu cầu): không cố dựng lại, **xoá sạch tầng display_api của cả 6 kênh đang
+kết nối** bằng `scripts/reset-display-api.mjs` (mới — revoke TikTok thật + xoá
+`data_snapshot(display_api)`/`content_video`, không đụng `studio_import`/`manual_entry`) rồi để code
+mới dựng lại từ đầu. Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug phát hiện lúc chạy
+backfill". Script chưa chạy.
+
+⚠️ **CHẶN TRIỂN KHAI — migration `20260824000001_oauth_hardening.sql` CHƯA áp lên Supabase.** Không
+có Supabase CLI/`psql`/DSN Postgres trong máy này → phải tự chạy qua Dashboard → SQL Editor trước
+khi deploy code trên, không thì callback OAuth lỗi 500 (ghi cột `authorized_handle` chưa tồn tại).
 
 ⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
@@ -168,12 +196,28 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. Vào `/connections` kết nối lại 2 kênh bằng đúng tài khoản TikTok thật (Display API đang mất kết nối).
-2. **M5 (KPI Cycle)** — chưa bắt đầu, không bị chặn bởi mục trên. `POST /api/kpi-cycles` trước (tự
-   chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
+1. **Áp migration `20260824000001_oauth_hardening.sql`** qua Supabase Dashboard → SQL Editor —
+   chặn triển khai nhóm A, xem cảnh báo ở trên. ⚠️ Càng gấp hơn từ khi mục 2 đã xong: **cả 9 kênh
+   đang KHÔNG kết nối**, không có dữ liệu display_api mới nào tới khi deploy xong.
+2. ~~Chạy `scripts/reset-display-api.mjs`~~ — **xong 24/08/2026**, revoke TikTok OK cả 6/6 kênh.
+3. Commit + deploy, rồi kết nối lại **cả 9 kênh** ở `/connections` — nhớ đăng xuất tiktok.com giữa
+   mỗi kênh. Bấm "Kết nối" phải thấy màn hình TikTok hiện ra thật — không tự kiểm chứng được, cần
+   tài khoản TikTok thật để click qua Authorize.
+4. **M5 (KPI Cycle)** — chưa bắt đầu, không bị chặn bởi các mục trên. `POST /api/kpi-cycles` trước
+   (tự chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
    công thức ở [docs/API_SPEC.md](docs/API_SPEC.md) mục "Công thức progress". `kpiSummary`/
    `myChannels.hasActiveKpi` trong `lib/dashboard.ts` hiện luôn rỗng/false vì `kpi_cycle` chưa có
    row — M5 tạo cycle xong thì nối lại 2 chỗ đó.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
+
+🎨 **Icon-box màu + số liệu tô màu theo tone + avatar 5 màu** (24/08/2026, theo yêu cầu, xem
+[DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Icon-box màu"/"Avatar kênh nhiều màu") — gồm 3 token
+màu MỚI `blue`/`purple`/`orange` (`app/globals.css`), lệch quy tắc gốc "không tự đặt màu mới".
+**Người dùng đã xác nhận rõ ràng cho phép đổi màu** — không cần hỏi lại việc đổi màu icon-box/số liệu
+trong phạm vi `StatTile`. Style đã phủ **toàn bộ 4 màn** có `StatTile`/avatar-theo-index: Tổng quan,
+`/channels`, `channels/[id]`, `/creators` (kể cả `creators/[id]` và khối quản lý Team trong
+`creator-form.tsx`/`team-accordion.tsx`). Mapping tone cố định theo Ý NGHĨA chỉ số (không theo vị trí
+cột — thứ tự cột khác nhau giữa các trang): Lượt xem `blue`, Follower `purple`, Video `orange`,
+Like `red`. Avatar đơn lẻ (header 1-kênh/1-Creator) vẫn cố tình để trung tính, không đổi.

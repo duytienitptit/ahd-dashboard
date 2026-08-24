@@ -31,7 +31,7 @@ flowchart TD
 
 | Việc | Ai | Khi nào | Màn hình |
 | :--- | :--- | :--- | :--- |
-| Đồng bộ Display API | Cron tự động | Hằng ngày ~03:00 giờ VN | — (kết quả hiện ở Tổng quan, nhãn *tạm tính*) |
+| Đồng bộ Display API | Cron tự động | Hằng ngày ~23:30 giờ VN | — (kết quả hiện ở Tổng quan, nhãn *tạm tính*) |
 | Import file Studio | **Manager hoặc Creator** — Creator chỉ kênh mình phụ trách (21/08/2026, theo vận hành thực tế) | **Thứ Tư**, cho tuần trước đó | Màn import |
 | Chốt sổ chu kỳ | Manager | Sau khi import phủ hết chu kỳ | Màn chốt sổ |
 | OAuth (kết nối/kết nối lại) | **Manager hoặc Creator** — Creator chỉ kênh mình phụ trách | Lần đầu, hoặc khi token sắp hết hạn (cảnh báo trước 30 ngày) | Màn kết nối |

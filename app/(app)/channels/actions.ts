@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 
 import { AuthorizationError, requireManager, requireUser } from "@/lib/auth";
 import { createChannel, deleteChannel, updateChannel, updateChannelName } from "@/lib/channels";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readChannelOauthAccessToken, revokeAfterChannelDeleted } from "@/lib/tiktok/disconnect";
 import { ValidationError, normalizeTiktokHandle } from "@/lib/validation";
 
 export type ChannelFormState = { error: string | null };
@@ -65,7 +67,6 @@ export async function updateChannelAction(
       name: name || undefined,
       tiktokHandle: rawHandle ? normalizeTiktokHandle(rawHandle) : undefined,
       creatorId: readCreatorId(formData),
-      isActive: formData.get("isActive") === "on",
     });
   } catch (error) {
     return { error: toMessage(error) };
@@ -109,6 +110,10 @@ export type DeleteFormState = { error: string | null };
  * (ConfirmDeleteForm). `deleteChannel()` itself blocks this when a finalized KPI cycle exists;
  * logs to `audit_log` only after the delete succeeds, same reasoning as creators/actions.ts's
  * deleteCreatorAction — `entity_id` has no FK, built to survive exactly this.
+ *
+ * Also revokes the channel's Display API grant on TikTok's side, same as the DELETE route
+ * (app/api/channels/[id]/route.ts) — see lib/tiktok/disconnect.ts's ordering note for why the
+ * token is read before deleteChannel() but only revoked after it succeeds.
  */
 export async function deleteChannelAction(
   channelId: string,
@@ -116,8 +121,11 @@ export async function deleteChannelAction(
   formData: FormData,
 ): Promise<DeleteFormState> {
   const supabase = await createSupabaseServerClient();
+  const admin = createSupabaseAdminClient();
   try {
     const manager = await requireManager();
+
+    const accessToken = await readChannelOauthAccessToken(admin, channelId);
     await deleteChannel(supabase, channelId);
 
     const confirmedName = String(formData.get("confirmName") ?? "");
@@ -128,6 +136,8 @@ export async function deleteChannelAction(
       actor: manager.username,
       note: confirmedName ? `Xoá kênh "${confirmedName}".` : null,
     });
+
+    if (accessToken) await revokeAfterChannelDeleted(admin, channelId, manager.username, accessToken);
   } catch (error) {
     return { error: toMessage(error) };
   }

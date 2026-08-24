@@ -285,10 +285,27 @@ lại của [DISPLAY_API.md](DISPLAY_API.md)), và xác nhận `isComplete` củ
   M2 đóng. `CHANNEL_TABLE_COLUMNS` export dùng chung giữa header (`channels-table.tsx`), row, và
   skeleton (`loading.tsx`) — 1 nguồn layout duy nhất. **"Tiến độ KPI" luôn hiện chip "Chưa đặt KPI"**
   (chưa có `kpi_cycle` nào) thay vì phần trăm giả.
+  ⚠️ **"Xu hướng" (sparkline) đổi nguồn dữ liệu 24/08/2026, theo yêu cầu** — bản M4 gốc vẽ view theo
+  **ngày** trong kỳ đang chọn (`data_snapshot`/`v_channel_daily`, phẳng lì khi kỳ ngắn hoặc kênh ít
+  cập nhật). Bản mới vẽ view của **5 video đăng gần nhất** của kênh (`lib/dashboard.ts`
+  `fetchRecentVideoViewsByChannel` — lấy `content_video` mới nhất theo `posted_at`, ghép
+  `view_count` mới nhất từng video từ `video_snapshot`, độc lập với date-range picker của trang).
+  Màu đường (cyan tốt/đỏ xấu) cũng đổi theo — trước so `viewsDeltaPct` (kỳ này so kỳ trước), giờ so
+  video mới nhất với video cũ nhất trong 5 video đó (`sparkGood` trong `channel-form.tsx`), vì không
+  còn gắn với 1 kỳ so sánh cụ thể nữa.
 - **Cột lọc nhanh KHÔNG theo trạng thái KPI** (mockup gốc: Vượt tiến độ/Ổn định/Cần tăng tốc) — đổi
-  thành lọc theo dữ liệu thật (Đang giảm view / Chưa gán Creator / Ngừng hoạt động), đúng nguyên tắc ở
-  đầu CLAUDE.md "đừng lấy % KPI làm trục sắp xếp mặc định". Tương tự nhãn "rank" ở thẻ Creator
+  thành lọc theo dữ liệu thật (Đang giảm view / Chưa gán Creator), đúng nguyên tắc ở đầu CLAUDE.md
+  "đừng lấy % KPI làm trục sắp xếp mặc định". Tương tự nhãn "rank" ở thẻ Creator
   (`rankCreatorPerformance`) đổi từ dựa-KPI sang dựa-view-share/xu-hướng.
+  ⚠️ **Chip "Ngừng hoạt động" (lọc theo `isActive`) đã bỏ 24/08/2026, theo yêu cầu** — từ khi xoá kênh
+  là xoá thật (21/08/2026, xem "Trạng thái" CLAUDE.md), người dùng coi "kênh tồn tại" và "kênh xoá" là
+  2 trạng thái duy nhất, không cần trạng thái "ngừng hoạt động" ở giữa. Bỏ theo: chip lọc nhanh này,
+  badge "Ngừng h.đ"/"Ngừng hoạt động" trên `ChannelRow` và `channels/[id]/page.tsx`, checkbox
+  "Đang hoạt động" trên form sửa kênh. Cột DB `channel.is_active` **vẫn còn** (dùng ở
+  `lib/dashboard.ts` đếm `channelCount` và `lib/tiktok/sync.ts` lọc kênh cron đồng bộ) — chỉ bỏ đường
+  UI để set `false`, không xoá field/migration. `updateChannelAction` không còn gửi `isActive` trong
+  patch (trước đó gửi `formData.get("isActive") === "on"`; bỏ input mà không sửa dòng này sẽ vô tình
+  set `is_active = false` mỗi lần sửa tên/handle kênh — đã sửa cùng lúc).
 - **`app/(app)/channels/[id]/`** — trang mới, chưa có trong `design/ChannelDetail.dc.html` gốc:
   heatmap giờ vàng (`detail-widgets.tsx` → `ActivityHeatmapCard`, tô màu bằng `color-mix()`, không
   cần thư viện chart) và bảng hashtag (`HashtagTable`) là 2 khối **không có mockup nguồn** — tự thiết
@@ -497,6 +514,53 @@ Không còn dùng email ở tầng người dùng — Manager và Creator đều
 - [x] `scripts/seed.mjs` + `.env.example` — thêm `SEED_MANAGER_USERNAME`
 - [x] "Mật khẩu tạm" → "Mật khẩu" (theo yêu cầu riêng, làm cùng lúc) — form tạo tài khoản + thông báo
       sau khi tạo
+
+## Siết kết nối Display API + sửa cách tính view/ngày (24/08/2026, phát hiện lúc điều tra "bấm Kết
+nối không hiện màn login")
+
+Chi tiết đầy đủ: [PROGRESS.md](PROGRESS.md) mục "Siết kết nối Display API + sửa cách tính view/ngày".
+Bẫy liên quan: [DISPLAY_API.md](DISPLAY_API.md) #9, #10, #12, #13.
+
+- [x] `disable_auto_auth=1` ở `buildAuthorizeUrl()` — TikTok mặc định bỏ qua màn authorize khi còn
+      session hợp lệ, đúng lý do "bấm Kết nối không thấy gì" ban đầu
+- [x] `peekFirstVideoLink()` trả 3 nhánh (`ok`/`no_videos`/`failed`) thay vì `string | null` — lỗi
+      thật (rate limit, thiếu scope) từng bị đọc nhầm thành "kênh chưa có video", vẫn lưu token
+- [x] Kiểm scope thực nhận ở callback (`missingScopes()`) trước khi đối chiếu tài khoản — thiếu scope
+      bắt buộc thì không lưu, bỏ fallback `scopeGranted || TIKTOK_SCOPES`
+- [x] Migration `20260824000001_oauth_hardening.sql` — `UNIQUE(tiktok_open_id)` (1 tài khoản TikTok
+      chỉ nối 1 kênh, người dùng xác nhận không có ngoại lệ) + cột `authorized_handle`. **⚠️ CHƯA ÁP
+      LÊN SUPABASE** — không có CLI/psql trong máy, cần chạy tay qua Dashboard → SQL Editor
+- [x] Bỏ nút "Vẫn kết nối" (bypass mismatch) — thay bằng 2 lối ra rõ ràng: đăng xuất+thử lại, hoặc
+      Manager cập nhật `tiktok_handle` kênh rồi tự kết nối lại
+- [x] Nút "Ngắt kết nối" (`POST .../oauth/disconnect`) + gọi `POST /v2/oauth/revoke/` thật — cả khi
+      bấm nút lẫn khi xoá kênh (`lib/tiktok/disconnect.ts`, dùng ở 3 nơi)
+- [x] Bảng `/connections` hiện handle tài khoản đang kết nối, thường trực dưới tên kênh
+- [x] Kết nối lại tự reset `last_sync_at/status/error` — không còn cần, vì B1 dưới đây bỏ hẳn phụ
+      thuộc `last_sync_at`
+- [x] **B1** — `computeViewsDelta()` tính lại theo `Σ(luỹ kế cuối D − luỹ kế cuối D−1)`, đọc từ
+      `video_snapshot`, thay cho suy delta từ `last_sync_at` — idempotent, sync nhiều lần/ngày không
+      còn cắt cụt số (bẫy #12). Video thấy muộn (không baseline, không đăng đúng ngày D) bị loại khỏi
+      tổng thay vì cộng trọn view trọn đời (bẫy #10) — `is_complete=false` khi có video như vậy
+- [x] `sampleDateForRun()` (`lib/time.ts`) — ngày lịch VN của 1 lần sync, tự lùi 1 ngày nếu chạy trong
+      khoảng 00:00–02:00 VN (chống Vercel Cron trôi qua nửa đêm)
+- [x] Cron `vercel.json`: `0 20 * * *` (03:00 VN) → `30 16 * * *` (23:30 VN) — để `video_snapshot.date`
+      đúng nghĩa "cuối ngày lịch D"
+- [x] Xoá `determineSyncDate()` + `sync.test.ts` (test hàm đã xoá); test mới cho `computeViewsDelta`
+      (ca "thấy muộn"), `sampleDateForRun` (`time.test.ts`), 141/141 test qua
+- [x] `scripts/diagnose-oauth.mjs` + `scripts/diagnose-data.mjs` — chẩn đoán read-only, chạy 24/08:
+      dữ liệu production sạch, chưa bị lỗi nào ở trên làm bẩn thật
+- [x] `scripts/backfill-daily-views.mjs` viết xong, chạy dry-run thật → phát hiện bug: dữ liệu cũ
+      (ghi bởi sync.ts CŨ) có `video_snapshot.date`/`data_snapshot.date` lệch quy ước ngày, script
+      join sai lệch 1 ngày. **Đã khoá `--confirm`** (comment đầu file), không dùng cho đợt 22-24/08
+      này. Chi tiết: [PROGRESS.md](PROGRESS.md) mục "Bug phát hiện lúc chạy backfill"
+- [x] `scripts/reset-display-api.mjs` (mới, thay cho backfill) — ngắt kết nối thật (revoke TikTok) +
+      xoá sạch `data_snapshot(display_api)`/`content_video` (video_snapshot cascade theo) cho cả 6
+      kênh đang kết nối, theo yêu cầu người dùng sau khi thấy 2 phương án. **Chạy `--confirm` thật
+      24/08/2026 — 6/6 kênh revoke TikTok OK, không lỗi.** Cả 9 kênh giờ đều không kết nối.
+- [ ] Kiểm chứng bằng browser thật: màn hình authorize của TikTok phải hiện ra khi bấm Kết nối —
+      **chặn bởi migration chưa áp lên Supabase** ở trên, và cần tài khoản TikTok thật để click qua
+- [ ] Nhóm C (chưa làm, tách đợt sau): đối chiếu Studio ↔ display_api mỗi lần import, hiện
+      `is_complete` trên UI, cảnh báo lệch bất thường, route hoá `diagnose-data.mjs`
 
 ## M5 — KPI Cycle
 
