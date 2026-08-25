@@ -10,8 +10,16 @@ import { requireEnv } from "@/lib/env";
  * Role checks do NOT belong here — they need database lookups and live in `lib/auth.ts`.
  */
 
-/** Reachable without a session. `/api/oauth/callback` is here because TikTok calls it directly. */
-const PUBLIC_PATHS = ["/login", "/terms", "/privacy", "/api/oauth/callback"];
+/** Reachable without a session. `/api/oauth/callback` is here because TikTok calls it directly.
+ *  `/tiktok0archA9IxK5WFiSpJsLU9PuyBgeCxmBY.txt` is TikTok's Developer Portal site-verification
+ *  file (public/) — their verifier fetches it unauthenticated, same reason as the callback. */
+const PUBLIC_PATHS = [
+  "/login",
+  "/terms",
+  "/privacy",
+  "/api/oauth/callback",
+  "/tiktok0archA9IxK5WFiSpJsLU9PuyBgeCxmBY.txt",
+];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
