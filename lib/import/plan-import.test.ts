@@ -30,7 +30,7 @@ async function readCsvFromZip(zipPath: string, innerName: string): Promise<strin
 const hasFixtures = existsSync(join(DATA_DIR, "Overview_2026-06-18_1786845545_nong.nghiep.xanh.17.zip"));
 
 describe.skipIf(!hasFixtures)("planStudioImport (real data/ fixtures)", () => {
-  it("nong.nghiep.xanh.17: skips exactly the 3 most-recent days and imports the rest", async () => {
+  it("nong.nghiep.xanh.17: imports every day the export has real numbers for", async () => {
     const [overviewText, followerText, viewerText] = await Promise.all([
       readCsvFromZip(join(DATA_DIR, "Overview_2026-06-18_1786845545_nong.nghiep.xanh.17.zip"), "Overview.csv"),
       readCsvFromZip(join(DATA_DIR, "Followers_nong.nghiep.xanh.17.zip"), "FollowerHistory.csv"),
@@ -53,10 +53,11 @@ describe.skipIf(!hasFixtures)("planStudioImport (real data/ fixtures)", () => {
     // The real export's freshest real numbers stop at 2026-08-16 (docs/CSV_FORMAT.md "Độ trễ dữ
     // liệu"), but Viewers.csv alone extends one row further, to 2026-08-17 (still "undefined" —
     // confirmed by inspecting the fixture directly). The settle window for EXPORT_DATE=2026-08-20 is
-    // settledBefore=2026-08-17, which lands exactly on that extra row, so it's the one date that
-    // gets skipped here — not because it's undefined, but because the window catches it regardless.
-    expect(settledBeforeDate(EXPORT_DATE)).toBe("2026-08-17");
-    expect(plan.skippedRecentDates).toEqual(["2026-08-17"]);
+    // settledBefore=2026-08-19, so it catches nothing in this fixture: 2026-08-17 is dropped one
+    // step later by hasAnyValue, because every column of that row is undefined.
+    expect(settledBeforeDate(EXPORT_DATE)).toBe("2026-08-19");
+    expect(plan.skippedRecentDates).toEqual([]);
+    expect(plan.dailyWrites.has("2026-08-17")).toBe(false);
 
     // Overview.csv reports a genuine 0 (not "undefined") for the channel's first tracked day —
     // 0 is real data, not "no data" (CLAUDE.md: "0 và 'chưa có số' là hai trạng thái khác nhau"), so
@@ -135,5 +136,30 @@ describe("planStudioImport (synthetic)", () => {
     expect(plan.importedDates).toEqual([]);
     expect(plan.skippedRecentDates).toEqual([]);
     expect(plan.readDates).toBe(1);
+  });
+
+  // The rule set on 25/08/2026: Studio lags 2 days, so an import run on the 25th writes through the
+  // 23rd and leaves only 24-25 to display_api.
+  it("skips exactly the 2 lagging days and writes through importDate − 2", () => {
+    const dates = ["2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25"];
+
+    const plan = planStudioImport({
+      overviewRows: dates.map((date) => ({
+        date,
+        videoViews: 100,
+        profileViews: null,
+        likes: null,
+        comments: null,
+        shares: null,
+      })),
+      followerRows: [],
+      viewerRows: [],
+      exportDate: "2026-08-25",
+      existingDisplayApi: {},
+      existingStudioImport: {},
+    });
+
+    expect(plan.importedDates).toEqual(["2026-08-21", "2026-08-22", "2026-08-23"]);
+    expect(plan.skippedRecentDates).toEqual(["2026-08-24", "2026-08-25"]);
   });
 });
