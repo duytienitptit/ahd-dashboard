@@ -139,9 +139,9 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M5 (KPI Cycle) vừa xong 25/08/2026 — CHƯA commit/push/deploy** (cùng với nhóm lỗi OAuth/view-per-day
-ở dưới, cũng chưa lên `main`). M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập
-username đã xong và **đã** lên `main` từ trước (22/08/2026, commit `16624da`).
+**M5 (KPI Cycle) xong 25/08/2026, đã lên `main`** (commit `86173aa`), kèm bản sửa cửa sổ chốt import
+cùng ngày (`3355e6f`). M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập
+username + nhóm vá OAuth/view-per-day đã lên `main` từ trước.
 Chi tiết đầy đủ từng milestone ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục tương ứng, tìm theo tên).
 Checklist ở [docs/TASKS.md](docs/TASKS.md) (mục tương ứng).
 
@@ -152,8 +152,8 @@ Checklist ở [docs/TASKS.md](docs/TASKS.md) (mục tương ứng).
 `20260824000001_oauth_hardening.sql` đã áp lên Supabase (xác nhận: cột `channel_oauth.authorized_handle`
 tồn tại và có dữ liệu thật khớp từng kênh), cả 9 kênh Authorize lại qua TikTok thật, đã đồng bộ thành
 công ít nhất 1 lần (`node scripts/diagnose-oauth.mjs`: đủ scope, xác minh tài khoản, video đúng kênh
-— 25/08/2026). **Chạy qua local dev server với code M5 + nhóm vá OAuth/view-per-day CHƯA commit** —
-việc reconnect thành công đã tự kiểm chứng luôn 2 nhóm code đó hoạt động đúng với tài khoản TikTok
+— 25/08/2026). Việc reconnect chạy qua local dev server bằng chính code M5 + nhóm vá
+OAuth/view-per-day (nay đã lên `main`), nên đã tự kiểm chứng luôn 2 nhóm code đó với tài khoản TikTok
 thật. `is_complete=false` trên mọi kênh hiện tại (còn ít ngày dữ liệu, bình thường lúc mới nối lại).
 Sandbox trần 10 tài khoản/sandbox → còn đúng 1 chỗ cho kênh thứ 11 (phải nộp duyệt app chính thức
 1-2 tuần nếu cần). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Siết kết nối Display API +
@@ -178,9 +178,9 @@ copy nguyên giá trị từ Vercel Environment Variables xuống.
 động, không phải quên cấu hình. Push phải do người dùng tự chạy hoặc tự nới rule, Claude không tự làm.
 
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
-`16624da` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel dashboard).
-Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`, commit mới
-nhất `16624da`.
+mới nhất trên `main` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel
+dashboard). Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`,
+commit mới nhất `3355e6f` (push 25/08/2026).
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
 đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
@@ -191,10 +191,9 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Commit + push code M5, nhóm vá OAuth/view-per-day, và bản sửa cửa sổ chốt import ngày
-   25/08** (tất cả đang chỉ nằm ở working tree —
-   migration đã áp và cả 9 kênh đã reconnect+sync thành công qua chính code này chạy local, xem trên
-   → khá tự tin để đẩy lên `main` rồi deploy).
+1. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
+   (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
+   có, tự đầy ở kỳ import sau (từ 26/08).
 2. **M6 (Chốt sổ KPI)** — chưa bắt đầu, không bị chặn bởi mục trên. `POST
    /api/kpi-cycles/:id/finalize` theo đặc tả ở [docs/API_SPEC.md](docs/API_SPEC.md) (điều kiện mở
    khoá, shape lỗi `422`) + UI màn chốt sổ.
