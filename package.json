@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "node scripts/seed.mjs",
-    "reset-manager-password": "node scripts/reset-manager-password.mjs"
+    "reset-manager-password": "node scripts/reset-manager-password.mjs",
+    "update-manager-name": "node scripts/update-manager-name.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

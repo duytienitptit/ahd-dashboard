@@ -34,6 +34,36 @@ pct >= 45  → amber  #F5A623
 pct <  45  → red    #FE2C55
 ```
 
+### Màu theo chỉ số (áp toàn app, 24/08/2026 — theo yêu cầu)
+
+4 chỉ số chính — Lượt xem/Follower/Video/Like — có màu CỐ ĐỊNH riêng, dùng xuyên suốt app để quét
+nhanh bằng mắt (ví dụ: mọi con số "Lượt xem" ở bất kỳ trang nào đều xanh dương). Nguồn sự thật duy
+nhất: [lib/metric-tone.ts](../lib/metric-tone.ts) — import từ đó, đừng tự viết lại map này ở nơi
+khác.
+
+| Chỉ số | Token | Hex |
+| :--- | :--- | :--- |
+| Lượt xem | `blue` | `#2563EB` |
+| Follower | `purple` | `#DB2777` — **LƯU Ý:** tên biến vẫn là "purple" (giữ để đỡ đổi tên class ở hàng chục chỗ) nhưng giá trị thật là hồng magenta, không còn tím |
+| Video đã đăng | `orange` | `#F97316` |
+| Like | `crimson` | `#DC2626` — token RIÊNG, không phải `red` (brand red `#FE2C55` dùng cho nút/link/badge cảnh báo khắp app) |
+
+**Phạm vi áp dụng:** tiêu đề cột bảng, số liệu chính (giá trị lớn/số trong ô bảng), tab + đường biểu
+đồ trong `TrendChart`. **KHÔNG áp dụng cho:** badge %thay đổi (`DeltaPill`/`formatDeltaPct` — vẫn xanh
+lá=tăng/đỏ=giảm như trước), badge trạng thái (`Đang hoạt động`/`tạm tính`/`đã đối chiếu`...), thanh
+tiến độ KPI. Quyết định có chủ đích (24/08/2026, theo yêu cầu): giữ 2 hệ màu tách biệt — "màu theo
+chỉ số" (nhận diện chỉ số nào) và "màu theo chiều hướng" (tăng/giảm/cảnh báo) — để không lẫn nhau.
+
+⚠️ **Đã đổi bộ màu 1 lần trong ngày 24/08/2026** — bản đầu dùng `blue #3B82F6`/`purple #8B5CF6`
+(tím thật), bị chê "xanh dương và tím khó phân biệt". Bản hiện tại (trên) tách bạch rõ hơn. Nếu bị
+chê tiếp, đừng tự đoán thêm — hỏi thẳng người dùng có ảnh/mã màu tham chiếu cụ thể không.
+
+Áp dụng ở (không giới hạn, tìm `metric-tone` để thấy hết): `TeamStatsRow`/`StatTile` (Tổng quan,
+`channels/[id]`, `creators/[id]`), header + giá trị bảng `/channels` và `/creators`
+(`channels-table.tsx`, `channel-form.tsx`, `team-accordion.tsx`, `creator-channels-table.tsx`),
+`DailyTable`, `TrendChart` (tab + đường), `HashtagTable`/`VideoList` (view), `GrowthCard`
+(follower)/`ViewShareCard` (view)/`EfficiencyCard` (view) ở Tổng quan.
+
 ## Font
 
 - Family: **Be Vietnam Pro** (Google Fonts), fallback `"Helvetica Neue", system-ui, sans-serif`
@@ -83,6 +113,24 @@ Inline SVG, stroke-based, `stroke-width: 2-2.4`, `stroke-linecap: round`. Kích 
 
 ## Mẫu bắt buộc dùng lại
 
+### Ô mật khẩu — icon con mắt hiện/ẩn (thêm 24/08/2026, theo yêu cầu)
+
+Mọi input `type="password"` phải có icon mắt bên trong (absolute, phải), bấm để đổi `type` sang
+`"text"`/`"password"` — `useState` cục bộ, không cần server action. Đã áp ở `app/login/login-form.tsx`
+(đăng nhập) và `app/(app)/creators/creator-form.tsx`'s `ResetPasswordForm` (Manager đặt mật khẩu mới
+cho Creator — **trước đây input này là `type="text"` luôn hiện sẵn, không che**; đã đổi về mặc định
+che + icon mắt để bật lộ theo ý muốn, giống mọi ô mật khẩu khác). Ô mật khẩu mới thêm ở đâu thì theo
+đúng mẫu này — đừng để hiện sẵn plaintext mặc định, và đừng quên icon mắt.
+
+### Thanh cuộn mảnh, tự ẩn (thêm 24/08/2026, theo yêu cầu)
+
+Class `.scroll-thin` (`app/globals.css`) — track trong suốt, thumb `6px` chỉ hiện khi hover/focus.
+Dùng cho khối danh sách dài trong 1 thẻ cố định chiều cao thay vì cắt bớt dữ liệu (top-N) hay để
+trang phình vô hạn. Áp đầu tiên ở `ListCard` (Tổng quan — "Tăng trưởng follower"/"Đóng góp lượt
+xem"/"Hiệu quả nội dung": bỏ `.slice(0, N)` ở `lib/dashboard.ts`, hiện **toàn bộ kênh**, khối cuộn
+`max-h-[320px]`). Mở rộng sang danh sách dài khác thì dùng lại đúng class này, đừng tự viết CSS cuộn
+riêng.
+
 ### Nhãn độ tin cậy dữ liệu
 
 Mọi nơi hiển thị số liệu theo ngày **phải** cho biết số đó đã đối chiếu chưa:
@@ -113,6 +161,43 @@ Dùng bất cứ đâu một chỉ số KPI đáng lẽ hiển thị nhưng chư
 `/channels`, khối "Kênh của tôi" ở Tổng quan Creator: chip nền `line-soft`, chữ `ink-3`, không chấm
 tròn (phân biệt với 4 nhãn độ tin cậy dữ liệu ở trên, vốn luôn có chấm). Không vẽ thanh tiến độ 0%
 hay số `0%` — dễ đọc nhầm là "đang ở 0%" thay vì "chưa có chỉ tiêu để đo".
+
+### Icon-box màu cho thẻ số liệu (thêm 24/08/2026, theo yêu cầu — chưa có trong mockup gốc)
+
+`StatTile` ở Tổng quan (`app/(app)/dashboard-widgets.tsx`) có icon màu góc phải, cùng công thức badge
+"nền mềm + chữ/icon đậm" ở trên. Hộp `36px` (`h-9 w-9`), bo `rounded-card` (8px), icon `18px` stroke.
+Gán cố định theo ý nghĩa, không đổi ngẫu nhiên theo thứ tự:
+
+Tone khớp đúng bảng "Màu theo chỉ số" ở trên (`lib/metric-tone.ts` là nguồn sự thật cho hex/token —
+`StatTile`'s `StatTone` trong `dashboard-widgets.tsx` là tập cha, thêm `cyan`/`green`/`amber` cho các
+`StatTile` không thuộc 4-chỉ-số, xem file đó). Icon `EyeIcon`→`blue`, `UsersIcon`→`purple`,
+`VideoIcon`→`orange`, `HeartIcon`→`crimson` (không phải `red` — xem lý do ở mục "Màu theo chỉ số").
+
+⚠️ **`blue`/`purple`/`orange`/`crimson` là token MỚI**, lệch quy tắc gốc đầu file "không tự đặt màu
+mới". **Người dùng đã xác nhận rõ ràng cho phép đổi màu** — không cần hỏi lại cho các lần điều chỉnh
+màu icon-box/số liệu tiếp theo. Đã qua 3 vòng chỉnh trong ngày 24/08/2026 (nhạt → sáng hơn → đổi hẳn
+bộ màu vì tím/xanh dương khó phân biệt) — nếu còn bị chê lần nữa, đừng tự đoán tiếp, hỏi thẳng người
+dùng có ảnh/mã hex tham chiếu cụ thể không.
+
+✅ **Số liệu lớn (`value`) của `StatTile` cũng tô theo `tone`** khi có `tone` — đồng thời áp cho tiêu
+đề cột/giá trị bảng và tab/đường `TrendChart` khắp app (xem "Màu theo chỉ số" ở trên, đây là bản đầy
+đủ, phần này chỉ còn nói riêng về `StatTile`). `icon`/`tone` là prop **tuỳ chọn** trên `StatTile` —
+`StatTile` không thuộc 4-chỉ-số (ví dụ tile không có `deltaText`) không truyền thì layout giữ nguyên
+như cũ, không tự nhiên có icon.
+
+### Avatar kênh nhiều màu (mở rộng 24/08/2026, theo yêu cầu)
+
+`avatarPalette()` (`lib/format.ts`) đổi từ cycle 3 màu → **5 màu**, vẫn toàn bộ là token sẵn có, không
+thêm hex mới: `cyan-bg/cyan-ink-2` → `red-bg/red-dark` → `green-bg/green-dark` → `amber-bg/amber-dark`
+→ `line-soft/ink-2`. Dùng ở mọi danh sách avatar-theo-index: Tổng quan (`ChannelRow` trong
+`GrowthCard`/`EfficiencyCard`, và `MyChannelsBlock`), bảng `/channels` (`ChannelRow` trong
+`app/(app)/channels/channel-form.tsx`), và từ 24/08/2026 cũng ở `/creators` — `CreatorRow` trong
+`app/(app)/creators/team-accordion.tsx` (danh sách nhân sự mỗi team) và bảng "Kênh phụ trách" trong
+`app/(app)/creators/[id]/creator-channels-table.tsx`. Cả 3 nơi đều nhận `index` từ `.map((x, i) => …)`
+của chính nó — palette không share state giữa các danh sách khác nhau, mỗi bảng tự đếm lại từ 0.
+**Vẫn không áp dụng cho avatar đơn lẻ** (header trang chi tiết 1 kênh `channels/[id]/page.tsx`, header
+trang chi tiết 1 Creator `creators/[id]/page.tsx`) — avatar 1-mục không cần phân biệt màu theo index
+như trong danh sách nhiều mục.
 
 ### Heatmap giờ × ngày (thêm ở M4, không có trong mockup gốc)
 

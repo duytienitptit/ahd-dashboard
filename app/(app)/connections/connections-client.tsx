@@ -177,7 +177,7 @@ export function ConnectionsClient({
       <div className="mb-5 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Kết nối Display API</h1>
-          <p className="mt-1.5 text-[13px] text-ink-3">Đồng bộ tự động 03:00 mỗi ngày (giờ VN)</p>
+          <p className="mt-1.5 text-[13px] text-ink-3">Đồng bộ tự động 23:30 mỗi ngày (giờ VN)</p>
         </div>
         {isManager ? (
           // Đồng bộ toàn bộ kênh active cùng lúc (POST /api/sync/display-api yêu cầu Manager) — ẩn

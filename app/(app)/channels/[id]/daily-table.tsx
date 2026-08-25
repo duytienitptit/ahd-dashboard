@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { DailyRow } from "@/lib/dashboard";
 import { formatCompact, formatFullDate, formatSignedNumber } from "@/lib/format";
+import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
 import { ExportCsvButton } from "../../export-csv-button";
 import { SourcePriorityInfo } from "../../source-priority-info";
@@ -97,10 +98,10 @@ export function DailyTable({
                 style={{ gridTemplateColumns: DAILY_COLUMNS }}
               >
                 <div>Ngày</div>
-                <div className="text-right">Follower</div>
+                <div className={`text-right ${METRIC_TEXT_CLASS[METRIC_TONE.followers]}`}>Follower</div>
                 <div className="text-right">Thay đổi</div>
-                <div className="text-right">Lượt xem</div>
-                <div className="text-right">Video</div>
+                <div className={`text-right ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>Lượt xem</div>
+                <div className={`text-right ${METRIC_TEXT_CLASS[METRIC_TONE.videos]}`}>Video</div>
                 <div>Nguồn dữ liệu</div>
               </div>
 
@@ -113,7 +114,7 @@ export function DailyTable({
                     style={{ gridTemplateColumns: DAILY_COLUMNS }}
                   >
                     <div className="text-[13px] font-semibold">{formatFullDate(row.date)}</div>
-                    <div className="text-right text-[13px] font-semibold">
+                    <div className={`text-right text-[13px] font-semibold ${METRIC_TEXT_CLASS[METRIC_TONE.followers]}`}>
                       {row.followers !== null ? formatCompact(row.followers) : "—"}
                     </div>
                     <div
@@ -127,10 +128,10 @@ export function DailyTable({
                     >
                       {row.followersChange !== null ? formatSignedNumber(row.followersChange) : "—"}
                     </div>
-                    <div className="text-right text-[13px] font-semibold">
+                    <div className={`text-right text-[13px] font-semibold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
                       {row.videoViews !== null ? formatCompact(row.videoViews) : "—"}
                     </div>
-                    <div className="text-right text-[13px] text-ink-2">{row.videoCount ?? "—"}</div>
+                    <div className={`text-right text-[13px] ${METRIC_TEXT_CLASS[METRIC_TONE.videos]}`}>{row.videoCount ?? "—"}</div>
                     <div>
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[11.5px] font-semibold ${source.bg} ${source.fg}`}

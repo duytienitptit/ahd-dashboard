@@ -24,7 +24,7 @@ import { formatCompact, formatFullDate, initialsFromStart } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { addDaysToDateString, resolvePeriodParamsAllTime } from "@/lib/time";
 
-import { StatTile } from "../../dashboard-widgets";
+import { EyeIcon, HeartIcon, StatTile, UsersIcon, VideoIcon } from "../../dashboard-widgets";
 import { DateRangePicker } from "../../date-range-picker";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../../filter-transition";
 import { TrendChart } from "../../trend-chart";
@@ -110,9 +110,6 @@ export default async function ChannelDetailPage({
                     <span>Chưa gán Creator</span>
                   </>
                 )}
-                {!channel.isActive ? (
-                  <span className="rounded-pill bg-line-soft px-2 py-[2px] font-semibold text-ink-2">Ngừng hoạt động</span>
-                ) : null}
               </div>
             </div>
           </div>
@@ -124,14 +121,18 @@ export default async function ChannelDetailPage({
             <StatTile
               label="Follower"
               value={stat?.followersNow !== null && stat?.followersNow !== undefined ? formatCompact(stat.followersNow) : "—"}
+              icon={<UsersIcon />}
+              tone="purple"
             />
             <StatTile
               label="Lượt xem"
               value={stat?.views !== null && stat?.views !== undefined ? formatCompact(stat.views) : "—"}
               unit="view"
+              icon={<EyeIcon />}
+              tone="blue"
             />
-            <StatTile label="Video đã đăng" value={stat ? String(stat.videos) : "—"} unit="video" />
-            <StatTile label="Tổng số like" value={formatCompact(stat?.totalLikes ?? 0)} unit="like" />
+            <StatTile label="Video đã đăng" value={stat ? String(stat.videos) : "—"} unit="video" icon={<VideoIcon />} tone="orange" />
+            <StatTile label="Tổng số like" value={formatCompact(stat?.totalLikes ?? 0)} unit="like" icon={<HeartIcon />} tone="crimson" />
           </div>
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">

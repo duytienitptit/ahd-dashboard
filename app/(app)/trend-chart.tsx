@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { TrendPoint } from "@/lib/dashboard";
 import { formatCompact } from "@/lib/format";
+import { METRIC_BG_CSS_VAR, METRIC_CSS_VAR, METRIC_TEXT_CLASS, METRIC_TONE, type MetricTone } from "@/lib/metric-tone";
 
 // Formatters are resolved by key, not passed as function props — a Server Component (the page) can't
 // hand a function to a Client Component like this one.
@@ -13,7 +14,9 @@ const FORMATTERS = {
 } as const;
 
 type Tab = {
-  key: string;
+  /** Must match a key in `METRIC_TONE` (lib/metric-tone.ts) — the tab button and chart line are
+   *  tinted by it, so a caller can't add a metric tab without also deciding its colour. */
+  key: keyof typeof METRIC_TONE;
   label: string;
   /** Both granularities precomputed server-side (lib/dashboard.ts's `getDashboard`/channel-detail
    *  page) — the tuần/tháng toggle below just picks one, no refetch, same as switching metric tabs. */
@@ -51,6 +54,7 @@ export function TrendChart({ title, subtitlePrefix, tabs }: { title: string; sub
   const [granularity, setGranularity] = useState<Granularity>("week");
   const tab = tabs[active];
   const points = tab?.points[granularity] ?? [];
+  const tone: MetricTone | undefined = tab ? METRIC_TONE[tab.key] : undefined;
   const subtitle = [subtitlePrefix, `${points.length} ${GRANULARITY_LABEL[granularity]} gần nhất`]
     .filter(Boolean)
     .join(" · ");
@@ -84,7 +88,7 @@ export function TrendChart({ title, subtitlePrefix, tabs }: { title: string; sub
                 type="button"
                 onClick={() => setActive(i)}
                 className={`rounded-[4px] px-3.5 py-1.5 text-[12.5px] ${
-                  i === active ? "bg-bg font-bold text-ink" : "font-medium text-ink-2"
+                  i === active ? `bg-bg font-bold ${METRIC_TEXT_CLASS[METRIC_TONE[t.key]]}` : "font-medium text-ink-2"
                 }`}
               >
                 {t.label}
@@ -99,13 +103,23 @@ export function TrendChart({ title, subtitlePrefix, tabs }: { title: string; sub
           Chưa có dữ liệu trong khoảng thời gian này.
         </div>
       ) : (
-        <ChartSvg points={points} formatValue={FORMATTERS[tab.format]} />
+        <ChartSvg points={points} formatValue={FORMATTERS[tab.format]} tone={tone ?? "blue"} />
       )}
     </div>
   );
 }
 
-function ChartSvg({ points, formatValue }: { points: TrendPoint[]; formatValue: (n: number) => string }) {
+function ChartSvg({
+  points,
+  formatValue,
+  tone,
+}: {
+  points: TrendPoint[];
+  formatValue: (n: number) => string;
+  tone: MetricTone;
+}) {
+  const lineColor = METRIC_CSS_VAR[tone];
+  const fillColor = METRIC_BG_CSS_VAR[tone];
   const known = points.map((p) => p.value).filter((v): v is number => v !== null);
   // Every point is a gap (e.g. a brand-new channel before its first sync resolves) — nothing to
   // scale the y-axis against. Labels below still render.
@@ -151,7 +165,7 @@ function ChartSvg({ points, formatValue }: { points: TrendPoint[]; formatValue: 
         <path
           key={i}
           d={`M${seg.map((p) => `${p.x},${p.y}`).join(" L")} L${seg[seg.length - 1].x},${TOP + PLOT} L${seg[0].x},${TOP + PLOT} Z`}
-          fill="var(--color-cyan-bg)"
+          fill={fillColor}
         />
       ))}
       {segments.map((seg, i) => (
@@ -159,7 +173,7 @@ function ChartSvg({ points, formatValue }: { points: TrendPoint[]; formatValue: 
           key={i}
           points={seg.map((p) => `${p.x},${p.y}`).join(" ")}
           fill="none"
-          stroke="var(--color-cyan)"
+          stroke={lineColor}
           strokeWidth={2.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -168,7 +182,7 @@ function ChartSvg({ points, formatValue }: { points: TrendPoint[]; formatValue: 
       {plotted.map((p) => (
         <g key={`${p.x}-${p.label}`}>
           {p.y !== null ? (
-            <circle cx={p.x} cy={p.y} r={p.isLast ? 5 : 3.5} fill="var(--color-bg)" stroke="var(--color-cyan)" strokeWidth={2.5} />
+            <circle cx={p.x} cy={p.y} r={p.isLast ? 5 : 3.5} fill="var(--color-bg)" stroke={lineColor} strokeWidth={2.5} />
           ) : null}
           <text
             x={p.x}

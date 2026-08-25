@@ -23,9 +23,9 @@ import {
 import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromEnd } from "@/lib/format";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
-import { addDaysToDateString, resolvePeriodParamsAllTime } from "@/lib/time";
+import { addDaysToDateString, resolvePeriodParams } from "@/lib/time";
 
-import { StatTile } from "../../dashboard-widgets";
+import { EyeIcon, HeartIcon, StatTile, UsersIcon, VideoIcon } from "../../dashboard-widgets";
 import { DateRangePicker } from "../../date-range-picker";
 import { DailyTable } from "../../channels/[id]/daily-table";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../../filter-transition";
@@ -51,7 +51,10 @@ export default async function CreatorDetailPage({
 
   const { id } = await params;
   const search = await searchParams;
-  const { from, to } = resolvePeriodParamsAllTime(search);
+  // "7 ngày qua" (so với tuần trước), không phải "Toàn bộ thời gian" — mặc định khác các trang còn
+  // lại (24/08/2026, theo yêu cầu riêng cho trang này): "Toàn bộ thời gian" không có kỳ trước để so,
+  // nên mọi badge %thay đổi ở đây luôn hiện "—"/"0" ngay khi vào trang.
+  const { from, to } = resolvePeriodParams(search, 7);
 
   const supabase = await createSupabaseServerClient();
   const [creators, teams] = await Promise.all([listCreators(supabase), listTeams(supabase)]);
@@ -137,7 +140,9 @@ export default async function CreatorDetailPage({
               unit="view"
               deltaText={formatDeltaPct(rollup.viewsDeltaPct)}
               deltaGood={rollup.viewsDeltaPct === null ? null : rollup.viewsDeltaPct >= 0}
-              note="so với kỳ trước"
+              note="so với tuần trước"
+              icon={<EyeIcon />}
+              tone="blue"
             />
             <StatTile
               label="Follower"
@@ -145,7 +150,9 @@ export default async function CreatorDetailPage({
               unit="follower"
               deltaText={formatSignedNumber(rollup.followerGain)}
               deltaGood={rollup.followerGain >= 0}
-              note="tăng trong kỳ"
+              note="tăng trong tuần"
+              icon={<UsersIcon />}
+              tone="purple"
             />
             <StatTile
               label="Video đã đăng"
@@ -153,9 +160,11 @@ export default async function CreatorDetailPage({
               unit="video"
               deltaText={formatDeltaPct(pctChange(rollup.videos, rollup.previousVideos))}
               deltaGood={rollup.videos >= rollup.previousVideos}
-              note="so với kỳ trước"
+              note="so với tuần trước"
+              icon={<VideoIcon />}
+              tone="orange"
             />
-            <StatTile label="Tổng số like" value={formatCompact(rollup.totalLikes)} unit="like" />
+            <StatTile label="Tổng số like" value={formatCompact(rollup.totalLikes)} unit="like" icon={<HeartIcon />} tone="crimson" />
           </div>
 
           <div className="mb-3.5">

@@ -108,11 +108,7 @@ Biến môi trường: `.env.example`.
   (video bị xoá làm hiệu sai).
 - Tiền/số liệu lớn dùng `bigint`. Không dùng float cho views/followers.
 - UI tiếng Việt. Code, tên biến, comment: tiếng Anh.
-- **Mọi link nội bộ mở tab mới** (24/08/2026, theo yêu cầu, áp dụng toàn app kể cả menu điều hướng
-  trên cùng và breadcrumb) — import `Link` từ `app/(app)/app-link.tsx` (wrapper `next/link`, tự thêm
-  `target="_blank" rel="noopener noreferrer"`), **không** import thẳng từ `"next/link"` trong bất kỳ
-  file nào dưới `app/(app)/`. Link mới thêm mà quên đổi import thì lặng lẽ rơi về hành vi cũ (thay
-  trang hiện tại) — không có lint rule chặn, tự nhớ khi thêm `<Link>` mới.
+- **Chỉ link trỏ RA NGOÀI hệ thống** (ra tiktok.com, không phải link nội bộ) mới mở tab mới — `target="_blank" rel="noopener noreferrer"` trên thẻ `<a>` thường, không dùng `next/link`'s `Link` cho link ngoài. Link nội bộ (`<Link>` từ `next/link`) vẫn điều hướng bình thường trong cùng tab, không tự đổi (24/08/2026: có thử áp `target="_blank"` cho toàn bộ link nội bộ theo yêu cầu, sau đó yêu cầu rút lại — chỉ giữ cho link ngoài).
 
 ## Cách làm việc với dự án này
 
@@ -212,12 +208,15 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
 
-🎨 **Icon-box màu + số liệu tô màu theo tone + avatar 5 màu** (24/08/2026, theo yêu cầu, xem
-[DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Icon-box màu"/"Avatar kênh nhiều màu") — gồm 3 token
-màu MỚI `blue`/`purple`/`orange` (`app/globals.css`), lệch quy tắc gốc "không tự đặt màu mới".
-**Người dùng đã xác nhận rõ ràng cho phép đổi màu** — không cần hỏi lại việc đổi màu icon-box/số liệu
-trong phạm vi `StatTile`. Style đã phủ **toàn bộ 4 màn** có `StatTile`/avatar-theo-index: Tổng quan,
-`/channels`, `channels/[id]`, `/creators` (kể cả `creators/[id]` và khối quản lý Team trong
-`creator-form.tsx`/`team-accordion.tsx`). Mapping tone cố định theo Ý NGHĨA chỉ số (không theo vị trí
-cột — thứ tự cột khác nhau giữa các trang): Lượt xem `blue`, Follower `purple`, Video `orange`,
-Like `red`. Avatar đơn lẻ (header 1-kênh/1-Creator) vẫn cố tình để trung tính, không đổi.
+🎨 **Màu theo chỉ số áp TOÀN APP + avatar 5 màu** (24/08/2026, theo yêu cầu, xem
+[DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Màu theo chỉ số"/"Avatar kênh nhiều màu") — 4 token
+màu MỚI `blue`/`purple`/`orange`/`crimson` (`app/globals.css`, nguồn sự thật code:
+[lib/metric-tone.ts](lib/metric-tone.ts)), lệch quy tắc gốc "không tự đặt màu mới". **Người dùng đã
+xác nhận rõ ràng cho phép đổi màu** — không cần hỏi lại việc đổi màu chỉ số. Mapping cố định theo Ý
+NGHĨA chỉ số (không theo vị trí cột): Lượt xem `blue`, Follower `purple` (thật ra là hồng magenta,
+tên biến giữ nguyên), Video `orange`, Like `crimson` (KHÔNG phải `red` — `red` là màu brand/nút/link
+dùng khắp app, tách riêng để không lẫn nghĩa). Áp cho tiêu đề cột + số liệu chính + tab/đường
+`TrendChart` ở **mọi trang có 4 chỉ số này**: Tổng quan, `/channels`, `channels/[id]`, `/creators`,
+`creators/[id]`. **Không** áp cho badge %thay đổi (vẫn xanh lá=tăng/đỏ=giảm như cũ) hay badge trạng
+thái — 2 hệ màu tách biệt có chủ đích. Avatar đơn lẻ (header 1-kênh/1-Creator) vẫn cố tình trung
+tính, không đổi.

@@ -1,5 +1,6 @@
 import type { ActivityHeatmap, ChannelVideo, HashtagStat, ViewerRatio } from "@/lib/dashboard";
 import { formatCompact, formatFullDate, formatRatePct, formatShortDate } from "@/lib/format";
+import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -130,7 +131,8 @@ export function HashtagTable({ stats }: { stats: HashtagStat[] }) {
               <div className="mb-[5px] flex items-baseline justify-between">
                 <span className="text-[12.5px] font-semibold">#{s.hashtag}</span>
                 <span className="text-[12px] text-ink-3">
-                  <span className="font-bold text-ink">{formatCompact(s.avgViews)}</span> view/video · {s.videos} video
+                  <span className={`font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>{formatCompact(s.avgViews)}</span> view/video ·{" "}
+                  {s.videos} video
                 </span>
               </div>
               <div className="h-[5px] overflow-hidden rounded-pill bg-line-soft">
@@ -174,7 +176,7 @@ export function VideoList({ videos, totalVideoCount }: { videos: ChannelVideo[];
                   {v.postedAt ? formatFullDate(v.postedAt.slice(0, 10)) : "Không rõ ngày đăng"}
                 </div>
               </div>
-              <div className="shrink-0 text-right text-[13px] font-bold">
+              <div className={`shrink-0 text-right text-[13px] font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
                 {v.latestViews !== null ? formatCompact(v.latestViews) : "—"}
               </div>
             </a>

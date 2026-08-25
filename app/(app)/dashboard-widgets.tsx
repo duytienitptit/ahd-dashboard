@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { DashboardResponse } from "@/lib/dashboard";
 import { avatarPalette, formatCompact, formatFullDate, formatSignedNumber, initialsFromStart } from "@/lib/format";
+import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
 import { SourcePriorityInfo } from "./source-priority-info";
 
@@ -41,6 +42,81 @@ function DeltaPill({ text, good }: { text: string; good: boolean | null }) {
   );
 }
 
+type StatTone = "cyan" | "red" | "green" | "amber" | "blue" | "purple" | "orange" | "crimson";
+
+// blue/purple/orange/crimson = the 4-metric palette (view/follower/video/like), kept in sync with
+// lib/metric-tone.ts — StatTile needs its own map too because it also renders the icon-box BG, which
+// that shared module doesn't carry. `crimson` (not `red`) for Like — `red` is the brand/button/link
+// colour used everywhere else, kept separate so Like's tint doesn't borrow that meaning.
+const STAT_TONE_TEXT: Record<StatTone, string> = {
+  cyan: "text-cyan-ink",
+  red: "text-red",
+  green: "text-green-dark",
+  amber: "text-amber-dark",
+  blue: "text-blue",
+  purple: "text-purple",
+  orange: "text-orange",
+  crimson: "text-crimson",
+};
+
+const STAT_TONE_BG: Record<StatTone, string> = {
+  cyan: "bg-cyan-bg",
+  red: "bg-red-bg",
+  green: "bg-green-bg",
+  amber: "bg-amber-bg",
+  blue: "bg-blue-bg",
+  purple: "bg-purple-bg",
+  orange: "bg-orange-bg",
+  crimson: "bg-crimson-bg",
+};
+
+function StatIcon({ tone, children }: { tone: StatTone; children: React.ReactNode }) {
+  return (
+    <div
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-card ${STAT_TONE_BG[tone]} ${STAT_TONE_TEXT[tone]}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function EyeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function UsersIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+export function VideoIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="15" height="14" rx="2" />
+      <path d="m17 10 5-3v10l-5-3" />
+    </svg>
+  );
+}
+
+export function HeartIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8Z" />
+    </svg>
+  );
+}
+
 export function StatTile({
   label,
   value,
@@ -48,6 +124,8 @@ export function StatTile({
   deltaText,
   deltaGood,
   note,
+  icon,
+  tone,
 }: {
   label: string;
   value: string;
@@ -58,12 +136,23 @@ export function StatTile({
   deltaText?: string;
   deltaGood?: boolean | null;
   note?: string;
+  /** Colored icon badge top-right of the label, and the value text tinted to match — Tổng quan's
+   *  4 headline tiles only (24/08/2026, theo yêu cầu, kể cả 2 tone mới `blue`/`purple` — xem
+   *  docs/DESIGN_SYSTEM.md mục "Icon-box màu"). Omit on every other StatTile caller (Kênh/Creator
+   *  chi tiết) — layout/màu chữ giữ nguyên `ink` mặc định khi absent. */
+  icon?: React.ReactNode;
+  tone?: StatTone;
 }) {
   return (
     <div className="rounded-card border border-line px-[18px] py-4">
-      <div className="mb-[11px] text-[12.5px] font-semibold text-ink-3">{label}</div>
+      <div className="mb-[11px] flex items-start justify-between gap-2">
+        <div className="text-[12.5px] font-semibold text-ink-3">{label}</div>
+        {icon ? <StatIcon tone={tone ?? "cyan"}>{icon}</StatIcon> : null}
+      </div>
       <div className={deltaText ? "mb-[9px] flex items-baseline gap-2" : "flex items-baseline gap-2"}>
-        <div className="text-[30px] font-extrabold leading-none tracking-[-1.1px]">{value}</div>
+        <div className={`text-[30px] font-extrabold leading-none tracking-[-1.1px] ${tone ? STAT_TONE_TEXT[tone] : ""}`}>
+          {value}
+        </div>
         {unit ? <div className="text-xs font-medium text-ink-3">{unit}</div> : null}
       </div>
       {deltaText ? (
@@ -82,10 +171,16 @@ export function StatTile({
 export function TeamStatsRow({ teamStats }: { teamStats: DashboardResponse["teamStats"] }) {
   return (
     <div className="mb-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <StatTile label="Lượt xem" value={formatCompact(teamStats.views.value)} unit="view" />
-      <StatTile label="Follower toàn team" value={formatCompact(teamStats.followers.value)} unit="follower" />
-      <StatTile label="Video đã đăng" value={String(teamStats.videos.value)} unit="video" />
-      <StatTile label="Tổng số like" value={formatCompact(teamStats.totalLikes.value)} unit="like" />
+      <StatTile label="Lượt xem" value={formatCompact(teamStats.views.value)} unit="view" icon={<EyeIcon />} tone="blue" />
+      <StatTile
+        label="Follower toàn team"
+        value={formatCompact(teamStats.followers.value)}
+        unit="follower"
+        icon={<UsersIcon />}
+        tone="purple"
+      />
+      <StatTile label="Video đã đăng" value={String(teamStats.videos.value)} unit="video" icon={<VideoIcon />} tone="orange" />
+      <StatTile label="Tổng số like" value={formatCompact(teamStats.totalLikes.value)} unit="like" icon={<HeartIcon />} tone="crimson" />
     </div>
   );
 }
@@ -163,7 +258,7 @@ export function GrowthCard({ growth }: { growth: DashboardResponse["growth"] }) 
         <ChannelRow key={g.channelId} channel={g} index={i}>
           <div className="text-right">
             <div className="text-[13.5px] font-bold text-green-dark">{formatSignedNumber(g.gain)}</div>
-            <div className="text-[11px] text-ink-3">{formatCompact(g.followers)} follower</div>
+            <div className={`text-[11px] ${METRIC_TEXT_CLASS[METRIC_TONE.followers]}`}>{formatCompact(g.followers)} follower</div>
           </div>
         </ChannelRow>
       ))}
@@ -182,13 +277,13 @@ export function ViewShareCard({ viewShare }: { viewShare: DashboardResponse["vie
             <Link href={`/channels/${s.channelId}`} className="text-[12.5px] font-semibold text-ink hover:underline">
               {s.channelName}
             </Link>
-            <span className={`text-[12.5px] font-bold ${i === 0 ? "text-cyan-ink" : "text-ink-2"}`}>
+            <span className={`text-[12.5px] font-bold ${i === 0 ? METRIC_TEXT_CLASS[METRIC_TONE.views] : "text-ink-2"}`}>
               {s.sharePct.toLocaleString("vi-VN")}%
             </span>
           </div>
           <div className="h-[5px] overflow-hidden rounded-pill bg-line-soft">
             <div
-              className={`h-[5px] rounded-pill ${i === 0 ? "bg-cyan" : "bg-cyan/40"}`}
+              className={`h-[5px] rounded-pill ${i === 0 ? "bg-blue" : "bg-blue/40"}`}
               style={{ width: `${(s.sharePct / maxShare) * 100}%` }}
             />
           </div>
@@ -204,7 +299,7 @@ export function EfficiencyCard({ efficiency }: { efficiency: DashboardResponse["
     <ListCard title="Hiệu quả nội dung" subtitle="View trung bình mỗi video đăng lên" empty={efficiency.length === 0}>
       {efficiency.map((e, i) => (
         <ChannelRow key={e.channelId} channel={e} index={i}>
-          <div className="text-right text-[13.5px] font-bold">{formatCompact(e.viewsPerVideo)}</div>
+          <div className={`text-right text-[13.5px] font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>{formatCompact(e.viewsPerVideo)}</div>
         </ChannelRow>
       ))}
     </ListCard>
@@ -229,7 +324,10 @@ function ListCard({
       {empty ? (
         <p className="text-[12.5px] text-ink-3">Chưa có dữ liệu.</p>
       ) : (
-        <div className="flex flex-col gap-3">{children}</div>
+        // max-h + overflow-y-auto — hiện toàn bộ kênh (không cắt top-N nữa), nhưng thẻ không phình
+        // vô hạn khi hệ thống có nhiều kênh (24/08/2026, theo yêu cầu). ~5-6 dòng vừa khung trước khi
+        // cuộn, giữ chiều cao thẻ gần như cũ lúc còn ít kênh.
+        <div className="scroll-thin flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-1">{children}</div>
       )}
     </div>
   );
@@ -249,11 +347,16 @@ export function MyChannelsBlock({ myChannels }: { myChannels: NonNullable<Dashbo
         <p className="text-[13px] text-ink-3">Bạn chưa được gán phụ trách kênh nào.</p>
       ) : (
         <div className="grid gap-3.5 sm:grid-cols-2">
-          {myChannels.map((channel) => (
+          {myChannels.map((channel, i) => {
+            const palette = avatarPalette(i);
+            return (
             <div key={channel.channelId} className="overflow-hidden rounded-card border border-line">
               <div className="flex items-center justify-between gap-3 border-b border-line-soft px-[18px] py-3.5">
                 <div className="flex items-center gap-[11px]">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-cyan-bg text-xs font-extrabold text-cyan-ink-2">
+                  <div
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-xs font-extrabold"
+                    style={{ background: palette.bg, color: palette.fg }}
+                  >
                     {initialsFromStart(channel.channelName)}
                   </div>
                   <div>
@@ -276,7 +379,8 @@ export function MyChannelsBlock({ myChannels }: { myChannels: NonNullable<Dashbo
                 Chưa có KPI cho kênh này — tính năng đặt KPI sẽ có ở bản sau.
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

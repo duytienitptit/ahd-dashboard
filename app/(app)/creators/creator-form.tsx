@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import type { CreatorSummary } from "@/lib/creators";
+import { avatarPalette } from "@/lib/format";
 import type { TeamSummary } from "@/lib/teams";
 
 import { ConfirmDeleteForm } from "../confirm-delete-form";
@@ -40,13 +41,33 @@ function TeamSelect({ teams, defaultValue }: { teams: { id: string; name: string
   );
 }
 
-function TeamGlyph() {
+export function TeamGlyph() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
       <circle cx="9" cy="7" r="4" />
       <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function EyeGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-6.4 0-10-7-10-7a18.45 18.45 0 0 1 4.22-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <path d="M2 2l20 20" />
     </svg>
   );
 }
@@ -131,14 +152,15 @@ export function TeamManager({ teams }: { teams: TeamSummary[] }) {
           Chưa có team nào — Creator sẽ hiện ở “Chưa gán team”.
         </p>
       ) : (
-        teams.map((team) => <TeamRow key={team.id} team={team} />)
+        teams.map((team, i) => <TeamRow key={team.id} team={team} index={i} />)
       )}
     </div>
   );
 }
 
-function TeamRow({ team }: { team: TeamSummary }) {
+function TeamRow({ team, index }: { team: TeamSummary; index: number }) {
   const [editing, setEditing] = useState(false);
+  const avatar = avatarPalette(index);
   const boundAction = renameTeamAction.bind(null, team.id);
   const [state, formAction, pending] = useActionState(boundAction, teamInitialState);
   const wasPending = useRef(false);
@@ -184,7 +206,10 @@ function TeamRow({ team }: { team: TeamSummary }) {
   return (
     <div className="flex items-center justify-between gap-3 border-t border-line-soft px-5 py-3.5">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-cyan-bg text-cyan-ink-2">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill"
+          style={{ background: avatar.bg, color: avatar.fg }}
+        >
           <TeamGlyph />
         </div>
         <div className="flex items-center gap-2">
@@ -369,6 +394,7 @@ export function CreateCreatorForm({ teams }: { teams: { id: string; name: string
 function ResetPasswordForm({ creatorId, onDone }: { creatorId: string; onDone: () => void }) {
   const boundAction = resetCreatorPasswordAction.bind(null, creatorId);
   const [state, formAction, pending] = useActionState(boundAction, passwordInitialState);
+  const [showPassword, setShowPassword] = useState(false);
 
   if (state.newPassword) {
     return (
@@ -396,15 +422,25 @@ function ResetPasswordForm({ creatorId, onDone }: { creatorId: string; onDone: (
     <form action={formAction} className="rounded-card border border-line p-4">
       <label className="block">
         <span className="mb-1.5 block text-[12.5px] font-bold">Mật khẩu mới</span>
-        <input
-          name="password"
-          type="text"
-          required
-          minLength={8}
-          placeholder="≥ 8 ký tự"
-          autoComplete="off"
-          className="h-[38px] w-full rounded-input border border-line px-3 text-sm outline-none focus:border-ink"
-        />
+        <div className="relative">
+          <input
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={8}
+            placeholder="≥ 8 ký tự"
+            autoComplete="off"
+            className="h-[38px] w-full rounded-input border border-line px-3 pr-9 text-sm outline-none focus:border-ink"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+            className="absolute right-0 top-0 flex h-[38px] w-9 items-center justify-center text-ink-3 hover:text-ink"
+          >
+            {showPassword ? <EyeOffGlyph /> : <EyeGlyph />}
+          </button>
+        </div>
       </label>
 
       <div className="mt-2">

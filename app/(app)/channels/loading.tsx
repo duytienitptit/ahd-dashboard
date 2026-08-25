@@ -7,11 +7,11 @@ export default function ChannelsLoading() {
   return (
     <div className="px-8 py-10">
       <PageHeaderSkeleton />
-      <Skeleton className="mb-3.5 h-[92px] w-full" />
+      <Skeleton className="mb-3.5 h-[68px] w-full" />
       <TableSkeleton
         columns={CHANNEL_TABLE_COLUMNS}
         minWidth="900px"
-        headers={["Kênh", "Follower", "Lượt xem", "Video", "View / video", "7 ngày", "Tiến độ KPI", ""]}
+        headers={["Kênh", "Follower", "Lượt xem", "Video", "ViewTB/video", "7 ngày", "Tiến độ KPI", ""]}
       />
     </div>
   );

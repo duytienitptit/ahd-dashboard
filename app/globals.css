@@ -32,6 +32,27 @@
   --color-amber-dark: #8a5a06;
   --color-amber-bg: #fff6e5;
 
+  /* 4 tone chỉ số (24/08/2026, theo yêu cầu — xem DESIGN_SYSTEM.md "Icon-box màu" và "Màu theo chỉ
+     số, áp toàn app"): Lượt xem/Follower/Video/Like, dùng cho icon-box, tiêu đề cột, số liệu chính,
+     tab/đường biểu đồ — KHÔNG dùng cho badge trạng thái/%thay đổi, những chỗ đó vẫn chỉ dùng 5 màu
+     ngữ nghĩa ở trên (xanh lá=tăng, đỏ=giảm/cảnh báo). Đã qua 3 vòng chỉnh (đợt 1 nhạt quá → đợt 2
+     sáng hơn → đợt 3 đổi hẳn bộ màu vì "tím" và "xanh dương" khó phân biệt) — bản hiện tại:
+     - `blue` (Lượt xem): #2563EB
+     - `purple` (Follower): #DB2777 — LƯU Ý: tên biến vẫn là "purple" (giữ nguyên để đỡ phải đổi tên
+       class ở hàng chục chỗ đang dùng `text-purple`/`bg-purple-bg`/`tone="purple"`) nhưng giá trị
+       thật là hồng magenta, không còn tím — đọc theo giá trị hex, đừng theo tên biến.
+     - `orange` (Video): #F97316 — giữ nguyên từ đợt 2, không đổi.
+     - `crimson` (Like): #DC2626 — token MỚI, tách riêng khỏi `red` (brand red #FE2C55 dùng cho nút
+       primary/link/badge cảnh báo khắp app) để tô màu số liệu Like không lẫn với các chỗ đó. */
+  --color-blue: #2563eb;
+  --color-blue-bg: #eff6ff;
+  --color-purple: #db2777;
+  --color-purple-bg: #fdf2f8;
+  --color-orange: #f97316;
+  --color-orange-bg: #fff2e8;
+  --color-crimson: #dc2626;
+  --color-crimson-bg: #fef2f2;
+
   --radius-btn: 4px;
   --radius-card: 8px;
   --radius-input: 6px;
@@ -54,4 +75,31 @@ a {
 
 a:hover {
   color: #d4213d;
+}
+
+/* Thanh cuộn mảnh, ẩn khi không tương tác — dùng cho khối cuộn nội bộ trong thẻ (ListCard's "Tăng
+   trưởng follower"/"Đóng góp lượt xem"/"Hiệu quả nội dung", 24/08/2026, theo yêu cầu) thay vì thanh
+   cuộn mặc định của trình duyệt chiếm chỗ, luôn hiện. Track luôn trong suốt; thumb chỉ hiện khi
+   hover/focus vào khối, và mảnh hơn hẳn mặc định. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scroll-thin:hover,
+.scroll-thin:focus-within {
+  scrollbar-color: var(--color-line) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+.scroll-thin:hover::-webkit-scrollbar-thumb,
+.scroll-thin:focus-within::-webkit-scrollbar-thumb {
+  background: var(--color-line);
 }

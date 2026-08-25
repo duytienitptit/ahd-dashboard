@@ -66,6 +66,8 @@ export function initialsFromEnd(name: string): string {
 const AVATAR_PALETTE = [
   { bg: "var(--color-cyan-bg)", fg: "var(--color-cyan-ink-2)" },
   { bg: "var(--color-red-bg)", fg: "var(--color-red-dark)" },
+  { bg: "var(--color-green-bg)", fg: "var(--color-green-dark)" },
+  { bg: "var(--color-amber-bg)", fg: "var(--color-amber-dark)" },
   { bg: "var(--color-line-soft)", fg: "var(--color-ink-2)" },
 ] as const;
 

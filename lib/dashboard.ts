@@ -685,6 +685,67 @@ export async function fetchLatestVideoMetricsByChannel(
   return totals;
 }
 
+export type RecentVideoView = { postedAt: string | null; views: number };
+
+/** Each channel's `limit` most-recently-posted videos, oldest→newest, paired with that video's
+ *  latest known cumulative `view_count` — feeds the "Xu hướng" sparkline on `/channels` (24/08/2026,
+ *  theo yêu cầu: đổi từ "view theo ngày trong kỳ" — vốn phẳng lì khi kỳ đang chọn ít/không có ngày
+ *  đăng video mới — sang view-của-từng-video, luôn có tín hiệu miễn kênh có video). Same
+ *  latest-per-video dedup as `fetchLatestVideoMetricsByChannel`. A channel with fewer than `limit`
+ *  known videos just gets fewer points; `Sparkline` already renders "—" under 2. */
+export async function fetchRecentVideoViewsByChannel(
+  supabase: SupabaseServerClient,
+  channelIds: string[],
+  limit = 5,
+): Promise<Map<string, RecentVideoView[]>> {
+  const result = new Map<string, RecentVideoView[]>(channelIds.map((id) => [id, []]));
+  if (channelIds.length === 0) return result;
+
+  const { data: videos, error: videosError } = await supabase
+    .from("content_video")
+    .select("id, channel_id, posted_at")
+    .in("channel_id", channelIds)
+    .order("posted_at", { ascending: false, nullsFirst: false });
+  if (videosError) throw videosError;
+  if (!videos || videos.length === 0) return result;
+
+  // Query is newest→oldest per channel already — cap each channel's list at `limit` as we walk it.
+  const recentByChannel = new Map<string, { id: string; postedAt: string | null }[]>();
+  for (const v of videos) {
+    const channelId = v.channel_id as string;
+    const list = recentByChannel.get(channelId) ?? [];
+    if (list.length < limit) list.push({ id: v.id as string, postedAt: v.posted_at as string | null });
+    recentByChannel.set(channelId, list);
+  }
+
+  const videoIds = [...recentByChannel.values()].flat().map((v) => v.id);
+  if (videoIds.length === 0) return result;
+
+  const { data: snapshots, error: snapshotError } = await supabase
+    .from("video_snapshot")
+    .select("content_video_id, date, view_count")
+    .in("content_video_id", videoIds)
+    .order("date", { ascending: false });
+  if (snapshotError) throw snapshotError;
+
+  const latestViewByVideo = new Map<string, number>();
+  for (const row of snapshots ?? []) {
+    const videoId = row.content_video_id as string;
+    if (latestViewByVideo.has(videoId)) continue; // sorted desc — first hit per video is the latest
+    latestViewByVideo.set(videoId, row.view_count !== null ? Number(row.view_count) : 0);
+  }
+
+  for (const [channelId, recent] of recentByChannel) {
+    // Reverse to oldest→newest — the sparkline reads left-to-right as "older video" → "newer video".
+    const points = [...recent].reverse().map((v) => ({
+      postedAt: v.postedAt,
+      views: latestViewByVideo.get(v.id) ?? 0,
+    }));
+    result.set(channelId, points);
+  }
+  return result;
+}
+
 /** Sum of `fetchLatestVideoMetricsByChannel`'s `likes` across a set of channels — the team-wide
  *  "Tổng số like" tile on Tổng quan doesn't need the per-channel breakdown, just the total. */
 export async function sumLatestVideoLikes(supabase: SupabaseServerClient, channelIds: string[]): Promise<number> {
@@ -735,8 +796,10 @@ export type ChannelPeriodStat = {
   followersBefore: number | null;
   followersGain: number | null;
   followersRatePct: number | null;
-  /** Daily views within the current period, ascending — sparkline / per-channel trend input. */
-  spark: { date: string; views: number }[];
+  /** This channel's 5 most-recently-posted videos' view counts, oldest→newest — "Xu hướng" sparkline
+   *  input on `/channels` (24/08/2026, theo yêu cầu — trước đây là view theo ngày trong kỳ, xem
+   *  `fetchRecentVideoViewsByChannel`). Independent of the selected date range/period. */
+  spark: RecentVideoView[];
 };
 
 export type RollupStat = {
@@ -845,11 +908,12 @@ export async function getChannelPeriodStats(
   const result = new Map<string, ChannelPeriodStat>();
   if (channelIds.length === 0) return result;
 
-  const [allRows, videosCurrent, videosPrevious, metricsByChannel] = await Promise.all([
+  const [allRows, videosCurrent, videosPrevious, metricsByChannel, recentVideoViews] = await Promise.all([
     fetchDailyRows(supabase, channelIds, comparedFrom, to),
     countVideosPosted(supabase, channelIds, from, to),
     countVideosPosted(supabase, channelIds, comparedFrom, comparedTo),
     fetchLatestVideoMetricsByChannel(supabase, channelIds),
+    fetchRecentVideoViewsByChannel(supabase, channelIds),
   ]);
 
   // "Toàn bộ thời gian" is the one period where "view trong kỳ" and "tổng view luỹ kế" are the same
@@ -894,7 +958,7 @@ export async function getChannelPeriodStats(
       followersGain,
       followersRatePct:
         followersGain !== null && followersBefore ? Math.round((followersGain / followersBefore) * 1000) / 10 : null,
-      spark: currentRows.map((r) => ({ date: r.date, views: r.videoViews ?? 0 })),
+      spark: recentVideoViews.get(channelId) ?? [],
     });
   }
 
@@ -1043,6 +1107,9 @@ export async function getDashboard(
   const teamFollowersNow = sum((s) => s.followersNow ?? 0);
   const teamFollowersGain = sum((s) => s.followersGain ?? 0);
 
+  // No `.slice()` here — every channel, not just a top-N (24/08/2026, theo yêu cầu: xem hết mọi
+  // kênh, sẽ có nhiều kênh về sau). `ListCard` (dashboard-widgets.tsx) scrolls internally instead of
+  // the page growing unbounded.
   const growth = stats
     .filter((s) => s.followersNow !== null)
     .map((s) => ({
@@ -1052,8 +1119,7 @@ export async function getDashboard(
       gain: s.followersGain ?? 0,
       ratePct: s.followersRatePct,
     }))
-    .sort((a, b) => b.gain - a.gain)
-    .slice(0, 5);
+    .sort((a, b) => b.gain - a.gain);
 
   // Filtered like `growth` above (which already drops `followersNow === null`) — a channel with no
   // view measurement this period must not appear in a ranking at a misleading "0%"/"0 view".
@@ -1065,8 +1131,7 @@ export async function getDashboard(
       views: s.views!,
       sharePct: teamViews > 0 ? Math.round((s.views! / teamViews) * 1000) / 10 : 0,
     }))
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 6);
+    .sort((a, b) => b.views - a.views);
 
   const efficiency = stats
     .filter((s) => s.videos > 0 && s.viewsPerVideo !== null)
@@ -1076,8 +1141,7 @@ export async function getDashboard(
       videos: s.videos,
       viewsPerVideo: s.viewsPerVideo!,
     }))
-    .sort((a, b) => b.viewsPerVideo - a.viewsPerVideo)
-    .slice(0, 5);
+    .sort((a, b) => b.viewsPerVideo - a.viewsPerVideo);
 
   const myChannels =
     role === "creator"

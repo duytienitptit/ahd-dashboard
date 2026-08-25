@@ -5,9 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import type { CreatorRank, RollupStat } from "@/lib/dashboard";
-import { formatCompact, initialsFromEnd } from "@/lib/format";
+import { avatarPalette, formatCompact, initialsFromEnd } from "@/lib/format";
+import { METRIC_TEXT_CLASS, METRIC_TONE, type MetricTone } from "@/lib/metric-tone";
 
-import { CreatorEditForm } from "./creator-form";
+import { CreatorEditForm, TeamGlyph } from "./creator-form";
 
 export type CreatorRowData = {
   id: string;
@@ -72,11 +73,13 @@ function ChevronIcon({ open }: { open: boolean }) {
 function RollupStatChip({
   label,
   value,
+  tone,
   deltaText,
   deltaGood,
 }: {
   label: string;
   value: string;
+  tone: MetricTone;
   /** Omit both to render just the value — "Tổng số like" has no period-over-period counterpart
    *  (current total, same as `TeamStatsRow`'s "Tổng số like" tile), unlike Lượt xem/Follower here. */
   deltaText?: string;
@@ -85,7 +88,7 @@ function RollupStatChip({
   return (
     <div className="flex items-baseline gap-1.5">
       <span className="text-[11.5px] text-ink-3">{label}</span>
-      <span className="text-[13px] font-bold">{value}</span>
+      <span className={`text-[13px] font-bold ${METRIC_TEXT_CLASS[tone]}`}>{value}</span>
       {deltaText ? (
         <span className={`text-[11px] font-semibold ${deltaGood === null ? "text-ink-3" : deltaGood ? "text-green-dark" : "text-red-dark"}`}>
           {deltaText}
@@ -95,9 +98,18 @@ function RollupStatChip({
   );
 }
 
-function CreatorRow({ creator, teams }: { creator: CreatorRowData; teams: { id: string; name: string }[] }) {
+function CreatorRow({
+  creator,
+  teams,
+  index,
+}: {
+  creator: CreatorRowData;
+  teams: { id: string; name: string }[];
+  index: number;
+}) {
   const [editing, setEditing] = useState(false);
   const rankStyle = RANK_STYLE[creator.rank];
+  const avatar = avatarPalette(index);
 
   if (editing) {
     return (
@@ -110,7 +122,10 @@ function CreatorRow({ creator, teams }: { creator: CreatorRowData; teams: { id: 
   return (
     <div className="grid items-center gap-3 border-t border-line-soft px-5 py-3.5" style={{ gridTemplateColumns: CREATOR_ROW_COLUMNS }}>
       <div className="flex min-w-0 items-center gap-2.5">
-        <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill bg-line-soft text-xs font-extrabold text-ink-2">
+        <div
+          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill text-xs font-extrabold"
+          style={{ background: avatar.bg, color: avatar.fg }}
+        >
           {initialsFromEnd(creator.name)}
         </div>
         <div className="min-w-0">
@@ -125,11 +140,11 @@ function CreatorRow({ creator, teams }: { creator: CreatorRowData; teams: { id: 
         {creator.channels.length > 0 ? creator.channels.map((ch) => ch.name).join(", ") : <span className="text-ink-3">Chưa phụ trách kênh nào</span>}
       </div>
 
-      <div className="text-right text-sm font-bold">{formatCompact(creator.totalViews)}</div>
+      <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>{formatCompact(creator.totalViews)}</div>
 
-      <div className="text-right text-sm font-bold">{formatCompact(creator.followersNow)}</div>
+      <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.followers]}`}>{formatCompact(creator.followersNow)}</div>
 
-      <div className="text-right text-sm font-bold">{creator.videos}</div>
+      <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.videos]}`}>{creator.videos}</div>
 
       <div className="flex flex-col items-end gap-1">
         <span
@@ -160,10 +175,12 @@ function TeamPanel({
   group,
   teams,
   defaultOpen,
+  index,
 }: {
   group: TeamGroupData;
   teams: { id: string; name: string }[];
   defaultOpen: boolean;
+  index: number;
 }) {
   const searchParams = useSearchParams();
   const requestedTeam = searchParams.get("team");
@@ -183,6 +200,7 @@ function TeamPanel({
 
   const hasNumbers = group.rollup.totalViews > 0 || group.rollup.followersNow > 0 || group.rollup.followerGain !== 0;
   const heading = group.name ?? "Chưa gán team";
+  const avatar = avatarPalette(index);
 
   return (
     <div ref={sectionRef} id={`team-${key}`} className="overflow-hidden rounded-card border border-line">
@@ -194,6 +212,12 @@ function TeamPanel({
       >
         <div className="flex items-center gap-2.5">
           <ChevronIcon open={open} />
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill"
+            style={{ background: avatar.bg, color: avatar.fg }}
+          >
+            <TeamGlyph />
+          </div>
           <h2 className={`text-[15px] font-extrabold tracking-[-0.3px] ${group.name ? "text-ink" : "text-ink-2"}`}>{heading}</h2>
           <span className="text-[12.5px] text-ink-3">
             {group.creators.length} nhân sự · {group.creators.reduce((sum, c) => sum + c.channels.length, 0)} kênh
@@ -202,9 +226,9 @@ function TeamPanel({
 
         {hasNumbers ? (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <RollupStatChip label="Lượt xem" value={formatCompact(group.rollup.totalViews)} />
-            <RollupStatChip label="Follower" value={formatCompact(group.rollup.followersNow)} />
-            <RollupStatChip label="Video" value={String(group.rollup.videos)} />
+            <RollupStatChip label="Lượt xem" value={formatCompact(group.rollup.totalViews)} tone={METRIC_TONE.views} />
+            <RollupStatChip label="Follower" value={formatCompact(group.rollup.followersNow)} tone={METRIC_TONE.followers} />
+            <RollupStatChip label="Video" value={String(group.rollup.videos)} tone={METRIC_TONE.videos} />
           </div>
         ) : null}
       </button>
@@ -218,14 +242,14 @@ function TeamPanel({
               <div className="grid gap-3 border-t border-line-soft bg-line-soft px-5 py-2.5 text-xs font-bold text-ink-2" style={{ gridTemplateColumns: CREATOR_ROW_COLUMNS }}>
                 <div>Nhân sự</div>
                 <div>Kênh phụ trách</div>
-                <div className="text-right">Lượt xem</div>
-                <div className="text-right">Follower</div>
-                <div className="text-right">Video</div>
+                <div className={`text-right ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>Lượt xem</div>
+                <div className={`text-right ${METRIC_TEXT_CLASS[METRIC_TONE.followers]}`}>Follower</div>
+                <div className={`text-right ${METRIC_TEXT_CLASS[METRIC_TONE.videos]}`}>Video</div>
                 <div className="text-right">Trạng thái</div>
                 <div />
               </div>
-              {group.creators.map((creator) => (
-                <CreatorRow key={creator.id} creator={creator} teams={teams} />
+              {group.creators.map((creator, i) => (
+                <CreatorRow key={creator.id} creator={creator} teams={teams} index={i} />
               ))}
             </div>
           </div>
@@ -246,8 +270,8 @@ export function TeamAccordion({ groups, teams }: { groups: TeamGroupData[]; team
   const soleGroup = groups.length === 1;
   return (
     <div className="flex flex-col gap-3.5">
-      {groups.map((group) => (
-        <TeamPanel key={groupKey(group.id)} group={group} teams={teams} defaultOpen={soleGroup} />
+      {groups.map((group, i) => (
+        <TeamPanel key={groupKey(group.id)} group={group} teams={teams} defaultOpen={soleGroup} index={i} />
       ))}
     </div>
   );
