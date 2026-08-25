@@ -34,7 +34,11 @@ Biến môi trường: `.env.example`.
 
 - **Followers là mốc tuyệt đối**, không phải số tăng thêm. Công thức:
   `(followersHiệnTại - followersAtStart) / (targetFollowers - followersAtStart)`
-- `followersAtStart` chụp **1 lần** khi tạo KPI cycle, không bao giờ sửa.
+- `followersAtStart` chụp **1 lần** khi tạo KPI cycle, không bao giờ sửa. Kênh chưa có `followers`
+  nào ghi nhận → **chặn tạo KPI cycle** (400), không cho nhập tay follower đầu kỳ ngay trong form đó.
+- **Một KPI cycle chỉ cần ≥1 trong 3 chỉ tiêu** (Views/Videos/Followers), không bắt buộc cả 3
+  (25/08/2026, theo yêu cầu). `overallPct` = trung bình các % của chỉ tiêu **đã đặt và đã có số đo**
+  — không chia cố định cho 3, không tính chỉ tiêu chưa đặt là 0%.
 - `KPICycle.status = final` → **khoá số liệu**. Mọi thay đổi sau đó phải ghi `audit_log`.
   Lý do: số liệu này dùng để tính thưởng/lương sau này, phải chống tranh cãi.
 - **Hai tầng dữ liệu:** `display_api` hằng ngày (nhãn *tạm tính*) + `studio_import` cuối tuần
@@ -50,8 +54,12 @@ Biến môi trường: `.env.example`.
 - Parser import phải xử lý đúng các bẫy ở [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md): BOM đầu file,
   ngày tháng có thể là tiếng Việt hoặc tiếng Anh tuỳ ngôn ngữ TikTok Studio lúc export, không có
   năm trong ngày, giá trị `"undefined"` phải parse thành `null` chứ không phải `0`.
-- **Studio trễ 2 ngày.** Import chỉ ghi đè ngày `< ngàyExport − 3` (cửa sổ chốt); 2-3 ngày gần nhất
-  giữ nguyên số `display_api`. Không bao giờ ghi đè số thật bằng `undefined`/`null`.
+- **Studio trễ 2 ngày.** Import chỉ ghi đè ngày `< ngàyImport − 1` (cửa sổ chốt) → ngày mới nhất ghi
+  được là `ngàyImport − 2`; đúng 2 ngày trễ giữ nguyên số `display_api` (đổi từ `− 3` ngày
+  25/08/2026, theo yêu cầu — mốc cũ vứt mất 2 ngày file đã có số đầy đủ). Không bao giờ ghi đè số
+  thật bằng `undefined`/`null` — ngày Studio chưa xử lý xong về với `Total Viewers: undefined` kèm
+  `0` ở New/Returning, `lib/import/viewers.ts` bỏ cả cụm để nó không lọt thành row `studio_import`
+  rỗng che mất `display_api`.
 - **Chốt sổ chỉ mở khi** đã qua `periodEnd + 3 ngày` **và** mọi ngày trong kỳ có `studio_import`.
   Lịch vận hành: import thứ Tư cho tuần trước đó.
 - Cùng một ngày có nhiều nguồn thì ưu tiên:
@@ -116,8 +124,10 @@ Biến môi trường: `.env.example`.
   làm sai ở phiên sau (quy ước, quyết định kiến trúc, cách chạy, tham chiếu ngoài), đề xuất tạo doc
   tương ứng ngay — hoặc bổ sung vào `CLAUDE.md` nếu là quy tắc ngắn. Không đợi được yêu cầu.
 - **Phản biện khi thấy hướng đi sai**, kèm lý do và phương án thay thế — không im lặng làm theo.
-- **Hỏi khi thiếu thông tin** thay vì tự suy đoán, nhất là với quyết định khó sửa về sau
-  (schema, phân quyền, cách tính KPI).
+- **Không biết thì hỏi ngay — không dự đoán, không đoán mò** (theo yêu cầu riêng, nhắc lại có chủ đích
+  vì đây là quy tắc dễ quên giữa lúc đang làm nhanh). Áp dụng mọi lúc, không riêng gì quyết định khó
+  sửa — nhưng đặc biệt quan trọng với schema, phân quyền, cách tính KPI, hoặc bất kỳ chỗ nào một suy
+  đoán sai sẽ khó phát hiện lại sau.
 - Cập nhật `docs/TASKS.md` sau khi hoàn thành task; cập nhật `docs/PRODUCT_SPEC.md` khi có
   quyết định sản phẩm mới.
 - **Giữ `CLAUDE.md` ngắn — file này auto-load vào MỌI phiên, phình ra là tốn context mọi lúc dù task
@@ -129,44 +139,33 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M4 + M3c + Đợt 1 (sửa dữ liệu) + Đợt 2 (thiết kế lại UI) + tính năng Team + dựng lại drill-down
-Team → Nhân sự → Kênh + CRUD đầy đủ (xoá thật, đổi mật khẩu) + đăng nhập bằng username đều đã xong,
-đã commit và push lên `main` (22/08/2026, commit `16624da`).**
-Chi tiết đầy đủ từng phần ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục "Đợt 1 sửa dữ liệu", "Đợt 2...",
-"Team — nhóm Creator", "Team → Nhân sự → Kênh — dựng lại drill-down", "CRUD đầy đủ Nhân sự/Kênh",
-"Đăng nhập bằng username"). Checklist ở [docs/TASKS.md](docs/TASKS.md) mục "Đợt 1 & Đợt 2", "Team",
-"Team → Nhân sự → Kênh", "CRUD đầy đủ Nhân sự/Kênh" và "Đăng nhập bằng username". Schema và code giờ
-khớp nhau — 5 migration (`team`, `creator.team_id`, RLS Creator-upload, `update_channel_name`,
-`username`) đã lên Supabase production, code dùng chúng cũng đã lên `main`.
+**M5 (KPI Cycle) vừa xong 25/08/2026 — CHƯA commit/push/deploy** (cùng với nhóm lỗi OAuth/view-per-day
+ở dưới, cũng chưa lên `main`). M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập
+username đã xong và **đã** lên `main` từ trước (22/08/2026, commit `16624da`).
+Chi tiết đầy đủ từng milestone ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục tương ứng, tìm theo tên).
+Checklist ở [docs/TASKS.md](docs/TASKS.md) (mục tương ứng).
 
 🔑 **Tài khoản Manager thật giờ đăng nhập bằng username `andang`** (không còn dùng email nữa, đổi
 22/08/2026) — mật khẩu giữ nguyên như cũ. Xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
 
-📡 **Display API (24/08/2026): 9 kênh, 0 ĐANG KẾT NỐI** — 6 kênh vừa bị `reset-display-api.mjs`
-ngắt kết nối thật (revoke TikTok OK cả 6/6) + xoá sạch `content_video`/`video_snapshot`/
-`data_snapshot(display_api)` để dựng lại sạch bằng code mới; 3 kênh còn lại (`Bé Na`,
-`Ngộ Không Làm Nông`, `Tiến Sĩ Sprout`) vẫn như cũ, chưa từng kết nối. **Toàn bộ 9 kênh cần
-Authorize lại từ đầu** sau khi migration + code mới lên. Sandbox đã add đủ 9 target user, **trần 10
-tài khoản/sandbox** → còn đúng 1 chỗ. Kênh thứ 11 phải nộp duyệt app chính thức (1-2 tuần).
+✅ **Display API (25/08/2026): 9/9 kênh ĐÃ KẾT NỐI thật** — migration
+`20260824000001_oauth_hardening.sql` đã áp lên Supabase (xác nhận: cột `channel_oauth.authorized_handle`
+tồn tại và có dữ liệu thật khớp từng kênh), cả 9 kênh Authorize lại qua TikTok thật, đã đồng bộ thành
+công ít nhất 1 lần (`node scripts/diagnose-oauth.mjs`: đủ scope, xác minh tài khoản, video đúng kênh
+— 25/08/2026). **Chạy qua local dev server với code M5 + nhóm vá OAuth/view-per-day CHƯA commit** —
+việc reconnect thành công đã tự kiểm chứng luôn 2 nhóm code đó hoạt động đúng với tài khoản TikTok
+thật. `is_complete=false` trên mọi kênh hiện tại (còn ít ngày dữ liệu, bình thường lúc mới nối lại).
+Sandbox trần 10 tài khoản/sandbox → còn đúng 1 chỗ cho kênh thứ 11 (phải nộp duyệt app chính thức
+1-2 tuần nếu cần). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Siết kết nối Display API +
+sửa cách tính view/ngày". Chẩn đoán read-only: `node scripts/diagnose-oauth.mjs`,
+`node scripts/diagnose-data.mjs`.
 
-✅ **Nhóm lỗi OAuth + tính view/ngày đã sửa tại chỗ (24/08/2026), CHƯA commit/push/deploy.** Phát
-hiện lúc điều tra "bấm Kết nối không hiện màn login" — kéo theo 2 lỗi tính `video_views` nghiêm
-trọng hơn câu hỏi gốc. Toàn bộ đổi gì/vì sao/141 test qua: [docs/PROGRESS.md](docs/PROGRESS.md) mục
-"Siết kết nối Display API + sửa cách tính view/ngày". Chẩn đoán read-only luôn dùng được:
-`node scripts/diagnose-oauth.mjs`, `node scripts/diagnose-data.mjs` (24/08: dữ liệu sạch, lỗ hổng
-chưa kịp gây hại).
-
-⚠️ **`scripts/backfill-daily-views.mjs` bị KHOÁ** — dry-run thật lộ ra data cũ (ghi bởi `sync.ts`
-trước bản vá) có `video_snapshot.date`/`data_snapshot.date` lệch quy ước ngày, script join sai lệch
-1 ngày. Quyết định (theo yêu cầu): không cố dựng lại, **xoá sạch tầng display_api của cả 6 kênh đang
-kết nối** bằng `scripts/reset-display-api.mjs` (mới — revoke TikTok thật + xoá
-`data_snapshot(display_api)`/`content_video`, không đụng `studio_import`/`manual_entry`) rồi để code
-mới dựng lại từ đầu. Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug phát hiện lúc chạy
-backfill". Script chưa chạy.
-
-⚠️ **CHẶN TRIỂN KHAI — migration `20260824000001_oauth_hardening.sql` CHƯA áp lên Supabase.** Không
-có Supabase CLI/`psql`/DSN Postgres trong máy này → phải tự chạy qua Dashboard → SQL Editor trước
-khi deploy code trên, không thì callback OAuth lỗi 500 (ghi cột `authorized_handle` chưa tồn tại).
+⚠️ **Nhân lúc kiểm chứng M5 phát hiện thêm 1 bug thật của code M4** (không thuộc phạm vi M5, vá luôn
+vì chặn hẳn việc xem cột "Tiến độ KPI" mới build): `/channels` và Tổng quan crash
+`HeadersOverflowError` khi tổng video toàn team vượt ~vài trăm —
+`fetchLatestVideoMetricsByChannel`/`fetchRecentVideoViewsByChannel` (`lib/dashboard.ts`) giờ chia nhỏ
+câu `.in(...)` thành lô 150 thay vì gửi hết 1 lần. Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md)
+mục "M5 — KPI Cycle".
 
 ⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
@@ -192,31 +191,19 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Áp migration `20260824000001_oauth_hardening.sql`** qua Supabase Dashboard → SQL Editor —
-   chặn triển khai nhóm A, xem cảnh báo ở trên. ⚠️ Càng gấp hơn từ khi mục 2 đã xong: **cả 9 kênh
-   đang KHÔNG kết nối**, không có dữ liệu display_api mới nào tới khi deploy xong.
-2. ~~Chạy `scripts/reset-display-api.mjs`~~ — **xong 24/08/2026**, revoke TikTok OK cả 6/6 kênh.
-3. Commit + deploy, rồi kết nối lại **cả 9 kênh** ở `/connections` — nhớ đăng xuất tiktok.com giữa
-   mỗi kênh. Bấm "Kết nối" phải thấy màn hình TikTok hiện ra thật — không tự kiểm chứng được, cần
-   tài khoản TikTok thật để click qua Authorize.
-4. **M5 (KPI Cycle)** — chưa bắt đầu, không bị chặn bởi các mục trên. `POST /api/kpi-cycles` trước
-   (tự chụp `followersAtStart`, chặn trùng khoảng ngày), rồi hàm tính `progress`/`overallStatus` theo
-   công thức ở [docs/API_SPEC.md](docs/API_SPEC.md) mục "Công thức progress". `kpiSummary`/
-   `myChannels.hasActiveKpi` trong `lib/dashboard.ts` hiện luôn rỗng/false vì `kpi_cycle` chưa có
-   row — M5 tạo cycle xong thì nối lại 2 chỗ đó.
+1. **Commit + push code M5, nhóm vá OAuth/view-per-day, và bản sửa cửa sổ chốt import ngày
+   25/08** (tất cả đang chỉ nằm ở working tree —
+   migration đã áp và cả 9 kênh đã reconnect+sync thành công qua chính code này chạy local, xem trên
+   → khá tự tin để đẩy lên `main` rồi deploy).
+2. **M6 (Chốt sổ KPI)** — chưa bắt đầu, không bị chặn bởi mục trên. `POST
+   /api/kpi-cycles/:id/finalize` theo đặc tả ở [docs/API_SPEC.md](docs/API_SPEC.md) (điều kiện mở
+   khoá, shape lỗi `422`) + UI màn chốt sổ.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
 
-🎨 **Màu theo chỉ số áp TOÀN APP + avatar 5 màu** (24/08/2026, theo yêu cầu, xem
-[DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Màu theo chỉ số"/"Avatar kênh nhiều màu") — 4 token
-màu MỚI `blue`/`purple`/`orange`/`crimson` (`app/globals.css`, nguồn sự thật code:
-[lib/metric-tone.ts](lib/metric-tone.ts)), lệch quy tắc gốc "không tự đặt màu mới". **Người dùng đã
-xác nhận rõ ràng cho phép đổi màu** — không cần hỏi lại việc đổi màu chỉ số. Mapping cố định theo Ý
-NGHĨA chỉ số (không theo vị trí cột): Lượt xem `blue`, Follower `purple` (thật ra là hồng magenta,
-tên biến giữ nguyên), Video `orange`, Like `crimson` (KHÔNG phải `red` — `red` là màu brand/nút/link
-dùng khắp app, tách riêng để không lẫn nghĩa). Áp cho tiêu đề cột + số liệu chính + tab/đường
-`TrendChart` ở **mọi trang có 4 chỉ số này**: Tổng quan, `/channels`, `channels/[id]`, `/creators`,
-`creators/[id]`. **Không** áp cho badge %thay đổi (vẫn xanh lá=tăng/đỏ=giảm như cũ) hay badge trạng
-thái — 2 hệ màu tách biệt có chủ đích. Avatar đơn lẻ (header 1-kênh/1-Creator) vẫn cố tình trung
-tính, không đổi.
+🎨 **Màu theo chỉ số áp TOÀN APP** (24/08/2026, theo yêu cầu, mở rộng sang `/kpi` ở M5) — 4 token màu
+`blue`/`purple`/`orange`/`crimson`, nguồn sự thật code: [lib/metric-tone.ts](lib/metric-tone.ts). Chi
+tiết đầy đủ (mapping, ngoại lệ, lý do): [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Màu theo chỉ
+số". **Người dùng đã xác nhận cho phép đổi màu** — không cần hỏi lại. Lưu ý ngoại lệ hay quên: thanh
+tiến độ KPI dùng màu 🟢🟡🔴 (đúng tiến độ/lệch), **không** dùng bộ màu theo chỉ số này.

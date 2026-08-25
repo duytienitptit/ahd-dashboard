@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import type { ChannelSummary } from "@/lib/channels";
 import type { ChannelPeriodStat } from "@/lib/dashboard";
+import type { KpiCycleWithProgress } from "@/lib/kpi";
 import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
 import { ExportCsvButton } from "../export-csv-button";
@@ -30,11 +31,15 @@ export function ChannelsTable({
   creators,
   isManager,
   currentUserId,
+  kpiByChannel,
 }: {
   rows: Row[];
   creators: CreatorOption[];
   isManager: boolean;
   currentUserId: string;
+  /** This channel's active KPI cycle, keyed by channelId (M5) — `undefined` map/entry both render
+   *  ChannelRow's original "Chưa đặt KPI" chip. */
+  kpiByChannel?: Map<string, KpiCycleWithProgress>;
 }) {
   const [search, setSearch] = useState("");
   const [creatorId, setCreatorId] = useState("all");
@@ -162,6 +167,7 @@ export function ChannelsTable({
                   isManager={isManager}
                   currentUserId={currentUserId}
                   index={i}
+                  kpi={kpiByChannel?.get(row.channel.id)}
                 />
               ))
             )}

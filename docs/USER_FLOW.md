@@ -18,8 +18,8 @@ flowchart TD
     M1 --> M4[Tab Nhân sự: team đóng/mở, bấm ra bảng creator kèm số liệu + tạo tài khoản]
     M4 --> M4a[Chi tiết Nhân sự: 4 thẻ số, biểu đồ xu hướng, kênh phụ trách, số liệu ngày]
     M4a --> M3
-    M1 --> M5[Đặt KPI: chọn kênh, chu kỳ, 3 chỉ tiêu]
-    M5 --> M6[Hệ thống tự chụp followersAtStart và khoá]
+    M1 --> M5[Đặt KPI: chọn kênh trước qua /kpi/new, rồi chu kỳ + tối thiểu 1/3 chỉ tiêu]
+    M5 --> M6[Hệ thống tự chụp followersAtStart và khoá — M5, xong 25/08/2026]
     M1 --> I1[Import thứ Tư: kéo-thả 4 zip/kênh → parse → ghi snapshot]
     C1 --> I1
     I1 --> M7[Chốt sổ: tổng hợp snapshot đã có → khoá kỳ → ghi AuditLog]
@@ -42,7 +42,7 @@ flowchart TD
 | :--- | :--- | :--- |
 | Đầu trang Tổng quan | Thẻ số tổng hợp toàn team | Khối "Kênh của tôi" + gợi ý hành động |
 | Phần dữ liệu toàn team | Đầy đủ | Đầy đủ, gắn nhãn "Chỉ xem"; kênh của mình được tô đậm |
-| Tab điều hướng | Tổng quan · Kênh · Creator · Dữ liệu (Import + Nhập tay + Kết nối) · KPI | Tổng quan · Kênh · Dữ liệu (Import + Kết nối, không có Nhập tay) · KPI của tôi |
+| Tab điều hướng | Tổng quan · Kênh · Nhân sự · Dữ liệu (Import + Nhập tay + Kết nối) · KPI | Tổng quan · Kênh · Dữ liệu (Import + Kết nối, không có Nhập tay) · KPI của tôi |
 | Nút Đặt KPI / Chốt sổ / Xuất dữ liệu | Có | Ẩn |
 | Import file Studio | Toàn bộ 8 kênh | Chỉ kênh mình đang phụ trách |
 | Kết nối Display API | Toàn bộ 8 kênh + nút "Chạy đồng bộ ngay" | Chỉ kênh mình đang phụ trách, không có nút đồng bộ toàn hệ thống |

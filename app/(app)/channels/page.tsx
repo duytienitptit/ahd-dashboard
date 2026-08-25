@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { listChannels } from "@/lib/channels";
 import { listCreators } from "@/lib/creators";
 import { getChannelPeriodStats, previousPeriod } from "@/lib/dashboard";
+import { attachProgress, listKpiCycles } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolvePeriodParamsAllTime } from "@/lib/time";
 
@@ -30,6 +31,13 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Sea
     comparedTo,
   });
 
+  // "Tiến độ KPI" column (M5) — active cycles only (a draft cycle whose window hasn't started yet,
+  // or one already past, isn't "the current progress" this column is showing). CLAUDE.md: this is
+  // purely informational — doesn't change the table's default sort/filter/rank.
+  const activeCycles = await listKpiCycles(supabase, { activeOnly: true });
+  const activeWithProgress = await attachProgress(supabase, activeCycles);
+  const kpiByChannel = new Map(activeWithProgress.map((c) => [c.channelId, c]));
+
   const isManager = user.role === "manager";
   const creatorOptions = creators.map((creator) => ({ id: creator.id, name: creator.name }));
   const rows = channels.map((channel) => ({ channel, stat: stats.get(channel.id) }));
@@ -51,7 +59,13 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Sea
         </div>
 
         <FilterPendingOverlay>
-          <ChannelsTable rows={rows} creators={creatorOptions} isManager={isManager} currentUserId={user.id} />
+          <ChannelsTable
+            rows={rows}
+            creators={creatorOptions}
+            isManager={isManager}
+            currentUserId={user.id}
+            kpiByChannel={kpiByChannel}
+          />
         </FilterPendingOverlay>
       </FilterTransitionProvider>
     </div>

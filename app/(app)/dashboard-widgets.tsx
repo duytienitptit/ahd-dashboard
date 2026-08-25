@@ -2,9 +2,15 @@ import Link from "next/link";
 
 import type { DashboardResponse } from "@/lib/dashboard";
 import { avatarPalette, formatCompact, formatFullDate, formatSignedNumber, initialsFromStart } from "@/lib/format";
+import type { KpiHealthValue } from "@/lib/kpi";
 import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
+import { KPI_HEALTH_LABEL } from "./kpi/kpi-widgets";
 import { SourcePriorityInfo } from "./source-priority-info";
+
+const KPI_DOT: Record<KpiHealthValue, string> = { green: "bg-green", yellow: "bg-amber", red: "bg-red" };
+const KPI_TEXT: Record<KpiHealthValue, string> = { green: "text-green-dark", yellow: "text-amber-dark", red: "text-red-dark" };
+const METRIC_NAME_LABEL: Record<string, string> = { views: "Lượt xem", videos: "Video", followers: "Follower" };
 
 function DeltaArrow({ down }: { down: boolean }) {
   return (
@@ -231,8 +237,10 @@ export function KpiSummaryCard({ kpiSummary }: { kpiSummary: DashboardResponse["
       <div className="mb-4 text-[15px] font-bold">Tình hình KPI</div>
       {total === 0 ? (
         <div className="flex h-[150px] flex-col items-center justify-center gap-1.5 text-center">
-          <p className="text-[13px] font-semibold text-ink-2">Chưa có chu kỳ KPI nào</p>
-          <p className="max-w-[200px] text-[11.5px] text-ink-3">Tính năng đặt KPI sẽ có ở bản sau.</p>
+          <p className="text-[13px] font-semibold text-ink-2">Chưa có chu kỳ KPI nào đang chạy</p>
+          <Link href="/kpi/new" className="text-[11.5px] font-semibold text-red hover:opacity-80">
+            + Đặt KPI mới
+          </Link>
         </div>
       ) : (
         <>
@@ -242,6 +250,32 @@ export function KpiSummaryCard({ kpiSummary }: { kpiSummary: DashboardResponse["
             </div>
             <div className="text-[13px] text-ink-3">kênh đạt tiến độ</div>
           </div>
+          <div className="mb-3.5 flex items-center gap-3 text-[11.5px] text-ink-3">
+            <span>
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-pill bg-amber" />
+              {kpiSummary.atRisk} cần chú ý
+            </span>
+            <span>
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-pill bg-red" />
+              {kpiSummary.behind} tụt lại
+            </span>
+          </div>
+          {kpiSummary.attention.length > 0 ? (
+            <div className="scroll-thin flex max-h-[140px] flex-col gap-2 overflow-y-auto border-t border-line-soft pt-3">
+              {kpiSummary.attention.map((a) => (
+                <Link
+                  key={a.channelId}
+                  href={`/channels/${a.channelId}`}
+                  className="block text-[11.5px] text-ink-2 hover:underline"
+                >
+                  <span className="font-semibold">{a.channelName}</span> — {a.reason}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+          <Link href="/kpi" className="mt-3 inline-block text-[11.5px] font-semibold text-red hover:opacity-80">
+            Xem tất cả →
+          </Link>
         </>
       )}
     </div>
@@ -333,9 +367,9 @@ function ListCard({
   );
 }
 
-/** Creator-only "Kênh của tôi" block pinned atop the Tổng quan page. `metrics` is always `[]` right
- *  now — no `kpi_cycle` exists yet (M5) — so this renders the honest empty state per channel
- *  instead of the mockups' progress bars, which need an active cycle to mean anything. */
+/** Creator-only "Kênh của tôi" block pinned atop the Tổng quan page — progress bars per channel
+ *  once M5's `mergeDashboardKpi()` has filled in `hasActiveKpi`/`metrics`, the honest "chưa có KPI"
+ *  line otherwise. */
 export function MyChannelsBlock({ myChannels }: { myChannels: NonNullable<DashboardResponse["myChannels"]> }) {
   return (
     <div className="mb-[22px] rounded-card border border-line px-5 py-[18px]">
@@ -375,8 +409,40 @@ export function MyChannelsBlock({ myChannels }: { myChannels: NonNullable<Dashbo
                   </div>
                 </div>
               </div>
-              <div className="px-[18px] py-4 text-[12.5px] text-ink-3">
-                Chưa có KPI cho kênh này — tính năng đặt KPI sẽ có ở bản sau.
+              <div className="px-[18px] py-4">
+                {!channel.hasActiveKpi ? (
+                  <p className="text-[12.5px] text-ink-3">Chưa có KPI cho kênh này.</p>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    {channel.overallStatus ? (
+                      <div className="mb-0.5 flex items-center gap-1.5 text-[11.5px] font-semibold">
+                        <span className={`h-1.5 w-1.5 rounded-pill ${KPI_DOT[channel.overallStatus]}`} />
+                        <span className={KPI_TEXT[channel.overallStatus]}>{KPI_HEALTH_LABEL[channel.overallStatus]}</span>
+                      </div>
+                    ) : null}
+                    {channel.metrics.length === 0 ? (
+                      <p className="text-[12.5px] text-ink-3">Chưa có số liệu để tính tiến độ.</p>
+                    ) : (
+                      channel.metrics.map((m) => (
+                        <div key={m.name}>
+                          <div className="mb-1 flex items-baseline justify-between text-[11.5px]">
+                            <span className="font-semibold text-ink-2">{METRIC_NAME_LABEL[m.name] ?? m.name}</span>
+                            <span className="text-ink-3">
+                              {m.text} · <strong className="text-ink">{m.pct}%</strong>
+                            </span>
+                          </div>
+                          <div className="h-[5px] overflow-hidden rounded-pill bg-line-soft">
+                            <div
+                              className="h-[5px] rounded-pill bg-cyan"
+                              style={{ width: `${Math.min(100, Math.max(0, m.pct))}%` }}
+                            />
+                          </div>
+                          {m.hint ? <p className="mt-1 text-[11px] text-ink-3">{m.hint}</p> : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             );

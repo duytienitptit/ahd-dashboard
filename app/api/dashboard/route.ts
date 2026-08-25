@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getDashboard } from "@/lib/dashboard";
 import { errorResponse } from "@/lib/http";
+import { buildDashboardKpiSummary, mergeDashboardKpi } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { addDaysToDateString, nowVnDateString } from "@/lib/time";
 import { ValidationError } from "@/lib/validation";
@@ -31,7 +32,8 @@ export async function GET(request: NextRequest) {
     const teamId = request.nextUrl.searchParams.get("teamId");
 
     const dashboard = await getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId, teamId });
-    return NextResponse.json(dashboard);
+    const kpiSlice = await buildDashboardKpiSummary(supabase, dashboard.channels);
+    return NextResponse.json(mergeDashboardKpi(dashboard, kpiSlice));
   } catch (error) {
     return errorResponse(error);
   }

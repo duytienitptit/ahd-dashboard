@@ -27,8 +27,8 @@ export default async function ManualEntryPage() {
       <div className="mb-5">
         <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Nhập tay khi API lỗi</h1>
         <p className="mt-1.5 text-[13px] text-ink-3">
-          Chỉ dùng khi Display API không lấy được số và cần gấp giữa tuần — số này gắn nhãn "chưa xác
-          thực" và tự bị thay khi có Studio import phủ ngày đó.
+          Chỉ dùng khi Display API không lấy được số và cần gấp giữa tuần — số này gắn nhãn &quot;chưa xác
+          thực&quot; và tự bị thay khi có Studio import phủ ngày đó.
         </p>
       </div>
 

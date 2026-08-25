@@ -473,17 +473,18 @@ export async function fetchDailyRows(
   return (data ?? []).map(toDailyRow);
 }
 
-/** `videosTrongKỳ` per CLAUDE.md: COUNT(content_video.posted_at in period), never a `video_count`
- *  difference (a deleted video would skew that). Bounds are VN calendar days converted to the
- *  timestamptz range Postgres compares against, matching lib/time.ts's `vnMidnightIso`. */
-export async function countVideosPosted(
+/** One query, shared by `countVideosPosted` (per-channel count) and `fetchPostedVnDates` (flat VN
+ *  date list) below, and reused directly by M5's `lib/kpi.ts` (`attachProgress`) — 3 separate copies
+ *  of the same `content_video` query would otherwise exist. Bounds are VN calendar days converted to
+ *  the timestamptz range Postgres compares against, matching lib/time.ts's `vnMidnightIso`. */
+export async function fetchPostedVnDatesByChannel(
   supabase: SupabaseServerClient,
   channelIds: string[],
   from: string,
   to: string,
-): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (channelIds.length === 0) return counts;
+): Promise<Map<string, string[]>> {
+  const byChannel = new Map<string, string[]>();
+  if (channelIds.length === 0) return byChannel;
 
   const { data, error } = await supabase
     .from("content_video")
@@ -495,31 +496,38 @@ export async function countVideosPosted(
   if (error) throw error;
 
   for (const row of data ?? []) {
-    counts.set(row.channel_id, (counts.get(row.channel_id) ?? 0) + 1);
+    const date = nowVnDateString(new Date(row.posted_at as string));
+    const list = byChannel.get(row.channel_id);
+    if (list) list.push(date);
+    else byChannel.set(row.channel_id, [date]);
   }
+  return byChannel;
+}
+
+/** `videosTrongKỳ` per CLAUDE.md: COUNT(content_video.posted_at in period), never a `video_count`
+ *  difference (a deleted video would skew that). */
+export async function countVideosPosted(
+  supabase: SupabaseServerClient,
+  channelIds: string[],
+  from: string,
+  to: string,
+): Promise<Map<string, number>> {
+  const byChannel = await fetchPostedVnDatesByChannel(supabase, channelIds, from, to);
+  const counts = new Map<string, number>();
+  for (const [channelId, dates] of byChannel) counts.set(channelId, dates.length);
   return counts;
 }
 
-/** Same rows as `countVideosPosted`, resolved to VN calendar-date strings instead of counted — feeds
- *  `bucketWeeklyVideoCounts` for the trend chart's "Video" series. */
+/** Same rows as `countVideosPosted`, flattened across channels instead of counted per-channel —
+ *  feeds `bucketWeeklyVideoCounts` for the trend chart's "Video" series. */
 export async function fetchPostedVnDates(
   supabase: SupabaseServerClient,
   channelIds: string[],
   from: string,
   to: string,
 ): Promise<string[]> {
-  if (channelIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from("content_video")
-    .select("posted_at")
-    .in("channel_id", channelIds)
-    .not("posted_at", "is", null)
-    .gte("posted_at", vnMidnightIso(from))
-    .lt("posted_at", vnMidnightIso(addDaysToDateString(to, 1)));
-  if (error) throw error;
-
-  return (data ?? []).map((row) => nowVnDateString(new Date(row.posted_at as string)));
+  const byChannel = await fetchPostedVnDatesByChannel(supabase, channelIds, from, to);
+  return [...byChannel.values()].flat();
 }
 
 export type DataFreshness = {
@@ -622,6 +630,22 @@ export async function fetchChannelVideos(
   }));
 }
 
+/**
+ * PostgREST/undici cap total request headers around 16KB — a `.in("content_video_id", videoIds)`
+ * built from hundreds of UUIDs (each ~37 chars once comma-joined) can exceed that on a channel set
+ * with many videos, failing the whole request with a hard-to-diagnose `HeadersOverflowError`
+ * (discovered 25/08/2026 loading `/channels` against real production data, once video counts grew
+ * past the threshold — this query predates M5, not something introduced by it). Splits the id list
+ * into chunks and runs the same query per chunk in parallel instead of one unbounded IN clause.
+ */
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+const VIDEO_SNAPSHOT_IN_BATCH_SIZE = 150;
+
 export type LatestVideoMetrics = { views: number; likes: number };
 
 /** Every channel's total of its videos' most recently known view/like count — a current snapshot
@@ -663,12 +687,18 @@ export async function fetchLatestVideoMetricsByChannel(
   const channelByVideo = new Map(videos.map((v) => [v.id as string, v.channel_id as string]));
   const videoIds = [...channelByVideo.keys()];
 
-  const { data: snapshots, error: snapshotError } = await supabase
-    .from("video_snapshot")
-    .select("content_video_id, date, view_count, like_count")
-    .in("content_video_id", videoIds)
-    .order("date", { ascending: false });
-  if (snapshotError) throw snapshotError;
+  const snapshotBatches = await Promise.all(
+    chunkArray(videoIds, VIDEO_SNAPSHOT_IN_BATCH_SIZE).map(async (batch) => {
+      const { data, error } = await supabase
+        .from("video_snapshot")
+        .select("content_video_id, date, view_count, like_count")
+        .in("content_video_id", batch)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    }),
+  );
+  const snapshots = snapshotBatches.flat();
 
   const seen = new Set<string>();
   for (const row of snapshots ?? []) {
@@ -721,12 +751,18 @@ export async function fetchRecentVideoViewsByChannel(
   const videoIds = [...recentByChannel.values()].flat().map((v) => v.id);
   if (videoIds.length === 0) return result;
 
-  const { data: snapshots, error: snapshotError } = await supabase
-    .from("video_snapshot")
-    .select("content_video_id, date, view_count")
-    .in("content_video_id", videoIds)
-    .order("date", { ascending: false });
-  if (snapshotError) throw snapshotError;
+  const snapshotBatches = await Promise.all(
+    chunkArray(videoIds, VIDEO_SNAPSHOT_IN_BATCH_SIZE).map(async (batch) => {
+      const { data, error } = await supabase
+        .from("video_snapshot")
+        .select("content_video_id, date, view_count")
+        .in("content_video_id", batch)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    }),
+  );
+  const snapshots = snapshotBatches.flat();
 
   const latestViewByVideo = new Map<string, number>();
   for (const row of snapshots ?? []) {
@@ -979,6 +1015,14 @@ export type DashboardResponse = {
    *  added so the UI's "N kênh" header doesn't have to infer a count from a slice like `growth`
    *  (top 5) or `viewShare` (top 6). */
   channelCount: number;
+  /** id+name of every channel counted above — added 25/08/2026 (M5) so `lib/kpi.ts`'s
+   *  `buildDashboardKpiSummary()` can scope its own KPI-cycle query to the exact same
+   *  role/creatorId/teamId-filtered channel set this function already resolved, without a second
+   *  near-duplicate query. `lib/kpi.ts` can't import this function directly (it already imports
+   *  FROM this module for `attachProgress`'s query primitives — the reverse import would be
+   *  circular), so the two are composed by the caller instead; see app/(app)/page.tsx or
+   *  app/api/dashboard/route.ts for the merge. */
+  channels: { id: string; name: string }[];
   /** `comparedFrom`/`comparedTo` used to ship as one slash-joined string — no screen ever rendered
    *  it, so "so với kỳ trước" meant something different on every date-range/mode combination with
    *  nothing telling the viewer which days it actually was (CLAUDE.md — vấn đề #1, 21/08/2026). Two
@@ -1161,6 +1205,7 @@ export async function getDashboard(
   return {
     role,
     channelCount: activeChannels.length,
+    channels: activeChannels.map((c) => ({ id: c.id, name: c.name })),
     period: { from, to, comparedFrom, comparedTo },
     teamStats: {
       views: { value: teamViews, deltaPct: pctChange(teamViews, teamPreviousViews) },

@@ -106,12 +106,16 @@ chờ duyệt để bắt đầu) và đã trả đủ cả 3 chỉ số nhóm n
    bẫy parser: [CSV_FORMAT.md](CSV_FORMAT.md).
 2. Upload thẳng `.zip` (không tự giải nén) — chọn kênh, kéo-thả.
 3. Server giải nén, parse, ghi đè `DataSnapshot` với `source = studio_import` — **chỉ những ngày
-   nằm ngoài cửa sổ chốt** (`< ngàyExport − 3`).
+   nằm ngoài cửa sổ chốt** (`< ngàyImport − 1`, tức ghi tới `ngàyImport − 2`).
 4. Lệch >10% so với số `display_api` cùng ngày → **cảnh báo**, không im lặng ghi đè.
 
-⏱ **Studio trễ 2 ngày** (đã kiểm chứng: export 18/08 nhưng số thật chỉ đến 16/08). Vì vậy import vào
-thứ Tư thì cả 7 ngày của tuần trước mới đủ số. Hệ quả: **chu kỳ KPI chỉ chốt sổ được sau
-`periodEnd + 3 ngày`** và khi mọi ngày trong kỳ đã có `studio_import`.
+⏱ **Studio trễ 2 ngày** (đã kiểm chứng 2 lần: export 18/08 số thật đến 16/08; export 25/08 số thật
+đến 23/08). Vì vậy import vào thứ Tư thì cả 7 ngày của tuần trước mới đủ số. Hệ quả: **chu kỳ KPI chỉ
+chốt sổ được sau `periodEnd + 3 ngày`** và khi mọi ngày trong kỳ đã có `studio_import`.
+
+Thứ Ba **không** thay được thứ Tư: import thứ Ba đã đủ số cho cả tuần (ghi tới Chủ Nhật) nhưng chưa
+qua `periodEnd + 3 ngày`, nên nút chốt sổ vẫn khoá. Muốn chốt thứ Ba thì phải hạ luôn điều kiện đó
+xuống `+ 2` — bỏ nốt lớp an toàn cuối trên chính con số dùng tính thưởng, chưa làm.
 
 ⚠️ **`Content.csv` không dùng để đếm số video** — đã kiểm chứng: cap cứng 15 dòng, không theo ngày,
 bỏ sót video mới nhất. Số video lấy từ `video_count` của Display API. Xem [CSV_FORMAT.md](CSV_FORMAT.md).

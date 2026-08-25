@@ -144,16 +144,64 @@ chưa gán team.
 
 ## KPI Cycles
 
+M5 (25/08/2026). 4 lệch so với bản đặc tả gốc, tất cả đã bàn trước khi code (xem CLAUDE.md, ghi chú
+25/08/2026):
+
+1. **Công thức `overallPct` đổi từ `/3` cố định sang trung bình theo số chỉ tiêu đã đặt** — một
+   cycle chỉ cần ≥1 trong 3 chỉ tiêu (Views/Videos/Followers), không bắt buộc cả 3. Xem mục "Công
+   thức progress" bên dưới.
+2. **Chỉ báo 🟢🟡🔴 đổi tên từ `status` thành `health`** — `kpi_cycle.status` đã dùng cho
+   `draft`/`final` (trạng thái quy trình); giữ nguyên tên `status` cho cả hai sẽ đụng khoá trên cùng
+   một object.
+3. **Kênh chưa có `followers` nào được ghi nhận** → `POST` trả `400` (`ValidationError`), không phải
+   `422` — `422` để dành riêng cho `finalize` (M6, chưa cài đặt) vì đó là shape lỗi khác hẳn
+   (`reasons`/`missingDates`/`unlockAt`).
+4. **Thêm `DELETE /api/kpi-cycles/:id`** — không có trong danh sách task gốc. `channelId` và
+   `followersAtStart` không sửa được qua `PATCH` (đổi kênh làm `followersAtStart` đã chụp vô nghĩa),
+   nên tạo nhầm kênh là lỗi không có đường sửa nào khác ngoài xoá; ràng buộc `EXCLUDE` cũng khoá luôn
+   khoảng ngày đó cho tới khi xoá.
+
 ### `GET /api/kpi-cycles` — M/C
-Query: `?channelId=`, `?status=draft|final`, `?activeOnly=true`
+Query: `?channelId=`, `?status=draft|final`, `?activeOnly=true` (đang chạy = `periodStart <= hôm nay
+<= periodEnd`, theo ngày lịch `Asia/Ho_Chi_Minh`). Creator chỉ thấy cycle của (nhiều nhất) đúng kênh
+mình phụ trách — lọc ở tầng route (`?channelId=` của Creator cho kênh khác cũng bị bỏ qua), **không
+dựa vào RLS**: policy của `kpi_cycle` cho mọi vai trò đã đăng nhập đọc toàn bộ (giống mọi bảng nghiệp
+vụ khác — "Creator xem chéo số liệu kênh khác" trong CLAUDE.md là về dữ liệu kênh, không phải về
+việc ai được giao chỉ tiêu).
+
+Mỗi cycle luôn kèm sẵn `progress`/`health`/`remaining`/`forecast`/`dataGaps` — không có endpoint
+riêng để lấy progress, tính 1 lần ở server cho toàn bộ danh sách (2 truy vấn Supabase cho N cycle,
+không phải 2×N — xem `lib/kpi.ts` `attachProgress`).
+
 ```json
 [{ "id": "...", "channelId": "...", "periodType": "weekly",
    "periodStart": "2026-08-17", "periodEnd": "2026-08-23",
    "targetViews": 500000, "targetVideos": 20, "targetFollowers": 10000,
    "followersAtStart": 5000, "status": "draft",
+   "finalizedBy": null, "finalizedAt": null, "createdAt": "2026-08-17T02:00:00Z",
+
+   "actuals": { "views": 226000, "videos": 12, "followersNow": 5800 },
    "progress": { "viewsPct": 45.2, "videosPct": 60.0, "followersPct": 20.0,
-                 "overallStatus": "yellow" } }]
+                 "overallPct": 41.7, "targetCount": 3 },
+   "health": { "value": "yellow", "overallPct": 42, "elapsedPct": 57,
+               "explanation": "Đã qua 57% chu kỳ, hoàn thành 42% chỉ tiêu." },
+   "remaining": {
+     "views": { "remaining": 274000, "perDay": 91333 },
+     "videos": { "remaining": 8, "perDay": 3 },
+     "followers": { "remaining": 4200, "perDay": 1400 },
+     "daysLeft": 3,
+     "text": "Cần 91k view/ngày trong 3 ngày còn lại."
+   },
+   "forecast": { "overallPct": 73, "basis": "tốc độ trung bình từ đầu kỳ", "confidence": "low" },
+   "dataGaps": { "missingDates": [], "manualOnlyDates": [] } }]
 ```
+
+`remaining`/`forecast` lệch so với ví dụ đơn-view ở bản gốc (mục "Công thức progress" bên dưới) —
+tổng quát hoá cho cả 3 chỉ tiêu, không riêng views, vì một cycle có thể không đặt chỉ tiêu views.
+`forecast.basis` cũng đơn giản hoá từ "tốc độ trung bình 4 ngày qua" xuống "tốc độ trung bình từ đầu
+kỳ" (ngoại suy tuyến tính `overallPct/elapsedPct`) — xem `lib/kpi.ts` `forecastOverallPct` để biết lý
+do (một mô hình 4-ngày-gần-nhất cần truyền thêm chuỗi ngày qua nhiều tầng, cho một con số vốn đã được
+đánh dấu "ước tính, độ tin cậy thấp"; có thể nâng cấp sau).
 
 ### `POST /api/kpi-cycles` — M
 ```json
@@ -161,12 +209,23 @@ Query: `?channelId=`, `?status=draft|final`, `?activeOnly=true`
   "periodStart": "2026-08-17", "periodEnd": "2026-08-23",
   "targetViews": 500000, "targetVideos": 20, "targetFollowers": 10000 }
 ```
-→ `201`. Server tự chụp `followersAtStart` từ snapshot mới nhất. Lỗi `409` nếu trùng khoảng ngày với cycle khác cùng channel.
+Cả 3 trường chỉ tiêu **optional nhưng cần ít nhất 1** — thiếu cả 3 → `400`.
+→ `201`. Server tự chụp `followersAtStart` từ `v_channel_daily` (ngày gần nhất **có** `followers`
+khác `null` — không phải row mới nhất bất kỳ, một row `display_api` mới nhất có thể chỉ có view).
+Kênh chưa từng có `followers` nào → `400` (xem lệch #3 ở trên). Lỗi `409` nếu trùng khoảng ngày với
+cycle khác cùng channel (`23P01`, `kpi_cycle_no_overlap`).
 
 ### `PATCH /api/kpi-cycles/:id` — M
-Chỉ sửa được khi `status = draft`. Nếu `final` → `403`.
+Chỉ sửa được khi `status = draft`. Nếu `final` → `403`. Không nhận `channelId`/`followersAtStart`
+(xem lệch #4). `targetViews`/`targetVideos`/`targetFollowers`: `null` = bỏ chỉ tiêu đó (vẫn phải giữ
+lại ít nhất 1 trong 3), số = chỉnh giá trị. `409` nếu đổi ngày khiến trùng khoảng với cycle khác.
 
-### `POST /api/kpi-cycles/:id/finalize` — M
+### `DELETE /api/kpi-cycles/:id` — M
+Thêm ở M5, không có trong đặc tả gốc — xem lệch #4. Chỉ xoá được cycle `status = draft`; `final` →
+`403`. Ghi `audit_log` (`entity_type: "kpi_cycle", action: "deleted"`).
+→ `{ "ok": true }`.
+
+### `POST /api/kpi-cycles/:id/finalize` — M — **chưa cài đặt, đây là đặc tả cho M6**
 **Không nhận file.** Chỉ tổng hợp `data_snapshot` đã có trong khoảng ngày của chu kỳ rồi khoá lại.
 Import là việc riêng (xem `/api/channels/:id/import`).
 
@@ -235,7 +294,7 @@ Query: `?dryRun=true` — **thêm ở M3a**, không có trong bản đặc tả 
 bên dưới nhưng **không ghi gì vào DB/Storage** — dùng cho bước "xem trước" trước khi Manager bấm
 "Lưu dữ liệu" (`design/Import.dc.html`). Bỏ `dryRun` (hoặc `dryRun=false`) mới ghi thật.
 
-→ Giải nén, parse, ghi `data_snapshot(source=studio_import)` **chỉ cho ngày `< ngàyExport − 3`**
+→ Giải nén, parse, ghi `data_snapshot(source=studio_import)` **chỉ cho ngày `< ngàyImport − 1`**
 (cửa sổ chốt) — cửa sổ này **chỉ áp cho `data_snapshot`**, không áp cho `follower_activity`/
 `audience_snapshot`/`content_video` (3 bảng này luôn ghi toàn bộ nội dung file, xem
 [DATABASE_ERD.md](DATABASE_ERD.md) lý do: `FollowerActivity.csv` chỉ giữ 7 ngày/lần, cửa sổ không
@@ -311,6 +370,7 @@ vấn đề #7, 21/08/2026).
 ```json
 { "role": "manager",
   "channelCount": 8,
+  "channels": [{ "id": "...", "name": "…" }],
   "period": { "from": "2026-08-15", "to": "2026-08-21", "comparedFrom": "2026-08-08", "comparedTo": "2026-08-14" },
 
   "teamStats": {
@@ -334,35 +394,57 @@ vấn đề #7, 21/08/2026).
   "viewShare":  [{ "channelId": "...", "channelName": "…", "views": 470000, "sharePct": 19.4 }],
   "efficiency": [{ "channelId": "...", "channelName": "…", "videos": 18, "viewsPerVideo": 26111 }],
 
-  "kpiSummary": { "onTrack": 0, "atRisk": 0, "behind": 0, "attention": [] },
+  "kpiSummary": { "onTrack": 3, "atRisk": 1, "behind": 1,
+                  "attention": [{ "channelId": "...", "channelName": "…",
+                                   "reason": "Đã qua 80% chu kỳ, hoàn thành 40% chỉ tiêu." }] },
 
   "myChannels": null
 }
 ```
 
-**3 chỗ lệch so với bản đặc tả gốc, cả 3 quyết định lúc code M4 (21/08/2026):**
+**5 chỗ lệch so với bản đặc tả gốc:**
 
-1. **`channelCount`** — không có trong bản gốc. `growth`/`viewShare`/`efficiency` đều là top-5/6,
-   không dùng được để suy ra tổng số kênh đang hoạt động cho dòng tiêu đề "N kênh" — thêm hẳn field.
-2. **`trend`** đổi từ `{ metric, granularity, series }` (1 chuỗi tại 1 thời điểm) sang
-   `{ granularity, views, followers, videos }` (cả 3 chuỗi luôn). Mockup có tab chuyển Lượt
+1. **`channelCount`** (M4, 21/08/2026) — không có trong bản gốc. `growth`/`viewShare`/`efficiency`
+   đều là top-5/6, không dùng được để suy ra tổng số kênh đang hoạt động cho dòng tiêu đề "N kênh" —
+   thêm hẳn field.
+2. **`trend`** (M4, 21/08/2026) đổi từ `{ metric, granularity, series }` (1 chuỗi tại 1 thời điểm)
+   sang `{ granularity, views, followers, videos }` (cả 3 chuỗi luôn). Mockup có tab chuyển Lượt
    xem/Follower/Video ngay trên client (`app/(app)/trend-chart.tsx`) — nếu giữ 1 `series`, mỗi lần
    bấm tab phải gọi lại API với `?metric=`. Tính sẵn cả 3 rẻ hơn (cùng 1-2 query) và tab bấm tức thì.
-3. **`kpiSummary`** luôn `{onTrack:0, atRisk:0, behind:0, attention:[]}` — **đúng thực tế**, không
-   phải giá trị giả: bảng `kpi_cycle` chưa có row nào (M5 chưa code). Không tính health/progress ở
-   đây vì công thức đó (mục dưới) là phạm vi M5, viết trước khi có cycle thật để test sẽ vô nghĩa.
+3. **`channels`** (M5, 25/08/2026) — id+name của mọi kênh tính trong `channelCount`, không có trong
+   bản gốc lẫn bản M4. `lib/kpi.ts`'s `buildDashboardKpiSummary()` cần đúng tập kênh này để tính
+   `kpiSummary`/`myChannels`' phần KPI mà không phải tự lọc lại role/`creatorId`/`teamId` lần 2 —
+   xem ghi chú "Tại sao 2 lệnh gọi, không phải 1" bên dưới.
+4. **`kpiSummary` giờ có số thật** (M5) — trước đó luôn `{onTrack:0,atRisk:0,behind:0,attention:[]}`
+   vì `kpi_cycle` chưa có row nào. `onTrack`/`atRisk`/`behind` đếm theo `health.value` của mọi cycle
+   **đang chạy** (`activeOnly`) trong tập kênh này; `attention` liệt kê **toàn bộ** cycle `red`, không
+   cắt top-N (theo đúng quyết định 24/08/2026 đã áp cho `growth`/`viewShare`/`efficiency`).
+5. **Tại sao 2 lệnh gọi, không phải 1**: `getDashboard()` (`lib/dashboard.ts`) không tự tính
+   `kpiSummary`/`myChannels`' phần KPI — `lib/kpi.ts` đã import runtime từ `lib/dashboard.ts` (dùng
+   lại `fetchDailyRows`/`groupByChannel`/... cho `attachProgress`), nên chiều ngược lại sẽ tạo vòng
+   lặp import. Route/trang gọi `getDashboard()` trước, rồi `buildDashboardKpiSummary(supabase,
+   dashboard.channels)`, rồi `mergeDashboardKpi()` ghép 2 kết quả — xem
+   `app/api/dashboard/route.ts`/`app/(app)/page.tsx`.
 
 Khác biệt theo `role`:
 
 | Trường | `manager` | `creator` |
 | :--- | :--- | :--- |
-| `teamStats`, `trend`, `growth`, `viewShare`, `efficiency`, `channelCount` | Có | Có (giống hệt) |
-| `kpiSummary` | Tổng hợp toàn team + danh sách cần chú ý | Chỉ KPI của kênh mình phụ trách |
+| `teamStats`, `trend`, `growth`, `viewShare`, `efficiency`, `channelCount`, `channels` | Có | Có (giống hệt) |
+| `kpiSummary` | Tổng hợp toàn team + danh sách cần chú ý | Có (giống hệt) — **sửa 25/08/2026 (M5)**, xem dưới |
 | `myChannels` | `null` | Mảng kênh đang phụ trách, kèm `progress` từng chỉ số và `hint` gợi ý hành động |
 
-`myChannels` item — **`hasActiveKpi` thêm ở M4** (bản gốc giả định luôn có 1 cycle đang chạy; thực tế
-chưa cái nào có, `metrics: []` + `overallStatus: null` khi `hasActiveKpi: false`, UI hiện "Chưa có
-KPI cho kênh này" thay vì thanh tiến độ):
+`kpiSummary` giống hệt giữa 2 vai trò — lệch so với dự định ban đầu ("Creator chỉ thấy KPI của kênh
+mình") ghi trong bản đặc tả gốc trước khi có code thật. Quyết định lúc cài đặt M5: cùng logic "xem
+chéo toàn team" mà `teamStats`/`growth`/`viewShare`/`efficiency` đã áp dụng — `kpiSummary` chỉ là một
+lát cắt khác của CÙNG loại dữ liệu (tình hình các kênh), không phải chỉ tiêu cá nhân của riêng ai.
+`myChannels` mới là chỗ dành riêng cho "KPI của tôi" — không đổi.
+
+`myChannels` item — **`hasActiveKpi` thêm ở M4** (bản gốc giả định luôn có 1 cycle đang chạy), có số
+thật từ M5: `metrics: []` + `overallStatus: null` khi `hasActiveKpi: false` (kênh chưa có cycle đang
+chạy — UI hiện "Chưa có KPI cho kênh này"), có dữ liệu thật khi `true`. `metrics[]` chỉ liệt kê chỉ
+tiêu **đã đặt VÀ đã tính được `pct`** — một chỉ tiêu đã đặt nhưng chưa có số đo không xuất hiện ở đây
+(khác `progress` của `GET /api/kpi-cycles`, nơi vẫn trả `pct: null` tường minh cho ca đó):
 ```json
 { "channelId": "...", "channelName": "Học Tiếng Anh", "handle": "@hoctienganh",
   "followers": 9400, "overallStatus": "green", "hasActiveKpi": true,
@@ -374,51 +456,72 @@ KPI cho kênh này" thay vì thanh tiến độ):
 
 ## Công thức `progress` (server-side)
 
+Cài đặt: [lib/kpi.ts](../lib/kpi.ts) — mọi hàm bên dưới là hàm thuần, test ở `lib/kpi.test.ts`.
+
 ```
-viewsPct     = viewsTrongKỳ / targetViews * 100
-videosPct    = videosTrongKỳ / targetVideos * 100
+viewsPct     = viewsTrongKỳ / targetViews * 100        (chỉ tính khi targetViews đã đặt)
+videosPct    = videosTrongKỳ / targetVideos * 100       (chỉ tính khi targetVideos đã đặt)
 followersPct = (followersHiệnTại - followersAtStart)
-             / (targetFollowers - followersAtStart) * 100
+             / (targetFollowers - followersAtStart) * 100   (chỉ tính khi targetFollowers đã đặt)
 
-overallPct   = (viewsPct + videosPct + followersPct) / 3
+overallPct   = trung bình cộng các pct KHÁC null ở trên
 ```
 
-**Nguồn từng số:**
+**Sửa 25/08/2026 (M5, theo yêu cầu) so với bản gốc `/3` cố định**: một cycle chỉ cần đặt **ít nhất 1
+trong 3** chỉ tiêu, không bắt buộc cả 3. `overallPct` lấy trung bình đúng số chỉ tiêu đã đặt VÀ đã có
+số đo (một chỉ tiêu đã đặt nhưng chưa có dữ liệu đo được vẫn trả `pct: null`, không tính vào trung
+bình, không phải `0%`). `targetCount` (số chỉ tiêu đã đặt, 1-3) đi kèm để UI ghi rõ "đang tính trên N
+chỉ tiêu". `target === 0` hoặc `targetFollowers === followersAtStart` (chia cho 0) → `pct: null`,
+không bao giờ trả `Infinity`/`NaN`. Follower giảm so với đầu kỳ → `pct` âm thật, giữ nguyên (không
+kẹp) — chỉ thanh tiến độ ở UI mới kẹp về 0.
+
+**Nguồn từng số (`actuals` trong response `GET /api/kpi-cycles`):**
 
 | Số | Lấy từ |
 | :--- | :--- |
-| `viewsTrongKỳ` | `SUM(data_snapshot.video_views)` các ngày trong kỳ (theo nguồn ưu tiên cao nhất mỗi ngày) |
-| `videosTrongKỳ` | `COUNT(content_video)` có `posted_at` trong kỳ — **không** dùng hiệu `video_count`, vì video bị xoá sẽ làm hiệu sai |
-| `followersHiệnTại` | `data_snapshot.followers` của ngày mới nhất trong kỳ |
+| `viewsTrongKỳ` (`actuals.views`) | `SUM(data_snapshot.video_views)` các ngày trong kỳ (theo nguồn ưu tiên cao nhất mỗi ngày), **loại bỏ ngày `is_complete = false`** — CLAUDE.md: không dùng snapshot không đầy đủ để tính KPI. `null` nếu không ngày nào có số đo (chưa có, không phải 0) |
+| `videosTrongKỳ` (`actuals.videos`) | `COUNT(content_video)` có `posted_at` trong kỳ — **không** dùng hiệu `video_count`, vì video bị xoá sẽ làm hiệu sai. Luôn là số thật, không bao giờ `null` |
+| `followersHiệnTại` (`actuals.followersNow`) | `data_snapshot.followers` của ngày mới nhất **trong kỳ** có số (không lấy ngoài kỳ) |
 
-### Ngưỡng trạng thái — ±10% quanh tiến độ thời gian
+### Ngưỡng trạng thái (`health`) — ±10% quanh tiến độ thời gian
+
+Đổi tên từ `status` (bản gốc) thành **`health`** — `kpi_cycle.status` đã dùng cho `draft`/`final`.
 
 ```
-elapsedPct = (hôm nay − periodStart) / (periodEnd − periodStart) * 100
+elapsedPct = % số ngày đã qua trong kỳ, tính cả ngày bắt đầu và hôm nay (kẹp [0, 100])
 
 green  : overallPct >= elapsedPct + 10
 red    : overallPct <= elapsedPct − 10
-yellow : còn lại
+yellow : còn lại — kể cả khi overallPct là null (chưa đủ dữ liệu, không đoán màu)
 ```
 
-Ví dụ: chu kỳ 7 ngày, đang ở ngày thứ 4 → `elapsedPct ≈ 50`.
-Đạt ≥60% là 🟢 · dưới 40% là 🔴 · 40-60% là 🟡.
+Ví dụ: chu kỳ 7 ngày (17/08–23/08), đang ở ngày thứ 4 (20/08) → `elapsedPct = round(4/7*100) = 57`.
+Đạt ≥67% là 🟢 · dưới 47% là 🔴 · 47-67% là 🟡 (áp dụng ±10 quanh elapsedPct=57 của ví dụ này — không
+phải một mốc cố định 50/60/40).
 
 Trả kèm `explanation` để UI hiển thị tooltip — Creator phải hiểu con số này ở đâu ra:
 ```json
-"status": { "value": "yellow", "overallPct": 52, "elapsedPct": 57,
-            "explanation": "Đã qua 57% chu kỳ, hoàn thành 52% chỉ tiêu" }
+"health": { "value": "yellow", "overallPct": 52, "elapsedPct": 57,
+            "explanation": "Đã qua 57% chu kỳ, hoàn thành 52% chỉ tiêu." }
 ```
 
 ### Số cần làm mỗi ngày — chỉ số chính hiển thị cho Creator
 
 Ưu tiên hiển thị số này thay vì dự đoán, vì nó là số học thuần và không bao giờ sai:
 ```
-cầnMỗiNgày = (target − đãĐạt) / sốNgàyCònLại
+cầnMỗiNgày = (target − đãĐạt) / sốNgàyCònLại       (kẹp remaining >= 0 — đã đạt thì không âm)
 ```
+Tổng quát hoá cho cả 3 chỉ tiêu (bản gốc chỉ có ví dụ views) — mỗi chỉ tiêu **đã đặt** có object riêng,
+`null` nếu chưa đặt hoặc chưa có số đo. `text` là câu chính hiển thị, ưu tiên chỉ tiêu theo thứ tự
+Views → Videos → Followers (chỉ tiêu ĐẦU TIÊN có mặt, không phải chỉ tiêu lệch nhiều nhất):
 ```json
-"remaining": { "views": 90000, "daysLeft": 2, "viewsPerDay": 45000,
-               "text": "Cần 45k view/ngày trong 2 ngày còn lại" }
+"remaining": {
+  "views":     { "remaining": 90000, "perDay": 45000 },
+  "videos":    { "remaining": 8, "perDay": 4 },
+  "followers": { "remaining": 800, "perDay": 400 },
+  "daysLeft": 2,
+  "text": "Cần 45k view/ngày trong 2 ngày còn lại."
+}
 ```
 
 ### Dự đoán cuối kỳ — có điều kiện
@@ -427,7 +530,22 @@ Chỉ tính khi **`elapsedPct >= 50`**; trước mốc đó trả `null`. Lý do
 (data thật: một kênh nhảy từ 27k lên 301k view/ngày sau 2 hôm), ngoại suy sớm cho số vô nghĩa và
 nguy hiểm khi KPI gắn với thưởng.
 ```json
-"forecast": { "overallPct": 87, "basis": "tốc độ trung bình 4 ngày qua",
+"forecast": { "overallPct": 87, "basis": "tốc độ trung bình từ đầu kỳ",
               "confidence": "low|medium" }
 ```
+`basis` đơn giản hoá từ "tốc độ trung bình 4 ngày qua" (bản gốc) — ngoại suy tuyến tính
+`overallPct / elapsedPct * 100` từ tốc độ trung bình CẢ KỲ tính tới hiện tại, không riêng 4 ngày gần
+nhất. `confidence: "medium"` khi `elapsedPct >= 70`, còn lại `"low"`. UI **bắt buộc** ghi rõ "ước
+tính", không hiển thị như số chắc chắn.
+
+### Cảnh báo thiếu dữ liệu (`dataGaps`)
+
+Không chặn tạo/xem cycle (M5) — chỉ cảnh báo % có thể chưa chính xác:
+```json
+"dataGaps": { "missingDates": ["2026-08-22"], "manualOnlyDates": [] }
+```
+`missingDates`: ngày (đã qua, trong kỳ) không có row nào **hoặc** có row nhưng `is_complete = false`
+— gộp chung vì cả hai đều là "không có số view đáng tin cậy". `manualOnlyDates`: ngày mà nguồn ưu
+tiên cao nhất là `manual_entry` (số Manager tự nhập, chưa xác thực) — không tự động gộp vào
+`missingDates` vì `manual_entry` vẫn là một số thật, chỉ chưa qua đối chiếu Studio.
 UI **bắt buộc** ghi rõ "ước tính", không hiển thị như số chắc chắn.

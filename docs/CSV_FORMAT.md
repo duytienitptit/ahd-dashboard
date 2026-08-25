@@ -79,6 +79,12 @@ Time, "Video title", "Video link", "Post time", "Total likes", "Total comments",
    liệu, hoặc ngày cuối cùng export dở dang. Phải parse thành `null`, **không** parse thành `0` (0 và
    "chưa có số" là hai trạng thái khác nhau).
 
+   🐞 **Bẫy kèm theo trong `Viewers.csv`:** ngày dở dang về với `Total Viewers: undefined` nhưng
+   `New Viewers`/`Returning Viewers` là **`0` thật** (kiểm chứng: dòng 17/08 của export 18/08). Hai
+   số 0 đó đủ để một ngày chưa có dữ liệu lọt qua kiểm tra "dòng này có giá trị nào không" và được
+   ghi thành row `studio_import` gần như rỗng, che mất số `display_api` đang đúng.
+   `lib/import/viewers.ts` bỏ cả cụm 3 số khi `Total Viewers` là `null`.
+
 5. 🐞 **Cột `Difference in followers from previous day` bị đặt sai tên — nó là chênh lệch với ngày
    SAU.** Kiểm chứng trên data thật: khớp **15/15** với công thức `followers[D+1] − followers[D]`,
    chỉ khớp 1/15 với `followers[D] − followers[D−1]`.
@@ -122,9 +128,12 @@ Export thực hiện ngày **18/08**, nhưng dữ liệu thật chỉ có đến
 | :--- | :--- | :--- |
 | `Overview.csv` (cả 2 kênh) | 16/08 | 2 ngày |
 | `FollowerHistory.csv` | 16/08 | 2 ngày |
-| `Viewers.csv` | 17/08 nhưng `"undefined"` → thật đến 16/08 | 2 ngày |
+| `Viewers.csv` | 17/08 nhưng `"undefined"` (New/Returning vẫn là `0`) → thật đến 16/08 | 2 ngày |
 
-Hệ quả bắt buộc: **không ghi đè 2-3 ngày gần nhất bằng số từ Studio** — những ngày đó Studio chưa có
+Kiểm chứng lại 25/08/2026 trên `@nng.sn.vit6`: export ngày 25/08 có số đầy đủ đến **23/08** — vẫn
+đúng 2 ngày, trên cả `Overview.csv`, `FollowerHistory.csv` và `Viewers.csv`.
+
+Hệ quả bắt buộc: **không ghi đè 2 ngày gần nhất bằng số từ Studio** — những ngày đó Studio chưa có
 số, ghi đè sẽ xoá mất số `display_api` đang đúng. Cơ chế "cửa sổ chốt" xem
 [DATA_SOURCES.md](DATA_SOURCES.md).
 

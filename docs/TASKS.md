@@ -119,7 +119,8 @@ test ngay), tầng API sau khi M0 kiểm chứng xong.
       — `lib/import/zip.ts`, đọc theo tên CSV bên trong chứ không theo tên zip ngoài
 - [x] `POST /api/channels/:id/import` — upsert `data_snapshot` (`source = studio_import`). Thêm
       `?dryRun=true` (không có trong đặc tả gốc, đã bàn với Manager) — xem [API_SPEC.md](API_SPEC.md)
-- [x] **Cửa sổ chốt:** chỉ ghi đè ngày `< ngàyExport − 3`; ngày mới hơn giữ nguyên `display_api` —
+- [x] **Cửa sổ chốt:** chỉ ghi đè ngày `< ngàyImport − 1` (sửa từ `− 3` ngày 25/08/2026, xem
+      [PROGRESS.md](PROGRESS.md)); ngày mới hơn giữ nguyên `display_api` —
       `lib/import/settle-window.ts` + `lib/import/plan-import.ts`. **Chỉ áp cho `data_snapshot`**, xem
       [DATABASE_ERD.md](DATABASE_ERD.md) lý do 3 bảng còn lại luôn ghi toàn bộ
 - [x] Không ghi đè số thật bằng `undefined`/`null` — merge với row `studio_import` cũ trước khi upsert
@@ -557,20 +558,81 @@ Bẫy liên quan: [DISPLAY_API.md](DISPLAY_API.md) #9, #10, #12, #13.
       xoá sạch `data_snapshot(display_api)`/`content_video` (video_snapshot cascade theo) cho cả 6
       kênh đang kết nối, theo yêu cầu người dùng sau khi thấy 2 phương án. **Chạy `--confirm` thật
       24/08/2026 — 6/6 kênh revoke TikTok OK, không lỗi.** Cả 9 kênh giờ đều không kết nối.
-- [ ] Kiểm chứng bằng browser thật: màn hình authorize của TikTok phải hiện ra khi bấm Kết nối —
-      **chặn bởi migration chưa áp lên Supabase** ở trên, và cần tài khoản TikTok thật để click qua
+- [x] Kiểm chứng bằng browser thật: màn hình authorize của TikTok phải hiện ra khi bấm Kết nối —
+      **xong 25/08/2026** (không phải phiên viết M5 — người dùng tự làm ở máy này song song).
+      Migration đã áp lên Supabase, cả 9 kênh đã Authorize lại + đồng bộ thành công ít nhất 1 lần
+      (`node scripts/diagnose-oauth.mjs`: đủ scope, xác minh tài khoản, video đúng kênh). Chạy qua
+      local dev server với code M5 + nhóm vá OAuth/view-per-day vẫn đang ở working tree (chưa
+      commit) — việc reconnect thành công tự kiểm chứng luôn cả 2 nhóm code đó đúng với tài khoản
+      TikTok thật, không chỉ với fake provider như lần kiểm chứng trước đó.
 - [ ] Nhóm C (chưa làm, tách đợt sau): đối chiếu Studio ↔ display_api mỗi lần import, hiện
       `is_complete` trên UI, cảnh báo lệch bất thường, route hoá `diagnose-data.mjs`
 
-## M5 — KPI Cycle
+## M5 — KPI Cycle — xong 25/08/2026
 
-- [ ] `POST /api/kpi-cycles` — tự chụp `followersAtStart` từ `data_snapshot` mới nhất, chặn trùng khoảng ngày (409)
-- [ ] `GET /api/kpi-cycles` + tính `progress` server-side (đọc từ `data_snapshot` trong khoảng ngày của cycle)
-- [ ] `PATCH /api/kpi-cycles/:id` — chặn sửa khi `status = final` (403)
-- [ ] Hàm tính `progress` + `overallStatus` (🟢🟡🔴) — viết unit test cho công thức followers
-- [ ] Cảnh báo nếu thiếu `data_snapshot` trong khoảng ngày của cycle (import chưa đủ để tính chính xác)
-- [ ] UI: form tạo KPI (chọn chu kỳ tuần / custom date range)
-- [ ] UI: thanh tiến độ % + badge trạng thái
+- [x] `POST /api/kpi-cycles` — tự chụp `followersAtStart` từ `data_snapshot` mới nhất, chặn trùng khoảng ngày (409)
+- [x] `GET /api/kpi-cycles` + tính `progress` server-side (đọc từ `data_snapshot` trong khoảng ngày của cycle)
+- [x] `PATCH /api/kpi-cycles/:id` — chặn sửa khi `status = final` (403)
+- [x] Hàm tính `progress` + `overallStatus` (🟢🟡🔴, đổi tên thành `health`) — viết unit test cho công thức followers
+- [x] Cảnh báo nếu thiếu `data_snapshot` trong khoảng ngày của cycle (import chưa đủ để tính chính xác)
+- [x] UI: form tạo KPI (chọn chu kỳ tuần / custom date range)
+- [x] UI: thanh tiến độ % + badge trạng thái
+- [x] `DELETE /api/kpi-cycles/:id` — thêm ngoài danh sách gốc, xem lý do trong PROGRESS.md
+
+**M5 xong 25/08/2026 — có gì dùng được ngay**
+
+- **`lib/kpi.ts`** (mới, 550+ dòng) — module trung tâm của M5, theo đúng mẫu M3a/M3b/M4: hàm thuần
+  có test (`computeProgress`, `elapsedPct`, `resolveStatus`, `remainingPerDay`, `forecastOverallPct`,
+  `computeDataGaps`, `assertEditable`, `metricText`, `metricHint`) + lớp gọi Supabase
+  (`captureFollowersAtStart`, `listKpiCycles`, `createKpiCycle`, `updateKpiCycle`, `deleteKpiCycle`,
+  `getKpiCycleById`, `attachProgress`, `buildDashboardKpiSummary`, `mergeDashboardKpi`). 40 test mới
+  ở `lib/kpi.test.ts` (181 test toàn repo, từ 141).
+- **`metricText`/`metricHint` tách riêng ra `lib/kpi-format.ts`** — phát hiện lúc build: bất kỳ export
+  nào của `lib/kpi.ts` cũng kéo theo `lib/auth.ts` (dùng `AuthorizationError`), mà `lib/auth.ts` import
+  `next/headers` (server-only) → build fail ngay khi 1 Client Component (`kpi-cycle-form.tsx`) import
+  `metricText` xuyên qua `kpi-widgets.tsx`. `lib/kpi-format.ts` không phụ thuộc gì ngoài
+  `lib/format.ts`, an toàn cho bundle client; `lib/kpi.ts` re-export lại 2 hàm này cho phía server.
+- **`lib/kpi.ts` phụ thuộc MỘT CHIỀU vào `lib/dashboard.ts`** (dùng lại `fetchDailyRows`,
+  `groupByChannel`, `latestFollowers`, `sumViews`, và hàm mới `fetchPostedVnDatesByChannel` — refactor
+  từ `countVideosPosted`/`fetchPostedVnDates` cũ để dùng chung 1 query). `lib/dashboard.ts` **không**
+  import ngược lại `lib/kpi.ts` — sẽ tạo vòng lặp. `kpiSummary`/`myChannels`' phần KPI của
+  `GET /api/dashboard` vì vậy được ghép ở tầng gọi (`buildDashboardKpiSummary()` +
+  `mergeDashboardKpi()`, gọi sau `getDashboard()`), không nằm trong chính `getDashboard()` — xem
+  API_SPEC.md mục "Tại sao 2 lệnh gọi, không phải 1".
+- **`is_complete = false` bị loại khỏi tổng view khi tính KPI** — CLAUDE.md nói rõ "không dùng
+  snapshot đó tính KPI"; `attachProgress()` lọc trước khi gọi `sumViews()`. **Không** áp cho
+  follower/video — `is_complete` chỉ phản ánh độ đầy đủ của danh sách video (bẫy pagination), không
+  liên quan tới `user/info.follower_count` lấy từ cùng 1 lệnh gọi.
+- **`GET /api/channels/oauth/status`'s kiểu Creator-scoping được lặp lại cho `/kpi`** — RLS của
+  `kpi_cycle` cho mọi vai trò đọc toàn bộ (giống mọi bảng nghiệp vụ khác), Creator chỉ thấy cycle của
+  kênh mình phụ trách nhờ lọc ở tầng route/trang (`creatorId` param của `listKpiCycles`), không phải
+  RLS.
+- **Bug thật phát hiện lúc kiểm chứng bằng browser (không phải lúc review code)**: `/channels` (và
+  do đó Tổng quan, vì cùng gọi `sumLatestVideoLikes`) crash `HeadersOverflowError` — URL PostgREST dài
+  hơn 16KB. Nguyên nhân: `fetchLatestVideoMetricsByChannel`/`fetchRecentVideoViewsByChannel`
+  (`lib/dashboard.ts`, code từ M4, **không phải lỗi M5**) dùng `.in("content_video_id", videoIds)`
+  với TOÀN BỘ video của TOÀN BỘ kênh trong 1 câu — với ~300+ video thật hiện có, URL vượt giới hạn
+  header của undici/PostgREST. Chỉ lộ ra bây giờ vì tổng số video đã tăng đủ lớn kể từ M4. Sửa: chia
+  `videoIds` thành lô 150, chạy song song (`chunkArray()` mới trong `lib/dashboard.ts`), gộp kết quả
+  — không đổi shape trả về, không đổi hành vi nghiệp vụ.
+- **UI**: `/kpi` (danh sách, nhóm Đang chạy/Sắp tới/Đã qua), `/kpi/new` (chọn kênh rồi điền form,
+  đúng bố cục `design/KpiForm.dc.html`), `/kpi/[id]/edit`, card "KPI kỳ này" trên
+  `channels/[id]` (ngay sau 4 StatTile, trước TrendChart — không chung hàng với
+  TrendChart/NewViewerRatioCard cũ của M4), cột "Tiến độ KPI" trên `/channels` giờ hiện pill % thật
+  khi có cycle đang chạy, `KpiSummaryCard`/`MyChannelsBlock` trên Tổng quan hiện số thật. Nav thêm tab
+  "KPI" (Manager)/"KPI của tôi" (Creator).
+- **Màu theo chỉ số áp cho `/kpi`** — views=blue/videos=orange/followers=purple, mở rộng quy tắc
+  24/08/2026 "Màu theo chỉ số áp TOÀN APP" sang trang mới này (trang chưa tồn tại lúc quy tắc đó viết
+  ra) — không phải quyết định màu mới, chỉ áp token có sẵn cho 1 trang thứ 6.
+- **Kiểm chứng bằng dữ liệu thật, phiên đăng nhập thật** (không chỉ build/lint/test xanh — 181/181
+  test qua, build/lint sạch): tạo cycle thật cho kênh "Mộc Đi Rừng" (Manager `andang`), xác nhận số
+  "Follower đầu kỳ" hiện trên form khớp đúng số ghi vào DB, tạo cycle trùng ngày → 409 đúng message,
+  mở form cho kênh chưa có follower (`Bé Na`) → chặn đúng + link Nhập tay, sửa/xoá cycle, xác nhận
+  `/kpi`+`/channels`+Tổng quan đều cập nhật đúng. Nhánh Creator: tạo 1 tài khoản QA tạm qua service
+  role, gán tạm kênh "Mộc Đi Rừng", xác nhận `/kpi` chỉ thấy đúng 1 cycle của kênh mình, không có nút
+  Sửa/Xoá/+Đặt KPI mới, "Kênh của tôi" trên Tổng quan hiện đúng progress bar + hint ("Cần thêm 9
+  video", "Cần thêm 1,2k follower") — sau đó gán lại đúng Creator cũ (Hoàng Thùy Dương) và xoá tài
+  khoản QA + cycle test, xác nhận lại DB đã sạch.
 
 ## M6 — Chốt sổ KPI (Finalize)
 

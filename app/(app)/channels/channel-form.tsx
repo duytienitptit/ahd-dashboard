@@ -6,9 +6,11 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import type { ChannelSummary } from "@/lib/channels";
 import type { ChannelPeriodStat } from "@/lib/dashboard";
 import { avatarPalette, formatCompact, formatDeltaPct, formatSignedNumber, initialsFromStart } from "@/lib/format";
+import type { KpiCycleWithProgress } from "@/lib/kpi";
 import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
 import { ConfirmDeleteForm } from "../confirm-delete-form";
+import { KpiProgressPill } from "../kpi/kpi-widgets";
 import { createChannelAction, deleteChannelAction, updateChannelAction, updateChannelNameAction, type ChannelFormState } from "./actions";
 
 const initialState: ChannelFormState = { error: null };
@@ -162,6 +164,7 @@ export function ChannelRow({
   isManager,
   currentUserId,
   index,
+  kpi,
 }: {
   channel: ChannelSummary;
   stat: ChannelPeriodStat | undefined;
@@ -174,6 +177,10 @@ export function ChannelRow({
    *  theo yêu cầu, lan từ Tổng quan sang /channels, xem docs/DESIGN_SYSTEM.md "Avatar kênh nhiều
    *  màu"). Defaults to 0 (cyan) so callers that don't track position still render fine. */
   index?: number;
+  /** This channel's currently-active KPI cycle (M5) — `undefined` when none exists, which keeps the
+   *  original "Chưa đặt KPI" chip. CLAUDE.md: đừng lấy % KPI làm trục sắp xếp mặc định — this column
+   *  stays purely informational, `/channels`' default sort/filter is unaffected by it. */
+  kpi?: KpiCycleWithProgress;
 }) {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -388,9 +395,15 @@ export function ChannelRow({
       </div>
 
       <div>
-        <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-line-soft px-2.5 py-1 text-[11.5px] font-semibold text-ink-3">
-          Chưa đặt KPI
-        </span>
+        {kpi ? (
+          <Link href={`/channels/${channel.id}`}>
+            <KpiProgressPill health={kpi.health} />
+          </Link>
+        ) : (
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-line-soft px-2.5 py-1 text-[11.5px] font-semibold text-ink-3">
+            Chưa đặt KPI
+          </span>
+        )}
       </div>
 
       {canEditName ? (

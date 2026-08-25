@@ -6,8 +6,7 @@ import { initialsFromEnd } from "@/lib/format";
 
 import { NavLinks } from "./nav-links";
 
-// Tabs per docs/USER_FLOW.md "Khác biệt theo vai trò". KPI (Manager) and "KPI của tôi" (Creator) are
-// M5 work — no link to a route that doesn't exist yet.
+// Tabs per docs/USER_FLOW.md "Khác biệt theo vai trò".
 const NAV_ITEMS: Record<AppRole, { href: string; label: string }[]> = {
   manager: [
     { href: "/", label: "Tổng quan" },
@@ -16,6 +15,7 @@ const NAV_ITEMS: Record<AppRole, { href: string; label: string }[]> = {
     // chỉ đổi nhãn hiển thị (21/08/2026, theo yêu cầu) vì trang giờ gồm cả Team, không chỉ Creator.
     { href: "/creators", label: "Nhân sự" },
     { href: "/import", label: "Dữ liệu" },
+    { href: "/kpi", label: "KPI" },
   ],
   creator: [
     { href: "/", label: "Tổng quan" },
@@ -24,6 +24,7 @@ const NAV_ITEMS: Record<AppRole, { href: string; label: string }[]> = {
     // mình phụ trách (theo vận hành thực tế, xem CLAUDE.md). /import có DataTabs điều hướng sang
     // /connections, nên chỉ cần 1 mục nav trỏ vào /import là đủ, không cần 2 mục riêng.
     { href: "/import", label: "Dữ liệu" },
+    { href: "/kpi", label: "KPI của tôi" },
   ],
 };
 

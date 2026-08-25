@@ -84,6 +84,17 @@ export function requireDateString(body: Record<string, unknown>, field: string):
   return value;
 }
 
+/** `undefined` = field omitted (leave unchanged) — `PATCH /api/kpi-cycles/:id` can adjust just one
+ *  of `periodStart`/`periodEnd` without resending both. Same format check as `requireDateString`. */
+export function optionalDateString(body: Record<string, unknown>, field: string): string | undefined {
+  const value = body[field];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !DATE_STRING_RE.test(value)) {
+    throw new ValidationError(`Trường "${field}" phải có dạng YYYY-MM-DD.`);
+  }
+  return value;
+}
+
 /** `undefined` = field omitted (don't touch it) — manual-entry's 3 metric fields are each
  *  independently optional, since a Manager patching in for a broken API often only knows some of
  *  the numbers (docs/DATA_SOURCES.md "Nhập tay khi API lỗi"). */
@@ -92,6 +103,26 @@ export function optionalNonNegativeInt(body: Record<string, unknown>, field: str
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw new ValidationError(`Trường "${field}" phải là số nguyên không âm.`);
+  }
+  return value;
+}
+
+/**
+ * Three-state, like `optionalUuid` below: `undefined` = field omitted (leave unchanged), `null` =
+ * explicitly cleared, a number = value to set. `optionalNonNegativeInt` above can't express "clear
+ * it" — it collapses both omitted and explicit `null` down to `undefined`. `kpi_cycle`'s 3 target
+ * columns are each independently nullable (`PATCH /api/kpi-cycles/:id` needs to drop one target
+ * from a cycle while leaving the other two alone), so that collapse isn't safe there.
+ */
+export function optionalNullableNonNegativeInt(
+  body: Record<string, unknown>,
+  field: string,
+): number | null | undefined {
+  const value = body[field];
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new ValidationError(`Trường "${field}" phải là số nguyên không âm hoặc null.`);
   }
   return value;
 }

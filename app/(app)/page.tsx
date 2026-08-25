@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { listCreators } from "@/lib/creators";
 import { getDashboard } from "@/lib/dashboard";
 import { formatDeltaPct, formatSignedNumber } from "@/lib/format";
+import { buildDashboardKpiSummary, mergeDashboardKpi } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
 import { resolvePeriodParamsAllTime } from "@/lib/time";
@@ -37,11 +38,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const teamId = params.teamId ?? null;
 
   const supabase = await createSupabaseServerClient();
-  const [dashboard, creators, teams] = await Promise.all([
+  const [dashboardBase, creators, teams] = await Promise.all([
     getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId, teamId }),
     listCreators(supabase),
     listTeams(supabase),
   ]);
+  // M5: kpiSummary/myChannels' KPI fields come from a second call, not getDashboard() itself — see
+  // lib/kpi.ts's buildDashboardKpiSummary doc comment for why (avoids a circular import between
+  // lib/dashboard.ts and lib/kpi.ts).
+  const kpiSlice = await buildDashboardKpiSummary(supabase, dashboardBase.channels);
+  const dashboard = mergeDashboardKpi(dashboardBase, kpiSlice);
   const { channelCount, teamStats } = dashboard;
 
   return (

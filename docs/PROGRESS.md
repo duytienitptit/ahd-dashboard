@@ -814,16 +814,160 @@ cấp quyền thật từ đầu, không còn phụ thuộc session/grant cũ n�
 
 ### Còn treo — việc của người dùng
 
-1. **Áp migration `20260824000001_oauth_hardening.sql`** qua Supabase Dashboard → SQL Editor (không
-   tự làm được — xem lý do ở trên). Bắt buộc trước khi deploy code nhóm A: callback ghi cột
-   `authorized_handle`, chưa có cột thì mọi lần Authorize sẽ lỗi. **Gấp hơn từ sau bước reset ở
-   trên** — hiện tại không kênh nào có dữ liệu display_api mới cho tới khi deploy xong.
+1. ~~Áp migration `20260824000001_oauth_hardening.sql`~~ — **đã áp lên Supabase** (xác nhận 25/08/2026:
+   `channel_oauth.authorized_handle` tồn tại, có dữ liệu thật).
 2. ~~Chạy `scripts/reset-display-api.mjs`~~ — **đã xong**, xem mục trên.
-3. Deploy code, kết nối lại **cả 9 kênh** ở `/connections` — nhớ đăng xuất tiktok.com giữa mỗi kênh.
-   Bấm "Kết nối" phải thấy màn hình TikTok hiện ra thật — **không tự kiểm chứng được**, cần tài khoản
-   TikTok thật để click qua Authorize.
+3. ~~Kết nối lại cả 9 kênh ở `/connections`~~ — **đã xong 25/08/2026**, cả 9 kênh Authorize lại qua
+   TikTok thật + đồng bộ thành công ít nhất 1 lần (`node scripts/diagnose-oauth.mjs` xanh: đủ scope,
+   xác minh tài khoản, video đúng kênh). Làm qua local dev server đang chạy code M5 + nhóm vá
+   OAuth/view-per-day ở mục này — **vẫn chưa commit/push**, nên việc reconnect thành công thực chất
+   là bằng chứng sống cho cả 2 nhóm code đó, không chỉ là việc vận hành của người dùng.
 4. Nhóm C (đối chiếu Studio↔display_api, hiện `is_complete` trên UI, cảnh báo lệch bất thường, route
    hoá script chẩn đoán) — tách đợt sau, chưa bắt đầu.
+5. **Mới phát sinh**: commit + push code (M5 + nhóm vá này) rồi deploy — production (Vercel) vẫn đang
+   chạy code cũ, chưa có gì ở mục 1-3 phản ánh lên đó.
+
+## M5 — KPI Cycle (25/08/2026) — có gì dùng được ngay
+
+Danh sách file/module đầy đủ: [docs/TASKS.md](TASKS.md) mục "M5 — KPI Cycle". Phần này ghi lại các
+**quyết định và lệch** không nằm gọn trong checklist.
+
+### Quyết định chốt trước khi code (hỏi người dùng, không đoán)
+
+- **UI ở cả 2 nơi**: trang `/kpi` riêng (đúng nhãn nav USER_FLOW.md đã ghi từ trước) **và** card "KPI
+  kỳ này" trên chi tiết kênh — không chọn 1 trong 2.
+- **Form tạo: từng kênh một**, đúng `design/KpiForm.dc.html` — không làm bảng nhập hàng loạt 9 kênh
+  dù vận hành thật là đặt KPI cả 9 kênh mỗi tuần. Lý do chọn đơn giản hơn: giảm rủi ro code, và Manager
+  đã quen thao tác "1 kênh 1 lượt" từ các form khác trong app (Nhập tay, sửa kênh...).
+- **Kênh chưa có `followers` nào**: chặn tạo hẳn (không cho nhập tay follower đầu kỳ trong form KPI),
+  báo rõ + link sang `/import/manual-entry`. Lý do: `followers_at_start` là `NOT NULL`, chụp 1 lần,
+  không sửa được — một số nhập tay ở ĐÚNG form này sẽ không có nguồn gốc rõ ràng như số nhập qua màn
+  Nhập tay chính thức (không ghi `audit_log`, không qua `createManualEntry()` đã có).
+- **3 chỉ tiêu**: bắt buộc ít nhất 1, `overallPct` trung bình theo số chỉ tiêu đã đặt — lệch công thức
+  gốc `/3` cố định trong API_SPEC.md, đã sửa doc.
+
+### Bẫy kỹ thuật gặp lúc code
+
+**Vòng lặp import giữa `lib/kpi.ts` và `lib/dashboard.ts`.** Kế hoạch ban đầu định để
+`getDashboard()` (`lib/dashboard.ts`) tự tính luôn `kpiSummary`/`myChannels`' phần KPI bằng cách gọi
+thẳng `lib/kpi.ts`. Không được: `lib/kpi.ts` đã cần import runtime từ `lib/dashboard.ts`
+(`fetchDailyRows`, `groupByChannel`, `latestFollowers`, `sumViews` — tái dùng đúng theo kế hoạch, để
+không viết lại các câu query đã có) để tính `attachProgress()`. Hai module import lẫn nhau ở tầng
+RUNTIME (không phải chỉ type) — về lý thuyết vẫn chạy được nhờ hoisting của function declaration,
+nhưng là anti-pattern dễ vỡ khi ai đó thêm code chạy ở top-level module sau này, và Turbopack có thể
+xử lý khác nhau tuỳ ngữ cảnh. Giải pháp: `lib/kpi.ts` mới có 2 hàm ghép (`buildDashboardKpiSummary()`
++ `mergeDashboardKpi()`), gọi TỪ BÊN NGOÀI sau khi `getDashboard()` đã chạy xong (ở
+`app/(app)/page.tsx` và `app/api/dashboard/route.ts`), không phải từ bên trong `getDashboard()`.
+Thêm field `channels: {id, name}[]` vào `DashboardResponse` để 2 lệnh gọi này dùng chung đúng 1 tập
+kênh đã lọc theo role/`creatorId`/`teamId`, không phải lọc lại lần 2.
+
+**Cùng lý do đó, `metricText`/`metricHint` phải tách ra `lib/kpi-format.ts` riêng.** Phát hiện lúc
+`npm run build` (không phải lúc code, không phải lúc `tsc --noEmit` — cả hai đều pass bình thường):
+Turbopack fail cứng khi `kpi-cycle-form.tsx` ("use client") import `metricText` xuyên qua
+`kpi-widgets.tsx` → `lib/kpi.ts` → `lib/auth.ts` (dùng `AuthorizationError`) → `lib/supabase/server.ts`
+→ `next/headers`. `next/headers` bị chặn tuyệt đối khỏi Client Component bundle — không quan trọng
+việc `metricText` tự nó không đụng gì tới auth, cả module `lib/kpi.ts` bị kéo theo khi import BẤT KỲ
+export nào của nó. Bài học: **một module server-only (import `lib/auth.ts` hoặc bất kỳ thứ gì đụng
+`next/headers`) không được có bất kỳ export nào bị Client Component import trực tiếp hay gián tiếp**
+— hàm thuần cần dùng cả 2 phía phải sống ở một file KHÔNG import gì server-only, tách hẳn khỏi hàm I/O.
+`lib/kpi-format.ts` (mới) chỉ phụ thuộc `lib/format.ts` (không phụ thuộc gì khác) — `lib/kpi.ts`
+re-export lại 2 hàm này cho phía server dùng nguyên như cũ.
+
+**`is_complete = false` và câu hỏi "loại khỏi số nào".** CLAUDE.md nói "không dùng snapshot đó tính
+KPI" nhưng không nói rõ áp dụng cho CẢ 3 chỉ số hay chỉ view. Quyết định (tự suy luận từ nguyên lý, không
+hỏi lại vì đã có đủ căn cứ trong docs có sẵn — `is_complete` phản ánh độ đầy đủ của `video/list` phân
+trang, một API call HOÀN TOÀN khác với `user/info` trả `follower_count`): chỉ loại view, giữ
+nguyên follower/video. Ghi rõ lý do trong code comment (`attachProgress`/`computeDataGaps`) và
+API_SPEC.md để không ai "sửa lại cho nhất quán" nhầm sau này.
+
+### Bug thật phát hiện lúc kiểm chứng — không phải lỗi M5
+
+Loading `/channels` (và Tổng quan, cùng nguyên nhân) crash `HeadersOverflowError` khi test bằng
+browser thật với dữ liệu production — **`fetchLatestVideoMetricsByChannel`**/
+**`fetchRecentVideoViewsByChannel`** (`lib/dashboard.ts`, code từ M4) build 1 câu
+`.in("content_video_id", videoIds)` cho TOÀN BỘ video của TOÀN BỘ kênh cùng lúc — với ~300+ video thật
+hiện có trên 9 kênh, URL PostgREST vượt 16KB (giới hạn header của undici). Lỗi này đã tồn tại từ M4,
+chỉ chưa từng lộ ra vì lúc đó tổng số video ít hơn ngưỡng — Studio import hàng tuần liên tục thêm
+video mới vào `content_video`, không xoá cái cũ, nên tổng dần vượt ngưỡng theo thời gian mà không cần
+code nào đổi. Vá tại chỗ (không thuộc phạm vi M5 nhưng chặn hẳn việc kiểm chứng cột "Tiến độ KPI" mới
+build, nên sửa luôn trong cùng phiên): thêm `chunkArray()` + chia `videoIds` thành lô 150, chạy song
+song bằng `Promise.all`, gộp kết quả — không đổi shape trả về, không đổi hành vi nghiệp vụ, chỉ đổi
+cách gọi Supabase. Nếu tổng video tiếp tục tăng nhiều lần nữa (hàng nghìn), 150/lô vẫn đủ an toàn
+(150×37 ký tự ≈ 5,5KB, còn nhiều dư địa dưới 16KB) nhưng đáng nhớ lại nếu triệu chứng tương tự xuất
+hiện ở chỗ khác.
+
+### Tự bắt lỗi màu thanh tiến độ — không khớp quy tắc đã có sẵn
+
+Bản đầu của `KpiMetricBar` (3 thanh Lượt xem/Video/Follower trong card "KPI kỳ này") tô theo
+**metric-tone** (blue/orange/purple) — cùng hệ màu CLAUDE.md/DESIGN_SYSTEM.md gọi là "màu theo chỉ
+số, áp toàn app". Lý do lúc code: `/kpi` là trang chưa tồn tại lúc quy tắc đó viết ra (24/08/2026),
+nên áp dụng "toàn app" sang trang mới nghe hợp lý.
+
+Sai — phát hiện lúc đọc lại `docs/DESIGN_SYSTEM.md` mục "Màu theo chỉ số" để viết ghi chú cho phần
+này, **không phải lúc code**: dòng "KHÔNG áp dụng cho: ... thanh tiến độ KPI" đã ghi rõ ràng từ
+24/08/2026, dự đoán trước đúng tình huống này. Lý do gốc (đọc lại thấy hợp lý): thanh tiến độ KPI
+thể hiện "có đang đúng tiến độ không" — thuộc hệ màu "chiều hướng" (🟢🟡🔴, giống `KpiHealthBadge`),
+không phải hệ màu "nhận diện chỉ số nào". Đã tự sửa trước khi báo xong task, không đợi được nhắc:
+`KpiMetricBar` đổi từ `tone` (metric-tone, cố định theo chỉ số) sang `health` (tính riêng từng thanh
+qua `resolveStatus(pctCủaChỉTiêuĐó, elapsedPct)`, cùng vốn từ 🟢🟡🔴 dùng khắp nơi khác trong M5) —
+mỗi thanh giờ tự so với tiến độ thời gian của chính nó, không còn 1 màu cố định cho "đây là Video".
+Kiểm chứng lại bằng browser thật (kênh test có 3 chỉ tiêu cố tình lệch nhau: Video vượt xa → xanh lá,
+Follower tụt xa → đỏ, Lượt xem chưa có số đo → xám) — đúng như thiết kế lại.
+
+### Kiểm chứng
+
+Toàn bộ CRUD (tạo/409 trùng ngày/400 thiếu follower/sửa/xoá) + cả 2 nơi hiện dữ liệu (`/kpi`,
+card "KPI kỳ này", cột "Tiến độ KPI" ở `/channels`, `KpiSummaryCard`/`MyChannelsBlock` ở Tổng quan) +
+nhánh Creator (tài khoản QA tạm, gán/gán-lại kênh thật "Mộc Đi Rừng") — kiểm chứng bằng phiên đăng
+nhập thật qua Manager `andang`, trên dữ liệu production thật (9 kênh, không phải data giả). Toàn bộ
+số tính tay đối chiếu khớp với UI (vd. `elapsedPct` ngày thứ 4/7 ngày = 57%, `remaining.text` =
+90000/2 ngày = 45000/ngày, ví dụ formula follower 16.689→18.000 đạt 17.476 → 60%). Dọn sạch: xoá 2
+cycle test + 1 tài khoản QA tạm + gán lại đúng Creator gốc, xác nhận lại bằng script trước khi coi là
+xong. `npm run build && npm run lint && npm test` xanh (181 test, không phải chỉ `tsc --noEmit`).
+
+## Cửa sổ chốt import: `− 3` → `− 1` (25/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+**Triệu chứng người dùng báo:** trang chi tiết kênh hôm 25/08 nhảy từ 25/08 (`tạm tính`, display_api)
+thẳng về 21/08 (`đã đối chiếu`) — thủng 22, 23, 24 dù file Studio export cùng ngày đã có số đầy đủ
+đến 23/08.
+
+**Nguyên nhân:** `settledBeforeDate()` trả `ngàyImport − 3`, còn `plan-import.ts` bỏ qua mọi
+`date >= settledBefore`. Ghép lại, ngày mới nhất ghi được là `ngàyImport − 4` — không phải `− 3` như
+tên hàm gợi ý. Import ngày 25 → dừng ở 21.
+
+Hai hệ quả, cái thứ hai nặng hơn cái người dùng thấy:
+1. Mỗi lần import vứt đi 2 ngày mà file đã có số đầy đủ.
+2. **Chu kỳ tuần T2→CN không bao giờ chốt sổ được.** Import thứ Tư (26/08) chỉ ghi tới 22/08 = thứ
+   Bảy, thiếu đúng Chủ Nhật 23/08 → điều kiện "mọi ngày trong kỳ có `studio_import`" vĩnh viễn không
+   thoả. `DATA_SOURCES.md` khẳng định ngược lại ("import thứ Tư thì cả 7 ngày đủ số") — doc sai so
+   với code từ M3a, chỉ lộ ra khi M6 sắp làm.
+
+**Đã sửa:** `settledBefore = ngàyImport − 1` → ghi tới `ngàyImport − 2`, đúng ngày cuối cùng Studio
+có số. Import thứ Tư giờ ghi tới thứ Hai, dư 1 ngày so với Chủ Nhật.
+
+**Bẫy phát hiện lúc sửa — quan trọng hơn bản thân con số.** Bỏ ngày an toàn theo lịch thì phải có gì
+đó thay thế, và hoá ra "ngày dở dang toàn `undefined`" là **sai**: chạy parser trên fixture thật, dòng
+17/08 của export 18/08 ra
+`{videoViews: null, ..., totalViewers: null, newViewers: 0, returningViewers: 0}` — TikTok ghi `0`
+thật cho New/Returning trong khi Total là `undefined`. Hai số 0 đó lọt qua `hasAnyValue` → ghi ra một
+row `studio_import` gần như rỗng → vì `studio_import` xếp trên `display_api` trong `v_channel_daily`
+(chọn theo DÒNG, `distinct on`, không phải theo cột) nên nó **che** số display_api đang đúng của ngày
+đó. Nếu chỉ nới cửa sổ mà không xử lý, mỗi lần upload muộn (file export hôm trước, upload hôm sau) sẽ
+âm thầm làm rỗng 1 ngày.
+→ `lib/import/viewers.ts` bỏ cả cụm New/Returning khi `Total Viewers` là `null`. Lớp bảo vệ giờ dựa
+vào **dữ liệu** (ngày chưa xong thì không có gì để ghi) chứ không dựa vào **lịch** (đoán TikTok trễ
+mấy ngày).
+
+**Chốt sổ vẫn giữ thứ Tư, không chuyển sang thứ Ba.** Thứ Ba đủ số (ghi tới đúng Chủ Nhật) nhưng chưa
+qua cổng `periodEnd + 3 ngày`; muốn chốt thứ Ba phải hạ luôn cổng đó xuống `+ 2`, tức gỡ cả hai lớp an
+toàn cùng lúc trên số dùng tính thưởng. Thứ Tư còn dư 1 ngày đệm nếu tuần nào TikTok trễ hơn thường lệ.
+
+**Cần làm sau khi deploy:** import lại chính bộ zip đã upload hôm nay để lấp 22-23. Ngày 24 không
+nguồn nào có (kênh mới reconnect 25/08 nên `display_api` chưa chạy ngày đó, còn Studio export ngày 25
+chưa có số cho 24) — sẽ tự đầy ở kỳ import sau, từ 26/08 trở đi.
+
+**Kiểm chứng:** `npx vitest run` — 182/182 xanh. Trong đó fixture thật khẳng định 17/08 **không** còn
+được ghi, cộng 1 test tổng hợp chốt đúng luật mới (import 25/08 → ghi 21-22-23, bỏ 24-25).
 
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 

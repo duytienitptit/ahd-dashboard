@@ -21,8 +21,9 @@ import {
   previousPeriod,
 } from "@/lib/dashboard";
 import { formatCompact, formatFullDate, initialsFromStart } from "@/lib/format";
+import { attachProgress, listKpiCycles } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { addDaysToDateString, resolvePeriodParamsAllTime } from "@/lib/time";
+import { addDaysToDateString, nowVnDateString, resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { EyeIcon, HeartIcon, StatTile, UsersIcon, VideoIcon } from "../../dashboard-widgets";
 import { DateRangePicker } from "../../date-range-picker";
@@ -30,6 +31,7 @@ import { FilterPendingOverlay, FilterTransitionProvider } from "../../filter-tra
 import { TrendChart } from "../../trend-chart";
 import { DailyTable } from "./daily-table";
 import { ActivityHeatmapCard, HashtagTable, NewViewerRatioCard, VideoList } from "./detail-widgets";
+import { KpiCard } from "./kpi-card";
 import { ManualEntryForm } from "./manual-entry-form";
 
 const HISTORY_DAYS = 180;
@@ -58,14 +60,23 @@ export default async function ChannelDetailPage({
   const historyFrom = addDaysToDateString(to, -(HISTORY_DAYS - 1));
   const trendFrom = isoWeekStart(addDaysToDateString(to, -55));
 
-  const [ownershipStart, periodStats, historyRows, postedDates, heatmap, videos] = await Promise.all([
+  const [ownershipStart, periodStats, historyRows, postedDates, heatmap, videos, channelCycles] = await Promise.all([
     getCurrentOwnershipStart(supabase, id),
     getChannelPeriodStats(supabase, { channelIds: [id], from, to, comparedFrom, comparedTo }),
     fetchDailyRows(supabase, [id], historyFrom, to),
     fetchPostedVnDates(supabase, [id], historyFrom, to),
     fetchActivityHeatmap(supabase, id),
     fetchChannelVideos(supabase, id),
+    listKpiCycles(supabase, { channelId: id }),
   ]);
+
+  // "KPI kỳ này" (M5) — the cycle covering TODAY, independent of this page's own date-range picker
+  // (`from`/`to` above is for the trend chart/daily table, not the KPI card — see kpi-card.tsx's doc
+  // comment). Up to 3 other cycles, most recently ended first, for "Các kỳ trước".
+  const todayVn = nowVnDateString();
+  const cyclesWithProgress = await attachProgress(supabase, channelCycles);
+  const activeCycle = cyclesWithProgress.find((c) => c.periodStart <= todayVn && todayVn <= c.periodEnd) ?? null;
+  const pastCycles = cyclesWithProgress.filter((c) => c.id !== activeCycle?.id).slice(0, 3);
 
   const stat = periodStats.get(id);
   // Week granularity is a subset of the 180-day fetch above (same pattern as getDashboard()) — no
@@ -134,6 +145,8 @@ export default async function ChannelDetailPage({
             <StatTile label="Video đã đăng" value={stat ? String(stat.videos) : "—"} unit="video" icon={<VideoIcon />} tone="orange" />
             <StatTile label="Tổng số like" value={formatCompact(stat?.totalLikes ?? 0)} unit="like" icon={<HeartIcon />} tone="crimson" />
           </div>
+
+          <KpiCard channelId={id} isManager={user.role === "manager"} activeCycle={activeCycle} pastCycles={pastCycles} />
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">
             <TrendChart

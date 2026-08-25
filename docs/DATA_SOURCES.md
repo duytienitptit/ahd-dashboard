@@ -140,21 +140,39 @@ Nhập tay chỉ thật sự cần khi cả hai điều sau xảy ra cùng lúc:
 ### Cửa sổ chốt (settle window)
 
 ```
-settledBefore = ngàyExport − 3     (2 ngày trễ + 1 ngày an toàn)
+settledBefore = ngàyImport − 1     (đúng 2 ngày trễ của Studio)
 
 ngày <  settledBefore  →  studio_import ghi đè, đánh dấu "đã đối chiếu"
 ngày >= settledBefore  →  GIỮ NGUYÊN số display_api, chờ kỳ import sau
 ```
 
-Kèm hai quy tắc phụ:
+Ngày mới nhất ghi được = **`ngàyImport − 2`**, đúng ngày cuối cùng Studio có số đầy đủ. Chạy import
+ngày 25/08 → ghi tới 23/08, chỉ 24 và 25 để lại cho `display_api`.
+
+📌 **Đổi từ `− 3` sang `− 1` ngày 25/08/2026, theo yêu cầu.** Mốc cũ chỉ ghi tới `ngàyImport − 4` (vì
+phép so sánh là `<`): vứt mất 2 ngày mà file export đã có số đầy đủ, và import thứ Tư không với tới
+Chủ Nhật tuần trước → chu kỳ tuần T2→CN **không bao giờ** đủ điều kiện chốt sổ. Lưu ý `ngàyImport` là
+ngày **chạy import** (`nowVnDateString()` trong route handler), không phải ngày ghi trong file
+export — upload muộn thì cửa sổ trượt theo ngày upload.
+
+Kèm ba quy tắc phụ:
 - **Không bao giờ ghi đè số thật bằng `"undefined"`/`null`.** Dòng có `undefined` thì bỏ qua hoàn toàn.
+- 🐞 **Ngày dở dang không phải lúc nào cũng toàn `undefined`.** `Viewers.csv` trả `Total Viewers:
+  undefined` nhưng `New`/`Returning Viewers` = **`0` thật**; hai số 0 đó đủ để lọt qua `hasAnyValue`
+  và ghi ra một row `studio_import` gần như rỗng — mà `studio_import` xếp trên `display_api` trong
+  `v_channel_daily` (chọn theo DÒNG) nên nó **che** số thật của ngày đó. `lib/import/viewers.ts` bỏ
+  cả cụm 3 số khi `Total Viewers` là `null`. Đây là lớp bảo vệ thay cho ngày an toàn theo lịch đã bỏ.
 - Lệch giữa `display_api` và `studio_import` cùng ngày vượt ngưỡng (đề xuất **10%**) → ghi cảnh báo,
   vẫn lấy số Studio nhưng hiện cờ để Manager xem lại.
 
 ### Hệ quả về thời điểm: import giữa tuần, không phải cuối tuần
 
 Nếu chu kỳ KPI là tuần T2→CN và import vào tối CN, hai ngày T7+CN chưa có số Studio → không chốt sổ
-được. **Import vào thứ Tư cho tuần trước đó** thì cả 7 ngày đều đã nằm ngoài cửa sổ chốt.
+được. **Import vào thứ Tư cho tuần trước đó** thì cả 7 ngày đều đã nằm ngoài cửa sổ chốt (thứ Tư ghi
+tới thứ Hai, dư 1 ngày so với Chủ Nhật).
+
+Thứ Ba cũng đủ số (ghi tới đúng Chủ Nhật, không dư ngày nào) nhưng **chưa qua `periodEnd + 3 ngày`**
+nên cổng chốt sổ vẫn khoá — xem "Quy tắc chốt sổ" ngay dưới. Giữ lịch thứ Tư.
 
 ```
 T2 ── T3 ── T4 ── T5 ── T6 ── T7 ── CN │ T2 ── T3 ── [T4: import + chốt sổ]
