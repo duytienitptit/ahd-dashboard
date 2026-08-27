@@ -9,6 +9,7 @@ type Discrepancy = { date: string; displayApi: number; studio: number; diffPct: 
 type ImportResult = {
   importedDates: string[];
   skippedRecentDates: string[];
+  skippedFinalDates: string[];
   discrepancies: Discrepancy[];
   videosUpserted: number;
   readDates: number;
@@ -188,6 +189,11 @@ export function ImportClient({ channels }: { channels: ChannelOption[] }) {
                   color="var(--color-amber-dark)"
                 />
                 <StatTile
+                  label="Đã khoá (đã chốt)"
+                  value={result.skippedFinalDates.length}
+                  color="var(--color-ink-2)"
+                />
+                <StatTile
                   label="Lệch >10%"
                   value={result.discrepancies.length}
                   color="var(--color-red-dark)"
@@ -203,6 +209,19 @@ export function ImportClient({ channels }: { channels: ChannelOption[] }) {
                     TikTok Studio trễ 2 ngày nên chưa có số cho {result.skippedRecentDates.join(", ")}.
                     Hệ thống giữ nguyên số tạm tính hiện có cho những ngày này, sẽ ghi đè ở lần nhập
                     tuần sau.
+                  </p>
+                </div>
+              ) : null}
+
+              {result.skippedFinalDates.length > 0 ? (
+                <div className="border-b border-line-soft bg-surface px-[18px] py-4">
+                  <div className="text-[13px] font-bold text-ink">
+                    {result.skippedFinalDates.length} ngày đã bị bỏ qua vì thuộc chu kỳ KPI đã chốt sổ
+                  </div>
+                  <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
+                    {result.skippedFinalDates.join(", ")} — số liệu những ngày này đã khoá vĩnh viễn
+                    (dùng làm căn cứ tính thưởng), file mới không ghi đè được. Cần sửa số của một chu
+                    kỳ đã chốt thì liên hệ trực tiếp, không qua import.
                   </p>
                 </div>
               ) : null}

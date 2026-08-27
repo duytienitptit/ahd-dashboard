@@ -144,8 +144,9 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M6 (Chốt sổ KPI) + `/kpi` đổi thành danh sách kênh + fix bug CSS `@layer` xong 26/08/2026 —
-đã commit (`5d30149`, `8067bfe`, `cdc5f26`), CHƯA push.** M5 (KPI Cycle) + bản sửa cửa sổ chốt
+**M6 (Chốt sổ KPI) + `/kpi` đổi thành danh sách kênh + fix bug CSS `@layer` + chặn import ghi đè
+chu kỳ final, tất cả xong 26/08/2026 — đã commit (`5d30149`, `8067bfe`, `cdc5f26`, `a332ac5`),
+CHƯA push, và phần chặn import mới nhất còn CHƯA commit.** M5 (KPI Cycle) + bản sửa cửa sổ chốt
 import đã xong 25/08 và **đã** lên `main` (`86173aa`, `3355e6f`). M4 + M3c + Đợt 1 + Đợt 2 + Team +
 drill-down + CRUD đầy đủ + đăng nhập username + nhóm vá OAuth/view-per-day cũng đã lên `main` từ trước.
 
@@ -179,11 +180,6 @@ trong `PUBLIC_PATHS` — TikTok verify bằng bot không có session nên luôn 
 signature". Bất kỳ file verification nào sau này (Google, Facebook...) cũng phải thêm path vào
 `PUBLIC_PATHS` trong `proxy.ts` mới verify được.
 
-⚠️ **M6 chưa chặn import ghi đè ngày đã `final`** — `lib/import/plan-import.ts` chỉ biết cửa sổ chốt
-(2 ngày trễ), không biết gì về `kpi_cycle.status`. Chưa xảy ra thật (chưa có cycle final nào trước
-26/08/2026) nhưng phải chặn trước khi dùng số final tính thưởng thật. Xem [docs/TASKS.md](docs/TASKS.md)
-mục M6.
-
 ⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
 nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" trước khi tải file lên.
@@ -208,13 +204,13 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Push `main`** — đã commit xong (`5d30149`, `8067bfe`, `cdc5f26`), chưa push. Cả hai tính năng đã
-   kiểm chứng bằng browser thật qua tài khoản QA tạm, xem [docs/PROGRESS.md](docs/PROGRESS.md) 2 mục
-   "M6 — Chốt sổ KPI" và "`/kpi` đổi thành danh sách KÊNH".
+1. **Commit phần chặn import ghi đè chu kỳ final, rồi push `main`** — 4 commit trước
+   (`5d30149`/`8067bfe`/`cdc5f26`/`a332ac5`) đã sẵn sàng, chỉ còn thiếu push. Chi tiết từng phần:
+   [docs/PROGRESS.md](docs/PROGRESS.md) — "M6 — Chốt sổ KPI", "`/kpi` đổi thành danh sách KÊNH",
+   "Bug màu link", "Chặn import ghi đè chu kỳ đã final".
 2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
    có, tự đầy ở kỳ import sau (từ 26/08).
-3. **Chặn import ghi đè ngày đã `final`** — lỗ hổng phát hiện lúc làm M6, xem cảnh báo ⚠️ ở trên.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).

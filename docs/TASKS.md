@@ -653,13 +653,12 @@ dựa trên dữ liệu đã có sẵn từ M3 trong đúng khoảng ngày của
 - [x] UI: cùng trang trên tự chuyển thành màn xem lại (read-only, có người chốt + thời điểm) khi
       `status = final` — không làm trang lịch sử riêng, `/kpi`'s list + link "Xem chốt sổ" đã đủ
 
-⚠️ **Phát hiện lúc làm M6, chưa sửa:** `lib/import/plan-import.ts`/`run-import.ts` không kiểm tra
-`kpi_cycle.status = final` trước khi ghi `data_snapshot` — chỉ quan tâm cửa sổ chốt (2 ngày trễ), không
-biết gì về việc 1 chu kỳ KPI đã khoá đè lên đúng những ngày đó. Một import muộn/sửa lại vẫn có thể ghi
-đè số của ngày đã final mà không qua `audit_log` nào — trái với CLAUDE.md ("status = final → khoá số
-liệu. Mọi thay đổi sau đó phải ghi audit_log"). Chưa từng xảy ra thật (chưa có cycle nào final trước
-26/08/2026 để va phải), nhưng phải chặn trước khi số final được dùng thật cho tính thưởng/lương.
-- [ ] Chặn (hoặc audit-log) import ghi đè `data_snapshot` vào ngày nằm trong 1 `kpi_cycle` đã `final`
+- [x] **Chặn import ghi đè ngày đã `final`** — phát hiện lúc làm M6, sửa cùng ngày 26/08/2026.
+      `runStudioImport` giờ chặn CỨNG (không ghi, không phải audit-log-rồi-vẫn-cho-ghi): mọi ngày nằm
+      trong `[periodStart, periodEnd]` của bất kỳ `kpi_cycle` nào `status = final` trên kênh đó đều bị
+      loại khỏi `dailyWrites`, kiểm **trước cả** cửa sổ chốt (2 điều kiện độc lập, không loại trừ
+      nhau). Vào `skippedFinalDates` — tách khỏi `skippedRecentDates` vì lý do khác nhau, hiện riêng
+      trên UI `/import`. Xem [PROGRESS.md](PROGRESS.md) mục "Chặn import ghi đè chu kỳ đã final".
 
 ## M7 — Dự phòng nguồn dữ liệu
 

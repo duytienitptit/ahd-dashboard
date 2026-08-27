@@ -323,9 +323,17 @@ bên dưới nhưng **không ghi gì vào DB/Storage** — dùng cho bước "xe
 `audience_snapshot`/`content_video` (3 bảng này luôn ghi toàn bộ nội dung file, xem
 [DATABASE_ERD.md](DATABASE_ERD.md) lý do: `FollowerActivity.csv` chỉ giữ 7 ngày/lần, cửa sổ không
 chồng giữa các tuần nên lọc sẽ mất dữ liệu vĩnh viễn).
+
+**Chặn riêng, kiểm trước cả cửa sổ chốt (26/08/2026):** ngày nào đã nằm trong 1 `kpi_cycle`
+`status = final` thì **luôn** bị bỏ qua, bất kể cửa sổ chốt cho phép hay không — `data_snapshot`
+của ngày đó coi như bất biến kể từ lúc chốt (CLAUDE.md "status = final → khoá số liệu"). Vào
+`skippedFinalDates`, tách khỏi `skippedRecentDates` vì lý do khác nhau (một bên "chưa tới lượt", một
+bên "đã khoá vĩnh viễn"). Chỉ check ở tầng `data_snapshot` — không áp cho 3 bảng ngoại lệ ở trên
+(không phải số dùng tính KPI).
 ```json
 { "importedDates": ["2026-08-01", "…", "2026-08-16"],
   "skippedRecentDates": ["2026-08-17", "2026-08-18"],
+  "skippedFinalDates": ["2026-08-10", "2026-08-11"],
   "discrepancies": [{ "date": "2026-08-14", "displayApi": 160000, "studio": 174608, "diffPct": 8.4 }],
   "videosUpserted": 15,
   "readDates": 59 }

@@ -162,4 +162,47 @@ describe("planStudioImport (synthetic)", () => {
     expect(plan.importedDates).toEqual(["2026-08-21", "2026-08-22", "2026-08-23"]);
     expect(plan.skippedRecentDates).toEqual(["2026-08-24", "2026-08-25"]);
   });
+
+  // 26/08/2026, theo yêu cầu — the gap flagged in M6's own TASKS.md note: nothing stopped an import
+  // from silently overwriting a date a Manager had already finalized.
+  it("skips locked (final-cycle) dates even when they'd otherwise be well inside the settle window", () => {
+    const dates = ["2026-08-10", "2026-08-11", "2026-08-12"];
+
+    const plan = planStudioImport({
+      overviewRows: dates.map((date) => ({
+        date,
+        videoViews: 100,
+        profileViews: null,
+        likes: null,
+        comments: null,
+        shares: null,
+      })),
+      followerRows: [],
+      viewerRows: [],
+      exportDate: "2026-08-25", // settledBefore = 2026-08-24, all 3 dates comfortably importable
+      existingDisplayApi: {},
+      existingStudioImport: {},
+      lockedDates: new Set(["2026-08-10", "2026-08-11"]),
+    });
+
+    expect(plan.skippedFinalDates).toEqual(["2026-08-10", "2026-08-11"]);
+    expect(plan.importedDates).toEqual(["2026-08-12"]);
+    expect(plan.dailyWrites.has("2026-08-10")).toBe(false);
+    expect(plan.dailyWrites.has("2026-08-11")).toBe(false);
+  });
+
+  it("locked check runs before the settle window — a date can't be reported as both", () => {
+    const plan = planStudioImport({
+      overviewRows: [{ date: "2026-08-24", videoViews: 100, profileViews: null, likes: null, comments: null, shares: null }],
+      followerRows: [],
+      viewerRows: [],
+      exportDate: "2026-08-25", // settledBefore = 2026-08-24 — this date would ALSO be "recent"
+      existingDisplayApi: {},
+      existingStudioImport: {},
+      lockedDates: new Set(["2026-08-24"]),
+    });
+
+    expect(plan.skippedFinalDates).toEqual(["2026-08-24"]);
+    expect(plan.skippedRecentDates).toEqual([]);
+  });
 });

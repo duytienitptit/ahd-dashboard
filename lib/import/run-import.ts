@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import { listKpiCycles } from "@/lib/kpi";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { addDaysToDateString } from "@/lib/time";
 import { ValidationError } from "@/lib/validation";
 
 import { extractCsvEntries } from "./zip";
@@ -18,6 +20,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
 export type RunImportResult = {
   importedDates: string[];
   skippedRecentDates: string[];
+  skippedFinalDates: string[];
   discrepancies: Discrepancy[];
   videosUpserted: number;
   /** Not in the original docs/API_SPEC.md — total distinct dates read across Overview/Followers/
@@ -28,6 +31,22 @@ export type RunImportResult = {
 const REQUIRED_FILES = ["Overview.csv", "FollowerHistory.csv", "Viewers.csv"] as const;
 
 const STORAGE_BUCKET = "studio-imports";
+
+/** Every calendar date this channel has already `final`-locked, across every finalized cycle — not
+ *  just the newest one, a channel can have several closed weeks. Reuses `listKpiCycles` (lib/kpi.ts)
+ *  rather than a raw query so this stays in sync with whatever that function considers "final". */
+async function fetchLockedDates(supabase: SupabaseServerClient, channelId: string): Promise<Set<string>> {
+  const finalCycles = await listKpiCycles(supabase, { channelId, status: "final" });
+  const locked = new Set<string>();
+  for (const cycle of finalCycles) {
+    let cursor = cycle.periodStart;
+    while (cursor <= cycle.periodEnd) {
+      locked.add(cursor);
+      cursor = addDaysToDateString(cursor, 1);
+    }
+  }
+  return locked;
+}
 
 function toDataSnapshotRow(channelId: string, date: string, m: MergedDailyMetrics, rawFileRef: string) {
   return {
@@ -78,6 +97,10 @@ export async function runStudioImport(input: {
   const existingDisplayApi: Record<string, { videoViews: number | null }> = {};
   const existingStudioImport: Record<string, Partial<MergedDailyMetrics>> = {};
 
+  // Independent of dateList — kicked off here (not awaited yet) so it runs alongside the
+  // data_snapshot fetch below instead of after it; awaited just before planStudioImport needs it.
+  const lockedDatesPromise = fetchLockedDates(supabase, channelId);
+
   if (dateList.length > 0) {
     const { data, error } = await supabase
       .from("data_snapshot")
@@ -113,6 +136,7 @@ export async function runStudioImport(input: {
     exportDate,
     existingDisplayApi,
     existingStudioImport,
+    lockedDates: await lockedDatesPromise,
   });
 
   const followerActivityRows = entries.has("FollowerActivity.csv")
@@ -227,6 +251,7 @@ export async function runStudioImport(input: {
   return {
     importedDates: plan.importedDates,
     skippedRecentDates: plan.skippedRecentDates,
+    skippedFinalDates: plan.skippedFinalDates,
     discrepancies: plan.discrepancies,
     videosUpserted: contentRows.length,
     readDates: plan.readDates,

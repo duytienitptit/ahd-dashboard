@@ -24,6 +24,9 @@ export type ImportPlan = {
   dailyWrites: Map<string, MergedDailyMetrics>;
   importedDates: string[];
   skippedRecentDates: string[];
+  /** Dates not written because a `final` `kpi_cycle` already covers them — CLAUDE.md: "status =
+   *  final → khoá số liệu", checked ahead of the settle window (26/08/2026). */
+  skippedFinalDates: string[];
   discrepancies: Discrepancy[];
   /** Total distinct dates seen across Overview/FollowerHistory/Viewers, before any filtering. */
   readDates: number;
@@ -63,6 +66,12 @@ export function planStudioImport(input: {
   existingDisplayApi: Record<string, { videoViews: number | null }>;
   /** Existing `data_snapshot` rows, source = studio_import, keyed by date. */
   existingStudioImport: Record<string, Partial<MergedDailyMetrics>>;
+  /** Every date covered by a `final` `kpi_cycle` on this channel (lib/kpi.ts's `finalizeKpiCycle`
+   *  locks the number, not the underlying rows — this is the other half of "khoá vĩnh viễn"). Checked
+   *  BEFORE the settle window: a date can be both locked and still "recent" by the settle-window
+   *  math, and either reason alone is enough to skip it. Optional only so the handful of existing
+   *  synthetic-input unit tests below don't all need updating to pass an empty Set. */
+  lockedDates?: Set<string>;
 }): ImportPlan {
   const merged = mergeDailyMetrics(input.overviewRows, input.followerRows, input.viewerRows);
   const settledBefore = settledBeforeDate(input.exportDate);
@@ -70,9 +79,15 @@ export function planStudioImport(input: {
   const dailyWrites = new Map<string, MergedDailyMetrics>();
   const importedDates: string[] = [];
   const skippedRecentDates: string[] = [];
+  const skippedFinalDates: string[] = [];
   const discrepancies: Discrepancy[] = [];
 
   for (const date of [...merged.keys()].sort()) {
+    if (input.lockedDates?.has(date)) {
+      skippedFinalDates.push(date);
+      continue;
+    }
+
     if (date >= settledBefore) {
       skippedRecentDates.push(date);
       continue;
@@ -99,5 +114,5 @@ export function planStudioImport(input: {
     }
   }
 
-  return { dailyWrites, importedDates, skippedRecentDates, discrepancies, readDates: merged.size };
+  return { dailyWrites, importedDates, skippedRecentDates, skippedFinalDates, discrepancies, readDates: merged.size };
 }

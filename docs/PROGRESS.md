@@ -1141,6 +1141,42 @@ thấy tác dụng phụ. Thay đổi thuần CSS, không đụng logic nên kh�
 **Quy ước mới để không lặp lại** — xem [CLAUDE.md](../CLAUDE.md) mục "Quy ước code": mọi CSS chọn
 theo thẻ HTML trần trong `globals.css` phải nằm trong `@layer base`.
 
+## Chặn import ghi đè chu kỳ đã final (26/08/2026) — có gì dùng được ngay
+
+Đóng lỗ hổng ghi lúc làm M6 ([TASKS.md](TASKS.md) mục M6): import Studio giờ **chặn cứng**, không
+ghi, mọi ngày nằm trong `[periodStart, periodEnd]` của bất kỳ `kpi_cycle` nào `status = final` trên
+kênh đó — không phải kiểu "vẫn ghi nhưng ghi audit_log" đã cân nhắc rồi bỏ, vì CLAUDE.md dùng đúng
+chữ "khoá" (locked), không phải "cần theo dõi".
+
+**2 điều kiện độc lập, kiểm cái nào trước không quan trọng vì không loại trừ nhau** — nhưng code kiểm
+`lockedDates` TRƯỚC cửa sổ chốt (`lib/import/plan-import.ts`), nên 1 ngày vừa "đã khoá" vừa "còn quá
+mới" chỉ báo vào đúng 1 danh sách (`skippedFinalDates`), không lặp vào cả hai. `run-import.ts` lấy
+danh sách ngày đã khoá bằng cách gọi lại `listKpiCycles(supabase, {channelId, status: "final"})`
+(hàm có sẵn ở `lib/kpi.ts`, không viết query mới) rồi trải ra từng ngày trong mỗi khoảng
+`[periodStart, periodEnd]` — 1 kênh có thể có nhiều chu kỳ đã chốt, không chỉ chu kỳ gần nhất.
+
+**Cố tình không đụng tới:** `follower_activity`/`audience_snapshot`/`content_video` — 3 bảng này vốn
+đã nằm ngoài cửa sổ chốt (luôn ghi toàn bộ nội dung file, xem DATABASE_ERD.md), và không phải số dùng
+tính KPI trực tiếp (trừ `content_video.posted_at` — xem cảnh báo dưới). `manual-entry.ts` cũng chưa
+đụng tới — không nằm trong phạm vi được yêu cầu ("phần import"), và nguy cơ thấp hơn hẳn vì
+`manual_entry` xếp hạng thấp nhất trong `v_channel_daily`, không đè được lên số `studio_import` đã
+chốt dù có ghi thêm 1 row.
+
+⚠️ **Phát hiện phụ lúc làm, cố tình chưa mở rộng phạm vi:** `content_video.posted_at` — cột nuôi
+`videosTrongKỳ`, 1 trong 3 chỉ tiêu KPI — CŨNG bị `run-import.ts` ghi đè vô điều kiện mỗi lần
+`Content.csv` upsert (kể cả cho ngày đã final), vì `content_video` không nằm trong cửa sổ chốt hiện
+tại. Rủi ro thật nhưng khác views: `videosTrongKỳ` tự "lành" theo thời gian (đếm lại COUNT trên bảng
+sống, không phải snapshot cố định như view), nên mức độ nghiêm trọng thấp hơn hẳn. Yêu cầu chỉ nói
+"phần import" (data_snapshot) nên chưa mở rộng khoá sang `content_video` — cân nhắc riêng nếu cần.
+
+**Kiểm chứng:** không tải file thật qua UI được (công cụ browser tự động không giả lập kéo-thả file
+thật) — gọi thẳng `runStudioImport({..., dryRun: true})` bằng script Node, dùng đúng fixture thật
+`data/*nong.nghiep.xanh.17*.zip` lên đúng kênh đang có chu kỳ final 10-16/08: `skippedFinalDates`
+trả về đúng 7 ngày 10→16/08, không ngày nào trong đó lọt vào `importedDates`, ngày 09/08 (ngay trước
+khi khoá) và các ngày sau 16/08 trong file không bị ảnh hưởng — biên chính xác, không khoá lem sang
+ngày liền kề. `dryRun: true` nên không ghi gì thật vào DB. `npx tsc --noEmit` + `npm run lint` +
+`npx vitest run` (189 test, +2 cho locked dates) đều sạch.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**
