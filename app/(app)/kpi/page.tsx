@@ -6,38 +6,55 @@ import { attachProgress, listKpiCycles, type KpiCycleWithProgress } from "@/lib/
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { nowVnDateString } from "@/lib/time";
 
-import { KpiRow } from "./kpi-row";
+import { KpiCard } from "../channels/[id]/kpi-card";
 
-// M/C — Manager sees every channel's cycles; Creator sees only their own channel(s)' (nav label
-// "KPI của tôi", docs/USER_FLOW.md). Scoping happens in listKpiCycles's `creatorId` param, the same
-// server-side narrowing GET /api/kpi-cycles uses — never left to RLS alone (kpi_cycle's RLS grants
-// read to any authenticated role, same as every business table; CLAUDE.md's "Creator xem chéo số
-// liệu kênh khác" is about channel DATA, not who a target was assigned to).
+/**
+ * Channel-first (26/08/2026, theo yêu cầu — trước đó là danh sách CHU KỲ nhóm theo Đang chạy/Sắp
+ * tới/Đã qua). Đúng tinh thần CLAUDE.md "dữ liệu kênh trước, KPI sau, đừng lấy % KPI làm trục sắp
+ * xếp mặc định": mỗi kênh luôn có đúng 1 dòng, kể cả kênh chưa từng đặt KPI — không rớt khỏi trang
+ * chỉ vì chưa có chu kỳ nào. Không sắp lại theo % hay theo trạng thái — giữ nguyên thứ tự
+ * `listChannels()` (theo tên).
+ *
+ * Dùng lại nguyên `KpiCard` — component đã có sẵn từ M5 cho trang chi tiết kênh (đủ cả active
+ * cycle + "Các kỳ trước" + cảnh báo dataGaps), chỉ thêm phần header tên/handle kênh cho ngữ cảnh
+ * liệt kê nhiều kênh. Nhờ vậy màn "Chưa có KPI cho kênh này" + cảnh báo thiếu dữ liệu vốn chỉ nằm ở
+ * trang chi tiết kênh nay cũng tự nhiên có luôn ở đây — không cần viết lại.
+ *
+ * M/C — Manager thấy mọi kênh; Creator chỉ thấy (nhiều nhất) đúng kênh mình phụ trách (nav "KPI của
+ * tôi", docs/USER_FLOW.md). Scoping ở tầng server cho cả 2 query, không dựa vào RLS (kpi_cycle's RLS
+ * cho mọi vai trò đọc toàn bộ, giống mọi bảng nghiệp vụ khác).
+ */
 export default async function KpiPage() {
   const user = await requireUser();
   const isManager = user.role === "manager";
+  const creatorId = isManager ? undefined : user.id;
 
   const supabase = await createSupabaseServerClient();
-  const [cycles, channels] = await Promise.all([
-    listKpiCycles(supabase, { creatorId: isManager ? undefined : user.id }),
-    listChannels(supabase),
+  // 2 query độc lập, không phải 1-query-mỗi-kênh: listKpiCycles({creatorId}) đã tự resolve về đúng
+  // tập kênh của Creator (hoặc toàn bộ nếu Manager) trong 1 lượt, attachProgress tính progress cho
+  // TOÀN BỘ cycle trong 1 cặp round-trip rồi mới chia theo kênh ở dưới — cùng cách làm
+  // buildDashboardKpiSummary (lib/kpi.ts) đã dùng, tránh N+1 khi trang có tới 9 kênh.
+  const [channels, cycles] = await Promise.all([
+    listChannels(supabase, { creatorId }),
+    listKpiCycles(supabase, { creatorId }),
   ]);
   const withProgress = await attachProgress(supabase, cycles);
-  const channelById = new Map(channels.map((c) => [c.id, c]));
+
+  const cyclesByChannel = new Map<string, KpiCycleWithProgress[]>();
+  for (const cycle of withProgress) {
+    const list = cyclesByChannel.get(cycle.channelId);
+    if (list) list.push(cycle);
+    else cyclesByChannel.set(cycle.channelId, [cycle]);
+  }
 
   const today = nowVnDateString();
-  const active = withProgress.filter((c) => c.periodStart <= today && today <= c.periodEnd);
-  const upcoming = withProgress.filter((c) => c.periodStart > today);
-  const past = withProgress.filter((c) => c.periodEnd < today);
 
   return (
     <div className="px-8 py-10">
       <div className="mb-[18px] flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold tracking-[-0.6px]">{isManager ? "KPI" : "KPI của tôi"}</h1>
-          <p className="mt-1.5 text-[13px] text-ink-3">
-            {withProgress.length === 0 ? "Chưa có chu kỳ KPI nào" : `${withProgress.length} chu kỳ`}
-          </p>
+          <p className="mt-1.5 text-[13px] text-ink-3">{channels.length} kênh</p>
         </div>
         {isManager ? (
           <Link
@@ -49,49 +66,29 @@ export default async function KpiPage() {
         ) : null}
       </div>
 
-      {withProgress.length === 0 ? (
+      {channels.length === 0 ? (
         <div className="rounded-card border border-line px-5 py-10 text-center text-sm text-ink-3">
-          {isManager
-            ? "Chưa có chu kỳ KPI nào — bấm “+ Đặt KPI mới” để bắt đầu."
-            : "Bạn chưa có chu kỳ KPI nào được giao."}
+          {isManager ? "Chưa có kênh nào." : "Bạn chưa được phân công phụ trách kênh nào."}
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          <KpiGroup title="Đang chạy" cycles={active} channelById={channelById} isManager={isManager} />
-          <KpiGroup title="Sắp tới" cycles={upcoming} channelById={channelById} isManager={isManager} />
-          <KpiGroup title="Đã qua" cycles={past} channelById={channelById} isManager={isManager} />
-        </div>
-      )}
-    </div>
-  );
-}
+        channels.map((channel, i) => {
+          const channelCycles = cyclesByChannel.get(channel.id) ?? [];
+          const activeCycle = channelCycles.find((c) => c.periodStart <= today && today <= c.periodEnd) ?? null;
+          const pastCycles = channelCycles.filter((c) => c.id !== activeCycle?.id).slice(0, 3);
 
-function KpiGroup({
-  title,
-  cycles,
-  channelById,
-  isManager,
-}: {
-  title: string;
-  cycles: KpiCycleWithProgress[];
-  channelById: Map<string, { id: string; name: string; tiktokHandle: string }>;
-  isManager: boolean;
-}) {
-  if (cycles.length === 0) return null;
-  return (
-    <div>
-      <div className="mb-2.5 flex items-center gap-2 text-[13px] font-bold text-ink-2">
-        {title} <span className="font-normal text-ink-3">({cycles.length})</span>
-      </div>
-      <div className="overflow-hidden rounded-card border border-line">
-        <div className="divide-y divide-line-soft">
-          {cycles.map((cycle, i) => {
-            const channel = channelById.get(cycle.channelId);
-            if (!channel) return null;
-            return <KpiRow key={cycle.id} cycle={cycle} channel={channel} index={i} isManager={isManager} />;
-          })}
-        </div>
-      </div>
+          return (
+            <KpiCard
+              key={channel.id}
+              channelId={channel.id}
+              channelName={channel.name}
+              isManager={isManager}
+              activeCycle={activeCycle}
+              pastCycles={pastCycles}
+              header={{ tiktokHandle: channel.tiktokHandle, avatarIndex: i }}
+            />
+          );
+        })
+      )}
     </div>
   );
 }

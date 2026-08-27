@@ -19,7 +19,11 @@ const PRESETS = [
 export function DateRangePicker({ from, to }: { from: string; to: string }) {
   const { isPending, setParams } = useFilterTransition();
   const [open, setOpen] = useState(false);
-  const [customFrom, setCustomFrom] = useState(from);
+  // `from` defaults to ALL_TIME_FROM ("2020-01-01", a sentinel — CLAUDE.md/lib/time.ts: real data
+  // only starts in 2026, this just means "no lower bound"). Seeding the custom-range input with it
+  // literally would show "01/01/2020", which reads as a real, oddly-specific date to pick from
+  // rather than "unset" — blank the field instead so the native input just shows its placeholder.
+  const [customFrom, setCustomFrom] = useState(from === ALL_TIME_FROM ? "" : from);
   const [customTo, setCustomTo] = useState(to);
 
   const today = nowVnDateString();

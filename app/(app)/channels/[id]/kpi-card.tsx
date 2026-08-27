@@ -1,9 +1,14 @@
 import Link from "next/link";
 
-import { formatFullDate } from "@/lib/format";
+import { avatarPalette, formatFullDate, initialsFromStart } from "@/lib/format";
 import { resolveStatus, type KpiCycleWithProgress } from "@/lib/kpi";
 
+import { KpiCycleActions } from "../../kpi/kpi-cycle-actions";
 import { KpiHealthBadge, KpiMetricBar, metricText } from "../../kpi/kpi-widgets";
+
+function cycleEntityName(channelName: string, periodStart: string, periodEnd: string): string {
+  return `${channelName} ${formatFullDate(periodStart)}-${formatFullDate(periodEnd)}`;
+}
 
 const STATUS_BADGE = {
   draft: { bg: "bg-amber-bg", fg: "text-amber-dark", dot: "bg-amber", label: "Nháp" },
@@ -19,11 +24,16 @@ const STATUS_BADGE = {
  */
 export function KpiCard({
   channelId,
+  channelName,
   isManager,
   activeCycle,
   pastCycles,
+  header,
 }: {
   channelId: string;
+  /** Only needed for the delete-confirm's "type this exact name" text (`cycleEntityName`) — kept
+   *  separate from `header` below since that prop is optional but this name is needed either way. */
+  channelName: string;
   isManager: boolean;
   /** The cycle covering TODAY, if any — independent of the page's date-range picker (a KPI cycle
    *  has its own fixed dates; "kỳ này" means "right now", not whatever historical window is
@@ -31,8 +41,64 @@ export function KpiCard({
   activeCycle: KpiCycleWithProgress | null;
   /** Up to 3 of the channel's other cycles, most recently ended first. */
   pastCycles: KpiCycleWithProgress[];
+  /** Channel identity row at the top of the card — only when this card is one of several on a page
+   *  that lists multiple channels (`/kpi`, 26/08/2026). `undefined` on `/channels/[id]` (unchanged
+   *  from before that page), where the page itself already names the channel everywhere else. */
+  header?: { tiktokHandle: string; avatarIndex: number };
 }) {
+  const headerRow = header ? (
+    <div className="mb-3.5 flex items-center gap-3">
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-[12px] font-extrabold"
+        style={{ background: avatarPalette(header.avatarIndex).bg, color: avatarPalette(header.avatarIndex).fg }}
+      >
+        {initialsFromStart(channelName)}
+      </span>
+      <div>
+        <Link href={`/channels/${channelId}`} className="text-sm font-bold hover:underline">
+          {channelName}
+        </Link>
+        <div className="text-[11.5px] text-ink-3">@{header.tiktokHandle}</div>
+      </div>
+    </div>
+  ) : null;
+
   if (!activeCycle && pastCycles.length === 0) {
+    // List context (`header` set, `/kpi`): a full centered card here reads as 9 near-identical tall
+    // blocks stacked down the page (26/08/2026, theo yêu cầu — "trông khá xấu" fed back after
+    // shipping the channel-first redesign). Collapsed to one row, identity left / status+CTA right —
+    // still a proper card, just sized for "nothing to show" instead of "no content, please wait".
+    if (header) {
+      return (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line px-5 py-3.5">
+          <div className="flex items-center gap-3">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-[12px] font-extrabold"
+              style={{ background: avatarPalette(header.avatarIndex).bg, color: avatarPalette(header.avatarIndex).fg }}
+            >
+              {initialsFromStart(channelName)}
+            </span>
+            <div>
+              <Link href={`/channels/${channelId}`} className="text-sm font-bold hover:underline">
+                {channelName}
+              </Link>
+              <div className="text-[11.5px] text-ink-3">@{header.tiktokHandle}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 text-[12.5px]">
+            <span className="text-ink-3">Chưa có KPI</span>
+            {isManager ? (
+              <Link href={`/kpi/new?channelId=${channelId}`} className="font-bold text-red hover:opacity-80">
+                + Đặt KPI
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    // `/channels/[id]`: this is the only KPI card on the page, not one of several — keep it a
+    // full-size, centered "nothing here yet" card (unchanged from before the `header` prop existed).
     return (
       <div className="mb-3.5 rounded-card border border-line px-5 py-6 text-center">
         <p className="text-[13px] text-ink-3">Chưa có KPI cho kênh này.</p>
@@ -50,6 +116,7 @@ export function KpiCard({
 
   return (
     <div className="mb-3.5 rounded-card border border-line px-5 py-[18px]">
+      {headerRow}
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
         <div className="text-[15px] font-bold">KPI kỳ này</div>
         {activeCycle ? (
@@ -109,13 +176,15 @@ export function KpiCard({
               </p>
             ) : null}
 
-            {isManager && activeCycle.status === "draft" ? (
-              <Link
-                href={`/kpi/${activeCycle.id}/edit`}
-                className="mt-3 inline-block text-[12.5px] font-semibold text-red hover:opacity-80"
-              >
-                Sửa chu kỳ này →
-              </Link>
+            {isManager ? (
+              <div className="mt-3">
+                <KpiCycleActions
+                  cycleId={activeCycle.id}
+                  channelId={channelId}
+                  entityName={cycleEntityName(channelName, activeCycle.periodStart, activeCycle.periodEnd)}
+                  status={activeCycle.status}
+                />
+              </div>
             ) : null}
           </div>
 
@@ -153,14 +222,24 @@ export function KpiCard({
           <div className="mb-2.5 text-[12.5px] font-bold text-ink-2">Các kỳ trước</div>
           <div className="flex flex-col gap-2">
             {pastCycles.map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-2">
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-[12.5px] font-semibold">
                     {formatFullDate(c.periodStart)} – {formatFullDate(c.periodEnd)}
                   </div>
                   <div className="text-[11px] text-ink-3">{c.status === "final" ? "Đã chốt sổ" : "Nháp — kỳ đã qua"}</div>
                 </div>
-                <KpiHealthBadge health={c.health} />
+                <div className="flex items-center gap-3">
+                  <KpiHealthBadge health={c.health} />
+                  {isManager ? (
+                    <KpiCycleActions
+                      cycleId={c.id}
+                      channelId={channelId}
+                      entityName={cycleEntityName(channelName, c.periodStart, c.periodEnd)}
+                      status={c.status}
+                    />
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 
 import { avatarPalette, formatFullDate, formatNumber, initialsFromStart } from "@/lib/format";
 import type { KpiCycleWithProgress } from "@/lib/kpi";
-import { addDaysToDateString } from "@/lib/time";
+import { addDaysToDateString, nowVnDateString } from "@/lib/time";
 
 import { createKpiCycleAction, updateKpiCycleAction, type KpiFormState } from "./actions";
 import { KpiHealthBadge } from "./kpi-widgets";
@@ -91,9 +91,17 @@ export function KpiCycleForm({
     mode === "create" ? createKpiCycleAction : updateKpiCycleAction.bind(null, cycle!.id, channel.id);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
 
-  const [periodType, setPeriodType] = useState<"weekly" | "custom">(cycle?.periodType ?? "weekly");
-  const [periodStart, setPeriodStart] = useState(cycle?.periodStart ?? "");
-  const [periodEnd, setPeriodEnd] = useState(cycle?.periodEnd ?? "");
+  const initialPeriodType = cycle?.periodType ?? "weekly";
+  const [periodType, setPeriodType] = useState<"weekly" | "custom">(initialPeriodType);
+  // Create mode defaults to "weekly" with nothing picked yet — auto-fill the week actually in
+  // progress right now instead of leaving both inputs blank (26/08/2026, theo yêu cầu), same
+  // Monday–Sunday math onFromChange/onPeriodTypeChange already use once the user touches a date.
+  const [periodStart, setPeriodStart] = useState(
+    cycle?.periodStart ?? (initialPeriodType === "weekly" ? mondayOf(nowVnDateString()) : ""),
+  );
+  const [periodEnd, setPeriodEnd] = useState(
+    cycle?.periodEnd ?? (initialPeriodType === "weekly" ? addDaysToDateString(mondayOf(nowVnDateString()), 6) : ""),
+  );
   const [targetFollowersInput, setTargetFollowersInput] = useState(
     cycle?.targetFollowers !== undefined && cycle?.targetFollowers !== null ? String(cycle.targetFollowers) : "",
   );

@@ -146,7 +146,13 @@ export default async function ChannelDetailPage({
             <StatTile label="Tổng số like" value={formatCompact(stat?.totalLikes ?? 0)} unit="like" icon={<HeartIcon />} tone="crimson" />
           </div>
 
-          <KpiCard channelId={id} isManager={user.role === "manager"} activeCycle={activeCycle} pastCycles={pastCycles} />
+          <KpiCard
+            channelId={id}
+            channelName={channel.name}
+            isManager={user.role === "manager"}
+            activeCycle={activeCycle}
+            pastCycles={pastCycles}
+          />
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">
             <TrendChart
