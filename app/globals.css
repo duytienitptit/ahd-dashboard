@@ -69,12 +69,20 @@ body {
   font-family: var(--font-sans);
 }
 
-a {
-  color: var(--color-red);
-}
+/* @layer base (not a bare rule) — Tailwind v4 puts utility classes in `@layer utilities`, and an
+   UNLAYERED rule beats every layered one regardless of specificity or source order (CSS cascade
+   layers). Bare `a { color: red }` was winning over `text-ink-2`/`text-ink-3` on every `<Link>`
+   styled a non-red color — e.g. "Xem chi tiết"/"Xem chốt sổ" (app/(app)/kpi/kpi-cycle-actions.tsx)
+   rendered red no matter what class they had (26/08/2026, reported as "lỗi màu"). This is the
+   default color for a bare, unstyled anchor — an explicit text-color utility must win. */
+@layer base {
+  a {
+    color: var(--color-red);
+  }
 
-a:hover {
-  color: #d4213d;
+  a:hover {
+    color: #d4213d;
+  }
 }
 
 /* Thanh cuộn mảnh, ẩn khi không tương tác — dùng cho khối cuộn nội bộ trong thẻ (ListCard's "Tăng
