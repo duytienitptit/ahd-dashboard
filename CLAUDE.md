@@ -144,11 +144,12 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M6 (Chốt sổ KPI) + `/kpi` đổi thành danh sách kênh + fix bug CSS `@layer` + chặn import ghi đè
-chu kỳ final, tất cả xong 26/08/2026 — đã commit (`5d30149`, `8067bfe`, `cdc5f26`, `a332ac5`),
-CHƯA push, và phần chặn import mới nhất còn CHƯA commit.** M5 (KPI Cycle) + bản sửa cửa sổ chốt
-import đã xong 25/08 và **đã** lên `main` (`86173aa`, `3355e6f`). M4 + M3c + Đợt 1 + Đợt 2 + Team +
-drill-down + CRUD đầy đủ + đăng nhập username + nhóm vá OAuth/view-per-day cũng đã lên `main` từ trước.
+**M6 (Chốt sổ KPI) + `/kpi` danh sách kênh + fix bug CSS `@layer` — xong 26/08, đã lên `main`
+(`origin/main` ở `a332ac5`).** **Có commit local CHƯA push** — gồm `2b44684` (chặn import ghi đè
+chu kỳ final) + `665c5c5` (bỏ lưu zip gốc lên Storage, 27/08 — xem dưới); số chính xác:
+`git log origin/main..HEAD`. M5 (KPI Cycle) + sửa cửa sổ chốt import đã lên `main` từ 25/08.
+M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + nhóm vá
+OAuth/view-per-day cũng đã lên `main` từ trước.
 
 🎯 **`/kpi` giờ là danh sách KÊNH, không phải danh sách CHU KỲ** (26/08/2026, theo yêu cầu, dùng lại
 `KpiCard` của trang chi tiết kênh) — mỗi kênh luôn có 1 khối dù chưa từng đặt KPI. Đổi lại hướng này
@@ -163,6 +164,13 @@ chọn theo thẻ trần phải nằm trong `@layer base`, xem mục "Quy ước
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug màu link".
 Chi tiết đầy đủ từng milestone ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục tương ứng, tìm theo tên).
 Checklist ở [docs/TASKS.md](docs/TASKS.md) (mục tương ứng).
+
+📦 **Import KHÔNG còn lưu zip gốc lên Storage** (27/08/2026, `665c5c5`) — chỉ parse lấy số rồi bỏ
+file. Bước upload bị bug Supabase (Storage không verify được JWT ES256; PostgREST thì được). Bucket
+`studio-imports` + RLS policy để nguyên, inert. `data_snapshot.raw_file_ref` giờ là batch id (uuid)
+để truy vết, không phải đường dẫn file. Migration `20260827000001` (chỉ sửa comment cột). Đừng thêm
+lại bước lưu file trừ khi Supabase sửa xong Storage/ES256. Chi tiết: [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md)
+mục "Storage: bucket studio-imports".
 
 🔑 **Tài khoản Manager thật giờ đăng nhập bằng username `andang`** (không còn dùng email nữa, đổi
 22/08/2026) — mật khẩu giữ nguyên như cũ. Xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
@@ -193,7 +201,7 @@ copy nguyên giá trị từ Vercel Environment Variables xuống.
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
 mới nhất trên `main` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel
 dashboard). Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`,
-commit mới nhất `3355e6f` (push 25/08/2026).
+`origin/main` ở `a332ac5` (có commit local chưa push — xem "Việc tiếp theo").
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
 đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
@@ -204,10 +212,9 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Commit phần chặn import ghi đè chu kỳ final, rồi push `main`** — 4 commit trước
-   (`5d30149`/`8067bfe`/`cdc5f26`/`a332ac5`) đã sẵn sàng, chỉ còn thiếu push. Chi tiết từng phần:
-   [docs/PROGRESS.md](docs/PROGRESS.md) — "M6 — Chốt sổ KPI", "`/kpi` đổi thành danh sách KÊNH",
-   "Bug màu link", "Chặn import ghi đè chu kỳ đã final".
+1. **Push `main`** — 2 commit chưa push: `2b44684` (chặn import ghi đè chu kỳ final) + `665c5c5`
+   (bỏ lưu zip Storage). `supabase db push` đi kèm để áp migration `20260827000001` (chỉ sửa comment
+   cột `raw_file_ref` — không gấp). Chi tiết từng phần: [docs/PROGRESS.md](docs/PROGRESS.md).
 2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
    có, tự đầy ở kỳ import sau (từ 26/08).
