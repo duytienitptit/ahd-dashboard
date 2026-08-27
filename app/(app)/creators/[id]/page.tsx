@@ -140,7 +140,7 @@ export default async function CreatorDetailPage({
               unit="view"
               deltaText={formatDeltaPct(rollup.viewsDeltaPct)}
               deltaGood={rollup.viewsDeltaPct === null ? null : rollup.viewsDeltaPct >= 0}
-              note="so với tuần trước"
+              note={rollup.viewsDeltaInsufficientData ? "kỳ này chưa đủ ngày số liệu" : "so với tuần trước"}
               icon={<EyeIcon />}
               tone="blue"
             />

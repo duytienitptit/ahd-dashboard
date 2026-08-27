@@ -582,6 +582,10 @@ của ai**, chỉ thêm cột tra cứu mới, không ai bị đăng xuất hay 
 
 ## Tổng quan — mặc định "Toàn bộ thời gian" thay vì "7 ngày qua" (22/08/2026, theo yêu cầu)
 
+> ⚠️ **Cập nhật 27/08:** `/channels` (danh sách kênh) đã đảo lại về mặc định **"7 ngày qua"** —
+> xem mục "`/channels` mặc định 7 ngày + ẩn % view…" ở cuối file. Tổng quan / Nhân sự / chi tiết kênh
+> vẫn giữ "Toàn bộ thời gian" như mô tả dưới đây.
+
 - Chỉ đổi **giá trị mặc định lúc mới vào trang Tổng quan** (`app/(app)/page.tsx`, khi URL chưa có
   `?from=`/`?to=`) — `resolvePeriodParams()` dùng chung và 3 trang còn lại gọi nó (Kênh, Nhân sự,
   Creator chi tiết) **không đổi**, vẫn mặc định 7 ngày. Lý do đổi: kênh vừa kết nối lại thì cửa sổ 7
@@ -1177,6 +1181,58 @@ trả về đúng 7 ngày 10→16/08, không ngày nào trong đó lọt vào `i
 khi khoá) và các ngày sau 16/08 trong file không bị ảnh hưởng — biên chính xác, không khoá lem sang
 ngày liền kề. `dryRun: true` nên không ghi gì thật vào DB. `npx tsc --noEmit` + `npm run lint` +
 `npx vitest run` (189 test, +2 cho locked dates) đều sạch.
+
+## `/channels` mặc định 7 ngày + ẩn % view khi kỳ hiện tại thiếu dữ liệu (27/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+Người dùng đổi `/channels` sang mặc định "7 ngày qua" rồi thấy **mọi kênh hiện −88…−95% lượt xem** —
+nghi số sai. Điều tra: số **không sai về mặt số học**, nhưng so lệch — kỳ hiện tại `[hôm nay−6, hôm
+nay]` chỉ có dữ liệu 1 ngày (21/08 studio, + 25/08 display_api dở dang), kỳ trước có đủ 7 ngày, và
+`sumViews` cộng thẳng "ngày nào có số" mà không chuẩn hoá theo số ngày. `pctChange(1 ngày, 7 ngày)` →
+−95%. Follower tăng/giảm thì đúng (kiểm từng số: `followersNow(25/08) − followersBefore(20/08)` khớp
+chính xác cái hiển thị) — chỉ hơi thiếu vì "hiện tại" đang là 25/08 chứ chưa phải hôm nay.
+
+**Hai thay đổi:**
+
+1. **`/channels` mặc định "7 ngày qua"** (`app/(app)/channels/page.tsx`: `resolvePeriodParamsAllTime`
+   → `resolvePeriodParams(…, 7)`). Đảo lại 1 phần quyết định 22/08 ("mọi trang mặc định Toàn bộ thời
+   gian" — xem mục trên) **chỉ cho trang danh sách kênh**: màn này để trả lời "tuần qua các kênh chạy
+   thế nào", câu hỏi vận hành hằng tuần. Trang chi tiết kênh `/channels/[id]`, Tổng quan, Nhân sự
+   **vẫn mặc định Toàn bộ thời gian** — không đổi. Ai cần toàn bộ lịch sử ở `/channels` vẫn chọn được
+   ở date picker.
+
+2. **`viewsDeltaPct` (và `views`) chỉ tính ngày `is_complete=true`, và % bị ẩn khi kỳ hiện tại phủ ít
+   ngày hơn hẳn kỳ so sánh** (`lib/dashboard.ts`):
+   - Ngày `is_complete=false` (đọc bị cắt/rate-limit) **loại khỏi tổng view** — khớp cách `lib/kpi.ts`
+     đã loại khỏi actuals KPI ("không dùng snapshot đó tính KPI"). Kênh chỉ có ngày dở dang trong kỳ →
+     `views = null` → hiện "—", không hiện số 1 ngày lẻ.
+   - `viewsDeltaComparable(currentDays, previousDays)` — hàm thuần mới, export, có test riêng: `%` chỉ
+     hiện khi `currentDays >= ceil(previousDays * 0.7)`. Cửa sổ tính từ hôm nay luôn hụt 1–2 ngày đuôi
+     (hôm nay chưa sync + Studio trễ 2 ngày) nên hụt nhẹ vẫn cho qua; chỉ chặn khi hụt nhiều.
+   - Khi bị chặn: `viewsDeltaPct = null` + cờ mới `viewsDeltaInsufficientData = true` → UI hiện
+     **"chưa đủ dữ liệu kỳ này"** (xám, nhỏ) thay cho badge %, kèm `title` giải thích.
+   - Áp cho cả rollup (`aggregateChannelStats` cộng `viewsMeasuredDays` toàn bộ kênh rồi gate lại) và
+     team-level (`getDashboard` — `teamStats.views/viewsPerVideo.deltaPct`, chỉ hiện ở CSV export nên
+     không có note UI). Nhân sự chi tiết: tile "Lượt xem" đổi note thành "kỳ này chưa đủ ngày số liệu";
+     bảng "Kênh phụ trách" `views` giờ nullable → hiện "—".
+
+**Giới hạn còn lại (chấp nhận có chủ đích):** kể cả khi gate cho qua, nếu `currentDays < previousDays`
+thì `%` vẫn hơi lệch âm (cộng thô, không chia trung bình/ngày — người dùng đã chọn "ẩn + chú thích"
+thay vì "chuẩn hoá"). `viewsPerVideo` (ViewTB/video) **không** bị gate — vẫn hiện số dù kỳ mỏng, vì là
+tỷ lệ chứ không phải delta; cân nhắc riêng nếu thành vấn đề.
+
+**Nguyên nhân gốc (việc vận hành của người dùng, không sửa ở đây):** cron `display_api` (23:30 VN,
+`vercel.json`) **ngừng ra dữ liệu từ 25/08** — `channel_oauth.last_sync_at` cả 9 kênh đứng ở 25/08
+13:39 (lần bấm "Chạy đồng bộ ngay" thủ công, `is_complete=false` toàn bộ). OAuth vẫn khoẻ (9/9 verified,
+token còn 363 ngày). Nghi: `CRON_SECRET` trên Vercel Production thiếu/sai (route trả 401, không ghi,
+`last_sync_at` không đổi — đúng triệu chứng) / prod chưa deploy lại sau khi thêm `crons` / giới hạn
+cron gói free. Cộng với Studio import mới tới 21/08 (đã ghi ở "Việc tiếp theo" #2, cần import lại).
+
+**Kiểm chứng:** replay logic mới trên data thật (script Node read-only, đã xoá) — 6 kênh có ngày 21/08
+đủ → "chưa đủ dữ liệu kỳ này", 3 kênh chỉ có 25/08 dở → "—". Đăng nhập thật bằng tài khoản QA tạm,
+xem `/channels` (badge −95% biến mất, follower delta vẫn còn) và `/creators/[id]?from=…&to=…` 7 ngày
+(tile + bảng kênh phụ trách đều hiện note). `npx tsc --noEmit` + `npm run lint` + `npx vitest run`
+(194 test, +5: `viewsDeltaComparable` ×4, rollup suppression ×1; +sửa fixture cho field mới) đều
+sạch. Tài khoản QA đã xoá.
 
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 

@@ -4,7 +4,7 @@ import { listCreators } from "@/lib/creators";
 import { getChannelPeriodStats, previousPeriod } from "@/lib/dashboard";
 import { attachProgress, listKpiCycles } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolvePeriodParamsAllTime } from "@/lib/time";
+import { resolvePeriodParams } from "@/lib/time";
 
 import { DateRangePicker } from "../date-range-picker";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../filter-transition";
@@ -17,7 +17,10 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Sea
   const user = await getCurrentUser();
   if (!user) return null; // layout already redirects signed-out visitors
 
-  const { from, to } = resolvePeriodParamsAllTime(await searchParams);
+  // Kênh mặc định "7 ngày qua", không phải "Toàn bộ thời gian" như các trang khác (27/08/2026, theo
+  // yêu cầu) — màn này để trả lời "tuần qua các kênh chạy thế nào", câu hỏi vận hành hằng tuần; ai
+  // cần toàn bộ lịch sử vẫn chọn được ở date picker. Trang chi tiết kênh vẫn mặc định toàn bộ thời gian.
+  const { from, to } = resolvePeriodParams(await searchParams, 7);
   const { comparedFrom, comparedTo } = previousPeriod(from, to);
 
   const supabase = await createSupabaseServerClient();

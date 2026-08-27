@@ -661,6 +661,13 @@ dựa trên dữ liệu đã có sẵn từ M3 trong đúng khoảng ngày của
       nhau). Vào `skippedFinalDates` — tách khỏi `skippedRecentDates` vì lý do khác nhau, hiện riêng
       trên UI `/import`. Xem [PROGRESS.md](PROGRESS.md) mục "Chặn import ghi đè chu kỳ đã final".
 
+- [x] **`/channels` mặc định 7 ngày + ẩn % view khi kỳ thiếu dữ liệu** (27/08/2026, theo yêu cầu).
+      `viewsDeltaPct` ẩn ("chưa đủ dữ liệu kỳ này") khi kỳ hiện tại phủ ít ngày hơn hẳn kỳ so sánh
+      (`viewsDeltaComparable`, ngưỡng 0.7); ngày `is_complete=false` loại khỏi tổng view (khớp KPI).
+      Áp cho per-channel + rollup + team. Follower delta không đổi. Xem [PROGRESS.md](PROGRESS.md)
+      mục "`/channels` mặc định 7 ngày + ẩn % view…". Nguyên nhân gốc (cron `display_api` ngừng từ
+      25/08) là việc vận hành — xem CLAUDE.md "Trạng thái".
+
 ## M7 — Dự phòng nguồn dữ liệu
 
 Chỉ làm nếu M0 cho thấy Display API không khả thi.

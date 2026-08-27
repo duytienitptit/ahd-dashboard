@@ -81,10 +81,21 @@ export function CreatorChannelsTable({ channels }: { channels: CreatorPerformanc
               </div>
 
               <div className="text-right">
-                <div className={`text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>{formatCompact(channel.views)}</div>
-                <div className={`mt-0.5 text-[11.5px] font-semibold ${channel.viewsDeltaPct !== null && channel.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
-                  {formatDeltaPct(channel.viewsDeltaPct)}
+                <div className={`text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
+                  {channel.views !== null ? formatCompact(channel.views) : "—"}
                 </div>
+                {channel.viewsDeltaPct !== null ? (
+                  <div className={`mt-0.5 text-[11.5px] font-semibold ${channel.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
+                    {formatDeltaPct(channel.viewsDeltaPct)}
+                  </div>
+                ) : channel.viewsDeltaInsufficientData ? (
+                  <div
+                    className="mt-0.5 text-[11px] font-medium leading-tight text-ink-3"
+                    title="Kỳ đang chọn chưa có đủ ngày số liệu để so với kỳ trước."
+                  >
+                    chưa đủ dữ liệu kỳ này
+                  </div>
+                ) : null}
               </div>
 
               <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.videos]}`}>{channel.videos}</div>

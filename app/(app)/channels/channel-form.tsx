@@ -377,6 +377,13 @@ export function ChannelRow({
           <div className={`mt-0.5 text-[11.5px] font-semibold ${stat.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
             {formatDeltaPct(stat.viewsDeltaPct)}
           </div>
+        ) : stat?.viewsDeltaInsufficientData ? (
+          <div
+            className="mt-0.5 text-[11px] font-medium leading-tight text-ink-3"
+            title="Kỳ đang chọn chưa có đủ ngày số liệu để so với kỳ trước — số này sẽ hiện lại khi dữ liệu về đủ."
+          >
+            chưa đủ dữ liệu kỳ này
+          </div>
         ) : null}
       </div>
 

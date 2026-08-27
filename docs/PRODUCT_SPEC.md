@@ -143,6 +143,7 @@ ràng buộc và index. Mục này chỉ giữ quy tắc nghiệp vụ.
 | `followers_at_start` | Chụp 1 lần khi tạo cycle, **không bao giờ sửa** |
 | Nhiều nguồn 1 ngày | Đọc theo thứ tự ưu tiên, qua hàm dùng chung ([DATABASE_ERD.md](DATABASE_ERD.md)) |
 | Múi giờ | Cột `date` = ngày lịch `Asia/Ho_Chi_Minh` |
+| `%` "so kỳ trước" của lượt xem | Chỉ hiện khi kỳ hiện tại phủ ≥ 70% số ngày (đã có số, `is_complete`) của kỳ so sánh — thiếu hơn thì hiện "chưa đủ dữ liệu kỳ này", **không** hiện số âm giả. Ngày `is_complete=false` không tính vào tổng view. Lý do: cửa sổ tính từ hôm nay luôn hụt đuôi (27/08/2026). Follower delta không áp quy tắc này (mốc tuyệt đối, 1 số đo là đủ) |
 
 **Công thức % tiến độ** (chi tiết + ngưỡng trạng thái: [API_SPEC.md](API_SPEC.md)):
 - Views / Videos — số phát sinh trong kỳ: `% = đạt trong kỳ / target`

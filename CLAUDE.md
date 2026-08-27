@@ -48,6 +48,13 @@ Biến môi trường: `.env.example`.
   tổng-hôm-qua. Video biến mất khỏi response thì bỏ qua, không trừ. Luôn so số video lấy được với
   `video_count`; lệch thì đánh dấu `isComplete = false` và không dùng snapshot đó tính KPI.
   Lý do: TikTok bị rate-limit thì trả danh sách cắt ngắn mà không báo lỗi.
+- **`%` "so với kỳ trước" của lượt xem chỉ hiện khi kỳ hiện tại phủ đủ ngày** (`lib/dashboard.ts`
+  `viewsDeltaComparable`: `currentDays >= ⌈previousDays × 0.7⌉`, chỉ đếm ngày `is_complete=true`).
+  Thiếu nhiều hơn → `viewsDeltaPct = null` + `viewsDeltaInsufficientData = true`, UI hiện "chưa đủ dữ
+  liệu kỳ này", **không** hiện số âm giả. Ngày `is_complete=false` cũng bị loại khỏi tổng `views` của
+  dashboard (khớp cách `lib/kpi.ts` loại khỏi KPI). Lý do: cửa sổ tính từ hôm nay luôn hụt đuôi (hôm
+  nay chưa sync + Studio trễ 2 ngày) → cộng thô "ngày có số" của kỳ mỏng chia cho kỳ đủ ra −90% giả
+  (27/08/2026). `/channels` mặc định "7 ngày qua"; các trang khác vẫn "Toàn bộ thời gian".
 - ⚠️ **Không dùng `Content.csv` để đếm số video** — cap cứng 15 dòng, bỏ sót video mới nhất, thứ tự
   không đoán được (đã kiểm chứng trên data thật). Số video lấy từ `video_count` của Display API.
   `Content.csv` chỉ dùng cho thư viện top video (P1).
@@ -151,6 +158,12 @@ chu kỳ final) + `665c5c5` (bỏ lưu zip gốc lên Storage, 27/08 — xem dư
 M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + nhóm vá
 OAuth/view-per-day cũng đã lên `main` từ trước.
 
+📊 **Sửa % lượt xem gây hiểu nhầm + `/channels` mặc định 7 ngày (27/08/2026) — CHƯA commit** (đang ở
+working tree: `lib/dashboard.ts`, `channel-form.tsx`, `creator-channels-table.tsx`, `creators/[id]`,
+`channels/page.tsx`, `dashboard.test.ts`). `viewsDeltaPct` giờ ẩn ("chưa đủ dữ liệu kỳ này") khi kỳ
+hiện tại phủ ít ngày hơn hẳn kỳ so sánh, và loại ngày `is_complete=false` khỏi tổng view. Xem mục
+"Quy tắc nghiệp vụ" ở trên + [docs/PROGRESS.md](docs/PROGRESS.md) mục "`/channels` mặc định 7 ngày".
+
 🎯 **`/kpi` giờ là danh sách KÊNH, không phải danh sách CHU KỲ** (26/08/2026, theo yêu cầu, dùng lại
 `KpiCard` của trang chi tiết kênh) — mỗi kênh luôn có 1 khối dù chưa từng đặt KPI. Đổi lại hướng này
 là cố ý, khớp nguyên tắc "kênh trước, KPI sau" ở đầu file này — đừng tưởng nhầm là quên và trả về
@@ -192,6 +205,13 @@ signature". Bất kỳ file verification nào sau này (Google, Facebook...) cũ
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
 nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" trước khi tải file lên.
 
+🔴 **Cron `display_api` NGỪNG ra dữ liệu từ 25/08** (phát hiện 27/08) — `channel_oauth.last_sync_at`
+cả 9 kênh đứng ở 25/08 13:39 (lần bấm "Chạy đồng bộ ngay" thủ công, `is_complete=false` toàn bộ), cron
+23:30 VN (`vercel.json`) không ghi gì thêm. OAuth vẫn khoẻ (9/9 verified, token còn 363 ngày). Nghi:
+`CRON_SECRET` trên Vercel Production thiếu/sai → route `/api/sync/display-api` trả 401 im lặng / prod
+chưa deploy lại sau khi thêm `crons` / giới hạn cron gói free. **Việc vận hành của người dùng** —
+Claude không sờ Vercel được.
+
 🔑 `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không sinh khoá mới**. Cần dùng ở `.env.local` thì
 copy nguyên giá trị từ Vercel Environment Variables xuống.
 
@@ -212,12 +232,15 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Push `main`** — 2 commit chưa push: `2b44684` (chặn import ghi đè chu kỳ final) + `665c5c5`
-   (bỏ lưu zip Storage). `supabase db push` đi kèm để áp migration `20260827000001` (chỉ sửa comment
-   cột `raw_file_ref` — không gấp). Chi tiết từng phần: [docs/PROGRESS.md](docs/PROGRESS.md).
+1. **Khôi phục cron `display_api`** (xem 🔴 ở trên) — kiểm `CRON_SECRET` trên Vercel Production,
+   deploy lại prod, hoặc bấm "Chạy đồng bộ ngay" ở `/connections` để có số tạm. Đây là nguyên nhân
+   gốc khiến `/channels` toàn "chưa đủ dữ liệu kỳ này".
 2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
    có, tự đầy ở kỳ import sau (từ 26/08).
+3. **Commit + push `main`** — nhóm chưa push: `2b44684` (chặn import ghi đè chu kỳ final) + `665c5c5`
+   (bỏ lưu zip Storage) + thay đổi 27/08 chưa commit (sửa % view + `/channels` 7 ngày). `supabase db
+   push` đi kèm để áp migration `20260827000001` (chỉ sửa comment cột `raw_file_ref` — không gấp).
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).

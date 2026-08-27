@@ -23,6 +23,7 @@ import {
   rankCreatorPerformance,
   sumEngagementParts,
   sumViews,
+  viewsDeltaComparable,
 } from "./dashboard";
 
 function row(partial: Partial<DailyRow> & { channelId: string; date: string }): DailyRow {
@@ -53,6 +54,32 @@ describe("pctChange", () => {
 
   it("returns 0 when both periods are genuinely zero, not null", () => {
     expect(pctChange(0, 0)).toBe(0);
+  });
+});
+
+describe("viewsDeltaComparable", () => {
+  it("accepts a small shortfall — a today-anchored window normally trails its comparison by a day or two", () => {
+    expect(viewsDeltaComparable(6, 7)).toBe(true); // missing today only
+    expect(viewsDeltaComparable(5, 7)).toBe(true); // missing today + Studio's 2-day lag
+    expect(viewsDeltaComparable(7, 7)).toBe(true);
+  });
+
+  it("rejects the case the −95% bug came from — current period far thinner than the comparison", () => {
+    expect(viewsDeltaComparable(1, 7)).toBe(false); // only 21/08 had data vs a full previous week
+    expect(viewsDeltaComparable(2, 7)).toBe(false);
+    expect(viewsDeltaComparable(4, 7)).toBe(false); // ceil(7 * 0.7) = 5 needed
+  });
+
+  it("scales with the comparison period's own coverage, not a fixed day count", () => {
+    expect(viewsDeltaComparable(10, 14)).toBe(true); // ceil(14 * 0.7) = 10
+    expect(viewsDeltaComparable(9, 14)).toBe(false);
+    expect(viewsDeltaComparable(3, 3)).toBe(true); // small windows: ceil(3 * 0.7) = 3, all-or-nothing
+    expect(viewsDeltaComparable(2, 3)).toBe(false);
+  });
+
+  it("returns false when the comparison period has no measured days (nothing to compare against)", () => {
+    expect(viewsDeltaComparable(5, 0)).toBe(false);
+    expect(viewsDeltaComparable(0, 0)).toBe(false);
   });
 });
 
@@ -140,6 +167,9 @@ function channelStat(partial: Partial<ChannelPeriodStat> & { channelId: string }
     views: 0,
     previousViews: 0,
     viewsDeltaPct: null,
+    viewsDeltaInsufficientData: false,
+    viewsMeasuredDays: 0,
+    previousViewsMeasuredDays: 0,
     videos: 0,
     previousVideos: 0,
     viewsPerVideo: null,
@@ -155,9 +185,10 @@ function channelStat(partial: Partial<ChannelPeriodStat> & { channelId: string }
 
 describe("aggregateChannelStats", () => {
   it("sums views/followerGain/totalLikes across the given channels — same math for a Creator's channels or a Team's channels", () => {
+    const days = { viewsMeasuredDays: 7, previousViewsMeasuredDays: 7 };
     const statsByChannel = new Map([
-      ["a", channelStat({ channelId: "a", views: 100000, previousViews: 80000, followersNow: 5000, followersGain: 500, totalLikes: 1300 })],
-      ["b", channelStat({ channelId: "b", views: 50000, previousViews: 50000, followersNow: 3000, followersGain: 200, totalLikes: 600 })],
+      ["a", channelStat({ channelId: "a", views: 100000, previousViews: 80000, followersNow: 5000, followersGain: 500, totalLikes: 1300, ...days })],
+      ["b", channelStat({ channelId: "b", views: 50000, previousViews: 50000, followersNow: 3000, followersGain: 200, totalLikes: 600, ...days })],
     ]);
 
     const rollup = aggregateChannelStats(["a", "b"], statsByChannel);
@@ -166,6 +197,17 @@ describe("aggregateChannelStats", () => {
     expect(rollup.followerGain).toBe(700);
     expect(rollup.totalLikes).toBe(1900);
     expect(rollup.viewsDeltaPct).toBe(15); // (150000-130000)/130000
+    expect(rollup.viewsDeltaInsufficientData).toBe(false);
+  });
+
+  it("suppresses the rollup view % (and flags it) when the current period's measured days are far thinner than the comparison period's", () => {
+    const statsByChannel = new Map([
+      ["a", channelStat({ channelId: "a", views: 20000, previousViews: 500000, viewsMeasuredDays: 1, previousViewsMeasuredDays: 7 })],
+    ]);
+    const rollup = aggregateChannelStats(["a"], statsByChannel);
+    expect(rollup.totalViews).toBe(20000);
+    expect(rollup.viewsDeltaPct).toBeNull(); // not −96% — the current period only has 1/7 days measured
+    expect(rollup.viewsDeltaInsufficientData).toBe(true);
   });
 
   it("ignores a channel id with no entry in the map instead of crashing or counting it as 0 wrongly", () => {
@@ -205,15 +247,26 @@ describe("buildCreatorPerformance", () => {
     const result = buildCreatorPerformance(creators, statsByChannel);
     expect(result.get("c1")?.totalViews).toBe(1000);
     expect(result.get("c1")?.channels).toEqual([
-      { id: "ch1", name: "Kênh 1", tiktokHandle: "@k1", views: 1000, viewsDeltaPct: 25, followersNow: 100, followersGain: 10, videos: 2, totalLikes: 40 },
+      {
+        id: "ch1",
+        name: "Kênh 1",
+        tiktokHandle: "@k1",
+        views: 1000,
+        viewsDeltaPct: 25,
+        viewsDeltaInsufficientData: false,
+        followersNow: 100,
+        followersGain: 10,
+        videos: 2,
+        totalLikes: 40,
+      },
     ]);
     expect(result.get("c2")?.totalViews).toBe(500);
   });
 
-  it("falls back to 0/null per channel when a channel has no entry in statsByChannel (e.g. brand new)", () => {
+  it("falls back to null per channel when a channel has no entry in statsByChannel (e.g. brand new) — views null, not 0", () => {
     const creators = [{ id: "c1", channels: [{ id: "ch-unsynced", name: "Kênh mới", tiktokHandle: "@moi" }] }];
     const result = buildCreatorPerformance(creators, new Map());
-    expect(result.get("c1")?.channels[0]).toMatchObject({ views: 0, viewsDeltaPct: null, followersNow: null, videos: 0 });
+    expect(result.get("c1")?.channels[0]).toMatchObject({ views: null, viewsDeltaPct: null, followersNow: null, videos: 0 });
   });
 });
 

@@ -16,6 +16,31 @@ export function pctChange(current: number, previous: number): number | null {
   return Math.round(((current - previous) / previous) * 100);
 }
 
+/** Fraction of the comparison period's measured days the current period must also have measured
+ *  before a period-over-period view % is worth showing. */
+const VIEWS_DELTA_MIN_COVERAGE_RATIO = 0.7;
+
+/**
+ * Whether a "so với kỳ trước" view % is trustworthy, given how many COMPLETE measured view-days
+ * each side actually has (`isComplete` rows only — a truncated/rate-limited read is excluded from
+ * the view sums too, same rule lib/kpi.ts applies: "không dùng snapshot đó tính KPI").
+ *
+ * A today-anchored window structurally trails its comparison window by a day or two — today isn't
+ * synced until ~23:30 and Studio reconciliation runs 2+ days behind (CLAUDE.md) — so a small
+ * shortfall is normal and still comparable. This only rejects the case where the current period is
+ * so sparse next to the one it's compared against that a raw sum-vs-sum % is really just measuring
+ * the missing days (the "−95% vì kỳ này mới có 1/7 ngày có số" bug, 27/08/2026). When it returns
+ * false, callers null out `viewsDeltaPct` and set `viewsDeltaInsufficientData` so the UI shows "—"
+ * with a "chưa đủ dữ liệu trong kỳ" note instead of a scary bogus drop.
+ *
+ * Only meaningful when the comparison period itself has data (`previousMeasuredDays >= 1`); callers
+ * already keep `viewsDeltaPct = null` (the plain "no prior data" case) when it doesn't.
+ */
+export function viewsDeltaComparable(currentMeasuredDays: number, previousMeasuredDays: number): boolean {
+  if (previousMeasuredDays <= 0) return false;
+  return currentMeasuredDays >= Math.ceil(previousMeasuredDays * VIEWS_DELTA_MIN_COVERAGE_RATIO);
+}
+
 /** The immediately-preceding period of the SAME length as `[from, to]` — "so với kỳ trước" has to
  *  mean "the same number of days, right before this one" once the period is a user-picked range
  *  instead of always 7 days (M4 date-range picker). */
@@ -813,12 +838,22 @@ export async function fetchActivityHeatmap(
 
 export type ChannelPeriodStat = {
   channelId: string;
-  /** `null` = not one synced day this period has a known videoViews (e.g. a channel that just
-   *  connected — the first sync is a bootstrap with no baseline to diff, per CLAUDE.md). Render as
-   *  "—", never as "0 view". */
+  /** `null` = not one synced day this period has a known, COMPLETE videoViews (a channel that just
+   *  connected with only a bootstrap sync, or a period where every day is missing / `isComplete=false`
+   *  — CLAUDE.md: an incomplete snapshot isn't used to compute numbers). Render as "—", never "0 view". */
   views: number | null;
   previousViews: number | null;
   viewsDeltaPct: number | null;
+  /** `true` when this period AND the comparison period both have some view data, but the current
+   *  period covers materially fewer complete measured days (`viewsDeltaComparable` failed) — so
+   *  `viewsDeltaPct` is null on purpose and the UI should show a "chưa đủ dữ liệu trong kỳ" note
+   *  rather than a bare "—" that reads as "no history at all" (27/08/2026). */
+  viewsDeltaInsufficientData: boolean;
+  /** Days with a complete, known videoViews in this period / the comparison period — carried so a
+   *  rollup (`aggregateChannelStats`) can re-apply `viewsDeltaComparable` across its channel set
+   *  without re-fetching daily rows. */
+  viewsMeasuredDays: number;
+  previousViewsMeasuredDays: number;
   videos: number;
   previousVideos: number;
   viewsPerVideo: number | null;
@@ -841,6 +876,9 @@ export type ChannelPeriodStat = {
 export type RollupStat = {
   totalViews: number;
   viewsDeltaPct: number | null;
+  /** Same meaning as `ChannelPeriodStat.viewsDeltaInsufficientData`, at rollup level — the channel
+   *  set's current-period view coverage is too thin next to the comparison period to trust a %. */
+  viewsDeltaInsufficientData: boolean;
   /** Current follower stock summed across the channel set — pairs with `followerGain` the same way
    *  `TeamStatsRow`'s "Follower toàn team" tile shows both (value = stock, delta = gain), just at
    *  Creator/Team rollup level instead of the whole company. */
@@ -872,10 +910,16 @@ export function aggregateChannelStats(channelIds: string[], statsByChannel: Map<
 
   const totalViews = sum((s) => s.views);
   const previousViews = sum((s) => s.previousViews);
+  // Same coverage gate as per-channel (`getChannelPeriodStats`), re-applied on the channel set's
+  // summed measured-day counts — a rollup % is only as trustworthy as the days behind it.
+  const currentMeasuredDays = sum((s) => s.viewsMeasuredDays);
+  const previousMeasuredDays = sum((s) => s.previousViewsMeasuredDays);
+  const comparable = viewsDeltaComparable(currentMeasuredDays, previousMeasuredDays);
 
   return {
     totalViews,
-    viewsDeltaPct: pctChange(totalViews, previousViews),
+    viewsDeltaPct: comparable ? pctChange(totalViews, previousViews) : null,
+    viewsDeltaInsufficientData: previousMeasuredDays > 0 && !comparable,
     followersNow: sum((s) => s.followersNow),
     followerGain: sum((s) => s.followersGain),
     totalLikes: sum((s) => s.totalLikes),
@@ -891,8 +935,12 @@ export type CreatorPerformanceChannel = {
   id: string;
   name: string;
   tiktokHandle: string;
-  views: number;
+  /** `null` (render "—", not "0") when the channel has no complete view measurement this period —
+   *  same rule as the `/channels` table's `views` column. */
+  views: number | null;
   viewsDeltaPct: number | null;
+  /** See `ChannelPeriodStat.viewsDeltaInsufficientData` — drives the "chưa đủ dữ liệu" note. */
+  viewsDeltaInsufficientData: boolean;
   followersNow: number | null;
   followersGain: number | null;
   videos: number;
@@ -923,8 +971,9 @@ export function buildCreatorPerformance(
           id: channel.id,
           name: channel.name,
           tiktokHandle: channel.tiktokHandle,
-          views: stat?.views ?? 0,
+          views: stat?.views ?? null,
           viewsDeltaPct: stat?.viewsDeltaPct ?? null,
+          viewsDeltaInsufficientData: stat?.viewsDeltaInsufficientData ?? false,
           followersNow: stat?.followersNow ?? null,
           followersGain: stat?.followersGain ?? null,
           videos: stat?.videos ?? 0,
@@ -966,9 +1015,20 @@ export async function getChannelPeriodStats(
     const currentRows = rows.filter((r) => r.date >= from && r.date <= to);
     const previousRows = rows.filter((r) => r.date >= comparedFrom && r.date <= comparedTo);
 
-    const views = isAllTime ? (metricsByChannel.get(channelId)?.views ?? 0) : sumViews(currentRows);
-    const previousViews = sumViews(previousRows);
-    const viewsDeltaPct = views !== null && previousViews !== null ? pctChange(views, previousViews) : null;
+    // View sums count only days with a COMPLETE, known videoViews — a truncated/rate-limited read
+    // (`isComplete=false`) is excluded here the same way lib/kpi.ts drops it from KPI actuals
+    // (CLAUDE.md: "không dùng snapshot đó tính KPI"). The `.length`s also feed the coverage gate.
+    const currentViewDays = currentRows.filter((r) => r.isComplete && r.videoViews !== null);
+    const previousViewDays = previousRows.filter((r) => r.isComplete && r.videoViews !== null);
+
+    const views = isAllTime ? (metricsByChannel.get(channelId)?.views ?? 0) : sumViews(currentViewDays);
+    const previousViews = sumViews(previousViewDays);
+    // "so với kỳ trước" only when both periods have view data AND the current one isn't so much
+    // thinner that the % would just be measuring missing days (27/08/2026 — see viewsDeltaComparable).
+    const bothMeasured = views !== null && previousViews !== null;
+    const coverageComparable = bothMeasured && viewsDeltaComparable(currentViewDays.length, previousViewDays.length);
+    const viewsDeltaPct = coverageComparable ? pctChange(views, previousViews) : null;
+    const viewsDeltaInsufficientData = bothMeasured && !coverageComparable;
     const videos = videosCurrent.get(channelId) ?? 0;
     const previousVideos = videosPrevious.get(channelId) ?? 0;
 
@@ -985,6 +1045,9 @@ export async function getChannelPeriodStats(
       views,
       previousViews,
       viewsDeltaPct,
+      viewsDeltaInsufficientData,
+      viewsMeasuredDays: currentViewDays.length,
+      previousViewsMeasuredDays: previousViewDays.length,
       videos,
       previousVideos,
       viewsPerVideo: views !== null && videos > 0 ? Math.round(views / videos) : null,
@@ -1150,6 +1213,12 @@ export async function getDashboard(
   const teamPreviousViewsPerVideo = teamPreviousVideos > 0 ? teamPreviousViews / teamPreviousVideos : 0;
   const teamFollowersNow = sum((s) => s.followersNow ?? 0);
   const teamFollowersGain = sum((s) => s.followersGain ?? 0);
+  // Same coverage gate as per-channel: a view % (and the viewsPerVideo % derived from it) isn't
+  // shown when the current period's measured view-days are too thin next to the comparison period.
+  const teamViewDeltaComparable = viewsDeltaComparable(
+    sum((s) => s.viewsMeasuredDays),
+    sum((s) => s.previousViewsMeasuredDays),
+  );
 
   // No `.slice()` here — every channel, not just a top-N (24/08/2026, theo yêu cầu: xem hết mọi
   // kênh, sẽ có nhiều kênh về sau). `ListCard` (dashboard-widgets.tsx) scrolls internally instead of
@@ -1208,10 +1277,13 @@ export async function getDashboard(
     channels: activeChannels.map((c) => ({ id: c.id, name: c.name })),
     period: { from, to, comparedFrom, comparedTo },
     teamStats: {
-      views: { value: teamViews, deltaPct: pctChange(teamViews, teamPreviousViews) },
+      views: { value: teamViews, deltaPct: teamViewDeltaComparable ? pctChange(teamViews, teamPreviousViews) : null },
       followers: { value: teamFollowersNow, deltaAbs: teamFollowersGain },
       videos: { value: teamVideos, deltaPct: pctChange(teamVideos, teamPreviousVideos) },
-      viewsPerVideo: { value: teamViewsPerVideo, deltaPct: pctChange(teamViewsPerVideo, teamPreviousViewsPerVideo) },
+      viewsPerVideo: {
+        value: teamViewsPerVideo,
+        deltaPct: teamViewDeltaComparable ? pctChange(teamViewsPerVideo, teamPreviousViewsPerVideo) : null,
+      },
       totalLikes: { value: totalLikes },
     },
     dataFreshness: freshness,
