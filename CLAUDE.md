@@ -151,18 +151,15 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M6 (Chốt sổ KPI) + `/kpi` danh sách kênh + fix bug CSS `@layer` — xong 26/08, đã lên `main`
-(`origin/main` ở `a332ac5`).** **Có commit local CHƯA push** — gồm `2b44684` (chặn import ghi đè
-chu kỳ final) + `665c5c5` (bỏ lưu zip gốc lên Storage, 27/08 — xem dưới); số chính xác:
-`git log origin/main..HEAD`. M5 (KPI Cycle) + sửa cửa sổ chốt import đã lên `main` từ 25/08.
-M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + nhóm vá
-OAuth/view-per-day cũng đã lên `main` từ trước.
+**M6 (Chốt sổ KPI) + `/kpi` danh sách kênh + fix bug CSS `@layer` + chặn import ghi đè chu kỳ final +
+bỏ lưu zip Storage — tất cả đã lên `main` (`origin/main` ở `39df291`).** M5 (KPI Cycle) + sửa cửa sổ
+chốt import lên `main` từ 25/08. M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng
+nhập username + nhóm vá OAuth/view-per-day cũng đã lên `main` từ trước.
 
-📊 **Sửa % lượt xem gây hiểu nhầm + `/channels` mặc định 7 ngày (27/08/2026) — CHƯA commit** (đang ở
-working tree: `lib/dashboard.ts`, `channel-form.tsx`, `creator-channels-table.tsx`, `creators/[id]`,
-`channels/page.tsx`, `dashboard.test.ts`). `viewsDeltaPct` giờ ẩn ("chưa đủ dữ liệu kỳ này") khi kỳ
-hiện tại phủ ít ngày hơn hẳn kỳ so sánh, và loại ngày `is_complete=false` khỏi tổng view. Xem mục
-"Quy tắc nghiệp vụ" ở trên + [docs/PROGRESS.md](docs/PROGRESS.md) mục "`/channels` mặc định 7 ngày".
+📊 **Sửa % lượt xem gây hiểu nhầm + `/channels` mặc định 7 ngày (27/08/2026) — commit `1378ca9`, CHƯA
+push** (số chính xác: `git log origin/main..HEAD`). `viewsDeltaPct` giờ ẩn ("chưa đủ dữ liệu kỳ này")
+khi kỳ hiện tại phủ ít ngày hơn hẳn kỳ so sánh, và loại ngày `is_complete=false` khỏi tổng view. Xem
+mục "Quy tắc nghiệp vụ" ở trên + [docs/PROGRESS.md](docs/PROGRESS.md) mục "`/channels` mặc định 7 ngày".
 
 🎯 **`/kpi` giờ là danh sách KÊNH, không phải danh sách CHU KỲ** (26/08/2026, theo yêu cầu, dùng lại
 `KpiCard` của trang chi tiết kênh) — mỗi kênh luôn có 1 khối dù chưa từng đặt KPI. Đổi lại hướng này
@@ -221,7 +218,7 @@ copy nguyên giá trị từ Vercel Environment Variables xuống.
 Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
 mới nhất trên `main` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel
 dashboard). Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`,
-`origin/main` ở `a332ac5` (có commit local chưa push — xem "Việc tiếp theo").
+`origin/main` ở `39df291` (1 commit local `1378ca9` chưa push — xem "Việc tiếp theo").
 Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
 đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
@@ -238,9 +235,9 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
    có, tự đầy ở kỳ import sau (từ 26/08).
-3. **Commit + push `main`** — nhóm chưa push: `2b44684` (chặn import ghi đè chu kỳ final) + `665c5c5`
-   (bỏ lưu zip Storage) + thay đổi 27/08 chưa commit (sửa % view + `/channels` 7 ngày). `supabase db
-   push` đi kèm để áp migration `20260827000001` (chỉ sửa comment cột `raw_file_ref` — không gấp).
+3. **Push `main`** — chưa push: `1378ca9` (sửa % view + `/channels` 7 ngày) + commit docs kèm theo;
+   số chính xác `git log origin/main..HEAD`. Migration `20260827000001` (chỉ sửa comment cột
+   `raw_file_ref`, từ `665c5c5` đã push) — chạy `supabase db push` khi tiện, không gấp.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
