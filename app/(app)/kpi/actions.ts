@@ -4,12 +4,22 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { AuthorizationError, requireManager } from "@/lib/auth";
-import { createKpiCycle, deleteKpiCycle, updateKpiCycle, type KpiPeriodType } from "@/lib/kpi";
+import {
+  checkFinalizeReadiness,
+  createKpiCycle,
+  deleteKpiCycle,
+  finalizeKpiCycle,
+  getKpiCycleById,
+  updateKpiCycle,
+  type FinalizeReasonCode,
+  type KpiPeriodType,
+} from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ValidationError } from "@/lib/validation";
 
 export type KpiFormState = { error: string | null };
 export type DeleteFormState = { error: string | null };
+export type FinalizeFormState = { error: string | null; reasons?: FinalizeReasonCode[] };
 
 function toMessage(error: unknown): string {
   if (error instanceof AuthorizationError) return error.message;
@@ -137,4 +147,55 @@ export async function deleteKpiCycleAction(
 
   revalidateEverywhereShown(channelId);
   redirect("/kpi");
+}
+
+/**
+ * M6, docs/API_SPEC.md `POST /api/kpi-cycles/:id/finalize`. Re-checks readiness itself even though
+ * the finalize page already rendered the same checklist server-side — the page's data can be stale
+ * by the time the Manager clicks (import finished mid-review, or another tab got there first), and
+ * the DB write must never happen against a check the user merely SAW earlier.
+ *
+ * No `redirect()`, unlike every other action in this file — stays on `/kpi/[id]/finalize` so
+ * `revalidatePath` re-renders it into its own "đã chốt sổ" read-only branch in place, satisfying
+ * docs/TASKS.md's "UI: xem lại lịch sử các kỳ đã chốt" with the same page rather than a second one.
+ */
+// useActionState's callback shape requires both trailing params; this action needs neither (no
+// prior state to merge, nothing in the form beyond the checkbox, which is a client-only gate — see
+// the doc comment above).
+export async function finalizeKpiCycleAction(
+  cycleId: string,
+  channelId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: FinalizeFormState,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _formData: FormData,
+): Promise<FinalizeFormState> {
+  const supabase = await createSupabaseServerClient();
+  try {
+    const manager = await requireManager();
+
+    const cycle = await getKpiCycleById(supabase, cycleId);
+    if (!cycle) return { error: "Chu kỳ KPI không tồn tại." };
+    if (cycle.status === "final") return { error: "Chu kỳ KPI đã chốt sổ — không cần chốt lại." };
+
+    const readiness = await checkFinalizeReadiness(supabase, cycle);
+    if (!readiness.ready) {
+      return { error: "Chưa đủ điều kiện chốt sổ — xem lại danh sách điều kiện ở trên.", reasons: readiness.reasons };
+    }
+
+    await finalizeKpiCycle(supabase, cycleId, manager.id);
+    await supabase.from("audit_log").insert({
+      entity_type: "kpi_cycle",
+      entity_id: cycleId,
+      action: "finalized",
+      actor: manager.username,
+      note: `Chốt sổ chu kỳ ${cycle.periodStart} → ${cycle.periodEnd}.`,
+    });
+  } catch (error) {
+    return { error: toMessage(error) };
+  }
+
+  revalidateEverywhereShown(channelId);
+  revalidatePath(`/kpi/${cycleId}/finalize`);
+  return { error: null };
 }

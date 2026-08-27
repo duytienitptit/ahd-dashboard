@@ -1,7 +1,36 @@
 import { metricText } from "@/lib/kpi-format";
-import type { KpiHealth, KpiHealthValue } from "@/lib/kpi";
+import type { KpiCycleWithProgress, KpiHealth, KpiHealthValue } from "@/lib/kpi";
+import { METRIC_TONE, type MetricTone } from "@/lib/metric-tone";
 
 export { metricText };
+
+export type KpiMetricKey = "views" | "videos" | "followers";
+
+/** The 3 metrics in display order (views, videos, followers — matches docs/API_SPEC.md and
+ *  design/KpiForm.dc.html) — shared by `/kpi`'s row list and the finalize review screen so both
+ *  render the same set the same way. */
+export const KPI_METRIC_ROWS: {
+  key: KpiMetricKey;
+  targetKey: "targetViews" | "targetVideos" | "targetFollowers";
+  unit: string;
+  tone: MetricTone;
+}[] = [
+  { key: "views", targetKey: "targetViews", unit: "view", tone: METRIC_TONE.views },
+  { key: "videos", targetKey: "targetVideos", unit: "video", tone: METRIC_TONE.videos },
+  { key: "followers", targetKey: "targetFollowers", unit: "follower", tone: METRIC_TONE.followers },
+];
+
+export function kpiActualFor(cycle: KpiCycleWithProgress, key: KpiMetricKey): number | null {
+  if (key === "views") return cycle.actuals.views;
+  if (key === "videos") return cycle.actuals.videos;
+  return cycle.actuals.followersNow;
+}
+
+export function kpiPctFor(cycle: KpiCycleWithProgress, key: KpiMetricKey): number | null {
+  if (key === "views") return cycle.progress.viewsPct;
+  if (key === "videos") return cycle.progress.videosPct;
+  return cycle.progress.followersPct;
+}
 
 export const KPI_HEALTH_LABEL: Record<KpiHealthValue, string> = {
   green: "Vượt tiến độ",

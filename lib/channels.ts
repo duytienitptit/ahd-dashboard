@@ -188,8 +188,7 @@ export async function updateChannel(
  * recorded for the channel, not an archive. The one hard guard: CLAUDE.md's rule that a finalized
  * (`status = 'final'`) KPI cycle is locked and any change must go through `audit_log` — a delete would
  * destroy those numbers outright instead, so it's blocked entirely rather than silently bypassing that
- * rule. `kpi_cycle` has no rows yet (M5/M6 unbuilt) so this check is a no-op today, but must stay once
- * they exist.
+ * rule.
  */
 export async function deleteChannel(supabase: SupabaseServerClient, id: string): Promise<void> {
   const { data: finalCycles, error: kpiError } = await supabase

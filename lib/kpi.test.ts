@@ -5,6 +5,8 @@ import {
   computeDataGaps,
   computeProgress,
   elapsedPct,
+  finalizeUnlockAt,
+  findNonStudioDates,
   forecastOverallPct,
   remainingPerDay,
   resolveStatus,
@@ -281,5 +283,44 @@ describe("assertEditable", () => {
       expect(error).toBeInstanceOf(AuthorizationError);
       expect((error as InstanceType<typeof AuthorizationError>).status).toBe(403);
     }
+  });
+});
+
+// M6, docs/API_SPEC.md `POST /api/kpi-cycles/:id/finalize`. The `− 1` here mirrors
+// lib/import/settle-window.ts's own constant only in spirit (both encode "Studio lags 2 days") —
+// they're deliberately separate functions, see finalizeUnlockAt's doc comment for why finalize keeps
+// the full 3-day margin regardless of what the import window does.
+describe("finalizeUnlockAt", () => {
+  it("is periodEnd + 3 days", () => {
+    expect(finalizeUnlockAt("2026-08-23")).toBe("2026-08-26");
+  });
+});
+
+describe("findNonStudioDates", () => {
+  it("returns every day resolved to a non-studio_import source", () => {
+    const rows = [
+      { date: "2026-08-10", source: "studio_import" },
+      { date: "2026-08-11", source: "display_api" },
+      { date: "2026-08-12", source: "manual_entry" },
+    ];
+    expect(findNonStudioDates(rows, "2026-08-10", "2026-08-12")).toEqual(["2026-08-11", "2026-08-12"]);
+  });
+
+  it("treats a day with no row at all the same as a non-studio day", () => {
+    const rows = [{ date: "2026-08-10", source: "studio_import" }];
+    expect(findNonStudioDates(rows, "2026-08-10", "2026-08-12")).toEqual(["2026-08-11", "2026-08-12"]);
+  });
+
+  it("empty when every day in range resolved to studio_import", () => {
+    const rows = [
+      { date: "2026-08-10", source: "studio_import" },
+      { date: "2026-08-11", source: "studio_import" },
+    ];
+    expect(findNonStudioDates(rows, "2026-08-10", "2026-08-11")).toEqual([]);
+  });
+
+  it("a row outside [periodStart, periodEnd] doesn't mask a real gap inside it", () => {
+    const rows = [{ date: "2026-08-09", source: "studio_import" }];
+    expect(findNonStudioDates(rows, "2026-08-10", "2026-08-10")).toEqual(["2026-08-10"]);
   });
 });

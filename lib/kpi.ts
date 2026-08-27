@@ -274,6 +274,140 @@ export function assertEditable(cycle: { status: KpiStatus }): void {
 }
 
 // ---------------------------------------------------------------------------
+// Finalize (M6) — docs/API_SPEC.md `POST /api/kpi-cycles/:id/finalize`. 3 independent gates,
+// evaluated together rather than short-circuited, so a Manager sees every blocker at once instead of
+// fixing one and being told about the next on a second attempt.
+// ---------------------------------------------------------------------------
+
+export type FinalizeReasonCode = "too_early" | "missing_studio_data" | "has_manual_entry";
+
+export type FinalizeReadiness = {
+  ready: boolean;
+  reasons: FinalizeReasonCode[];
+  /** Every calendar day in the cycle whose currently-resolved source isn't `studio_import` — no row
+   *  at all, or a lower-priority source is still the only one on file. Empty when gate 2 passes. */
+  missingDates: string[];
+  /** Every calendar day that still has a raw `manual_entry` row in `data_snapshot`, regardless of
+   *  whether `studio_import` already outranks it in `v_channel_daily` — see `fetchManualEntryDates`
+   *  for why this can't reuse the resolved-source check above. Empty when gate 3 passes. */
+  manualEntryDates: string[];
+  unlockAt: string;
+};
+
+/**
+ * Gate 1: `periodEnd + 3 ngày` (2 ngày Studio trễ + 1 ngày an toàn, docs/API_SPEC.md). Deliberately
+ * its OWN constant, not a reuse of `lib/import/settle-window.ts`'s window (now `importDate − 1`,
+ * 25/08/2026 fix): that one controls which day an import may overwrite and gets to assume more days
+ * pass safely because a bad overwrite there is still just data, correctable by importing again.
+ * Finalize is irreversible and feeds bonus/salary, so it keeps the full original safety margin
+ * instead of following the import window down — confirmed with the user 26/08/2026 (chốt sổ vẫn
+ * chờ tới thứ Tư, không chuyển sang thứ Ba dù thứ Ba đã đủ số).
+ */
+export function finalizeUnlockAt(periodEnd: string): string {
+  return addDaysToDateString(periodEnd, 3);
+}
+
+/**
+ * Gate 2: every calendar day in `[periodStart, periodEnd]` whose resolved `v_channel_daily` row is
+ * `studio_import` — a plain "does a row exist" check isn't enough, a day still sitting on
+ * `display_api` (tạm tính) or `manual_entry` counts the same as a missing day here. `resolvedRows`
+ * is expected to already be scoped to one channel and this date range (`fetchDailyRows`).
+ */
+export function findNonStudioDates(
+  resolvedRows: { date: string; source: string }[],
+  periodStart: string,
+  periodEnd: string,
+): string[] {
+  const sourceByDate = new Map(resolvedRows.map((r) => [r.date, r.source]));
+  const dates: string[] = [];
+  let cursor = periodStart;
+  while (cursor <= periodEnd) {
+    if (sourceByDate.get(cursor) !== "studio_import") dates.push(cursor);
+    cursor = addDaysToDateString(cursor, 1);
+  }
+  return dates;
+}
+
+/**
+ * Gate 3's data source — raw `data_snapshot`, NOT `v_channel_daily`. `lib/import/run-import.ts`
+ * never deletes a `manual_entry` row once `studio_import` lands for the same date, it only adds the
+ * higher-priority row alongside it (`source_rank()`, migration 0005) — so a date can pass gate 2
+ * (resolved source is studio_import) while a manual_entry row still physically sits underneath it.
+ * CLAUDE.md is explicit that finalize must block on that too ("không cho chốt sổ chu kỳ còn chứa
+ * nó"), so this checks the table directly instead of trusting the view's resolution.
+ */
+export async function fetchManualEntryDates(
+  supabase: SupabaseServerClient,
+  channelId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("data_snapshot")
+    .select("date")
+    .eq("channel_id", channelId)
+    .eq("source", "manual_entry")
+    .gte("date", periodStart)
+    .lte("date", periodEnd);
+  if (error) throw error;
+  return [...new Set((data ?? []).map((r) => r.date as string))].sort();
+}
+
+/** Runs all 3 finalize gates for one cycle. Read-only — callers decide what to do with the result
+ *  (route/action layer owns turning `ready: false` into a 422, same split as everywhere else in this
+ *  file that a mutation's preconditions are checked by the caller, not thrown from deep inside). */
+export async function checkFinalizeReadiness(
+  supabase: SupabaseServerClient,
+  cycle: Pick<KpiCycleSummary, "channelId" | "periodStart" | "periodEnd">,
+): Promise<FinalizeReadiness> {
+  const unlockAt = finalizeUnlockAt(cycle.periodEnd);
+  const timeOk = nowVnDateString() >= unlockAt;
+
+  const [resolvedRows, manualEntryDates] = await Promise.all([
+    fetchDailyRows(supabase, [cycle.channelId], cycle.periodStart, cycle.periodEnd),
+    fetchManualEntryDates(supabase, cycle.channelId, cycle.periodStart, cycle.periodEnd),
+  ]);
+  const missingDates = findNonStudioDates(resolvedRows, cycle.periodStart, cycle.periodEnd);
+
+  const reasons: FinalizeReasonCode[] = [];
+  if (!timeOk) reasons.push("too_early");
+  if (missingDates.length > 0) reasons.push("missing_studio_data");
+  if (manualEntryDates.length > 0) reasons.push("has_manual_entry");
+
+  return { ready: reasons.length === 0, reasons, missingDates, manualEntryDates, unlockAt };
+}
+
+/** Locks the cycle. Assumes the caller already ran `checkFinalizeReadiness()` and confirmed
+ *  `status !== 'final'` — doesn't re-check either itself, same split `updateKpiCycle`/
+ *  `deleteKpiCycle` already use (this file checks business preconditions, the route/action layer
+ *  checks the object still exists and owns writing `audit_log` after success). */
+export async function finalizeKpiCycle(
+  supabase: SupabaseServerClient,
+  id: string,
+  finalizedBy: string,
+): Promise<KpiCycleSummary> {
+  const { data, error } = await supabase
+    .from("kpi_cycle")
+    .update({ status: "final", finalized_by: finalizedBy, finalized_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return toKpiCycleSummary(data);
+}
+
+/** Display name for `finalizedBy`/`finalized_at` on the finalize review screen — `kpi_cycle` stores
+ *  only the manager's uuid (FK to `manager(id)`), never a name, so resolving it to something a
+ *  Manager can read is a separate lookup. `manager` grants `select` to any authenticated role
+ *  (20260820000006_rls.sql, "the UI shows who assigned what"), so the regular session client is
+ *  enough — no admin client needed. */
+export async function getManagerNameById(supabase: SupabaseServerClient, id: string): Promise<string | null> {
+  const { data, error } = await supabase.from("manager").select("name").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data?.name ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // I/O layer
 // ---------------------------------------------------------------------------
 
