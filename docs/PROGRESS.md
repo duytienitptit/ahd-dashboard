@@ -969,6 +969,178 @@ chưa có số cho 24) — sẽ tự đầy ở kỳ import sau, từ 26/08 tr�
 **Kiểm chứng:** `npx vitest run` — 182/182 xanh. Trong đó fixture thật khẳng định 17/08 **không** còn
 được ghi, cộng 1 test tổng hợp chốt đúng luật mới (import 25/08 → ghi 21-22-23, bỏ 24-25).
 
+## M6 — Chốt sổ KPI (Finalize) (26/08/2026) — có gì dùng được ngay
+
+`POST /api/kpi-cycles/:id/finalize` + `/kpi/[id]/finalize` — khoá 1 chu kỳ KPI dựa trên
+`data_snapshot` đã có sẵn, không nhận file. 3 gate ([API_SPEC.md](API_SPEC.md) mục finalize) kiểm
+**cùng lúc**, không dừng ở gate đầu tiên fail: `lib/kpi.ts` `checkFinalizeReadiness` trả về
+`reasons[]`/`missingDates[]`/`manualEntryDates[]`/`unlockAt` — route và Server Action
+(`finalizeKpiCycleAction`) dùng chung hàm này nên 2 lối vào (REST cho ngoài, Action cho UI) không
+lệch logic.
+
+**Gate 2 và gate 3 đọc 2 nguồn khác nhau, dễ nhầm là trùng nhau:** gate 2
+(`findNonStudioDates`) đọc `v_channel_daily` — ngày nào chưa RESOLVE ra `studio_import` (còn
+`display_api`, hoặc không có row nào) thì tính là thiếu. Gate 3 (`fetchManualEntryDates`) đọc thẳng
+bảng thô `data_snapshot`, lọc `source = manual_entry` — vì `run-import.ts` không xoá row
+`manual_entry` cũ khi `studio_import` đến cùng ngày, chỉ thêm row mới xếp hạng cao hơn
+(`source_rank()`, migration 0005). Một ngày có thể qua gate 2 (view đã resolve đúng
+`studio_import`) mà vẫn dính gate 3 nếu con `manual_entry` chưa được dọn — CLAUDE.md nói rõ "không
+cho chốt sổ chu kỳ còn chứa nó", tính đúng theo raw table chứ không theo view.
+
+**Response thành công là `KpiCycleWithProgress` đầy đủ** (giống 1 phần tử `GET /api/kpi-cycles`),
+không phải field `%Final` riêng — không có cột nào lưu percent lúc chốt, vì `data_snapshot` trong
+khoảng ngày đó coi như bất biến ngay khi 3 gate đã pass (không nguồn nào tin cậy hơn `studio_import`
+có thể ghi đè), nên `attachProgress()` tính lại bình thường luôn ra đúng số đã chốt.
+
+**UI dùng 1 trang cho cả 2 trạng thái** thay vì trang riêng cho "chốt sổ" và "xem lịch sử": cùng
+`/kpi/[id]/finalize`, `cycle.status` quyết định render checklist+nút hay bảng read-only có "Người
+chốt"/thời điểm. `/kpi`'s list row đổi "Sửa" → "Chốt sổ" (draft) hoặc "Xem chốt sổ" (final).
+
+**Bỏ qua bảng "Đạt/Gần đạt/Chưa đạt" theo từng chỉ tiêu ở `design/Finalize.dc.html`** — mock chỉ có
+3 điểm dữ liệu minh hoạ (97%→Gần đạt, 100%→Đạt, 33%→Chưa đạt), không đủ để biết ranh giới
+vàng/đỏ thật sự nằm ở đâu, và CLAUDE.md nói rõ không được đoán mò cách tính KPI. Dùng lại
+`KpiHealthBadge` đã duyệt sẵn (±10% quanh 100% elapsed, vì chu kỳ đã kết thúc) cho "Kết quả chung",
+mỗi chỉ tiêu chỉ hiện số thật tô màu theo *metric identity* như mọi nơi khác trong app.
+
+**`finalizeUnlockAt` (gate 1) giữ nguyên `periodEnd + 3`, không rút xuống theo cửa sổ import mới
+(`− 1`, xong hôm qua).** Bàn với người dùng trước khi code: thứ Ba đã đủ số (ghi tới đúng Chủ Nhật)
+nhưng vẫn chưa qua gate 1 vì gate này cố tình giữ nguyên biên an toàn gốc — chốt sổ là thao tác
+KHÔNG THỂ HOÀN TÁC và dùng tính thưởng, trong khi 1 import sai còn sửa được bằng cách import lại.
+Quyết định: vẫn chốt vào thứ Tư, không chuyển sang thứ Ba.
+
+**Migration lộ ra lúc làm:** `deleteChannel` (`lib/channels.ts`) có comment cũ nói *"`kpi_cycle` có 0
+row (M5/M6 chưa xây)"* — sai từ khi M5 lên `main` hôm qua, đã xoá comment lỗi thời (logic chặn xoá
+kênh có cycle final thì vẫn đúng và không đổi).
+
+⚠️ **Phát hiện lúc làm, chưa sửa (xem [TASKS.md](TASKS.md) mục M6):** import Studio không kiểm tra
+`kpi_cycle.status = final` trước khi ghi `data_snapshot` — một import muộn/sửa lại có thể ghi đè số
+của ngày đã khoá vĩnh viễn mà không qua `audit_log` nào. Chưa từng xảy ra thật (chưa có cycle final
+nào tồn tại trước hôm nay) nhưng phải chặn trước khi số final được dùng thật cho tính thưởng.
+
+**Kiểm chứng bằng browser thật** (quy trình chuẩn, mục dưới đây): tài khoản QA Manager tạm
+(`qa_m6_finalize`) trên kênh thật `nong.nghiep.xanh.17` (58 ngày `studio_import` liên tục,
+25/06–21/08, xác nhận không có `manual_entry` nào lẫn vào bằng query trực tiếp trước khi dùng) —
+- Tạo cycle 20/08→24/08 (cố tình chưa đủ điều kiện): checklist hiện đúng 2 ✗ (`too_early` vì
+  27/08 > hôm nay 26/08; `missing_studio_data` liệt kê đúng 22, 23, 24/08) + 1 ✓, nút khoá bị disable.
+- Sửa lại 10/08→16/08 (nằm trọn trong 58 ngày sạch): cả 3 ✓, tick xác nhận, bấm "Chốt sổ & khoá" →
+  khoá thành công, trang tự chuyển sang read-only đúng như thiết kế, `audit_log` có đúng 1 dòng
+  `action: "finalized"`.
+- Gọi thẳng `POST /api/kpi-cycles/:id/finalize` (fetch từ console, đã đăng nhập) lên cycle vừa
+  chốt → đúng `409` + message như đặc tả.
+- Dọn sạch sau khi xong: xoá cycle test + đúng 2 dòng `audit_log` của riêng nó (xác nhận không đụng
+  2 dòng `audit_log` cũ của Manager thật, actor `thaiduytien`, không liên quan) + xoá tài khoản QA.
+
+`npx vitest run` — 190/190 xanh (+8 test cho `finalizeUnlockAt`/`findNonStudioDates`).
+`npm run build` (buộc phải chạy — xem "Bẫy Next.js typegen" dưới đây) + `npx tsc --noEmit` +
+`npm run lint` đều sạch.
+
+🐞 **Bẫy Next.js 16 Turbopack dev, không phải bug của code:** thêm route/page file mới
+(`app/api/.../finalize/route.ts`, `app/.../[id]/finalize/page.tsx`) rồi chạy `next dev` — dev server
+chạy đúng, cả 2 route hoạt động thật (verify bằng browser ở trên đã chứng minh), nhưng
+`.next/types/routes.d.ts` (dùng bởi `RouteContext<...>` khi gõ `tsc --noEmit`) **không tự cập nhật**
+dù đã restart dev server và tự gọi cả 2 route qua request thật. Chỉ hết khi chạy `npm run build` một
+lần (build luôn quét lại toàn bộ cây route). Gặp lại tình huống này (thêm route mới, `tsc` báo
+`AppRouteHandlerRoutes` không nhận literal route) thì chạy `npm run build` trước khi kết luận có lỗi
+type thật — đừng sửa code theo hướng khác.
+
+## `/kpi` đổi thành danh sách KÊNH thay vì danh sách CHU KỲ (26/08/2026, theo yêu cầu) — có gì dùng được ngay
+
+**Trước:** 3 nhóm theo trạng thái thời gian (Đang chạy/Sắp tới/Đã qua), mỗi dòng là 1 CHU KỲ — 1 kênh
+có thể xuất hiện ở nhiều nhóm khác nhau hoặc không xuất hiện chỗ nào nếu chưa từng đặt KPI. **Sau:**
+mỗi KÊNH đúng 1 khối, luôn hiện dù chưa từng có KPI — đúng tinh thần CLAUDE.md "dữ liệu kênh trước,
+KPI sau, đừng lấy % KPI làm trục sắp xếp mặc định". Không sắp lại theo %/trạng thái, giữ nguyên thứ
+tự `listChannels()` (theo tên).
+
+**Lý do đổi (từ hội thoại thật với người dùng):** test thử 1 cycle, thấy Lượt xem/Follower trống
+trơn không rõ vì sao (hoá ra kênh đó chưa từng có `data_snapshot` — số liệu thật, không phải bug), lúc
+giải thích xong thì người dùng nhận xét thẳng "ở trang KPI là danh sách các KPI thay vì các kênh" —
+tức đúng cái lệch nói ở CLAUDE.md dòng đầu tiên của file, chỉ là chưa ai áp dụng vào `/kpi` khi xây
+M5. Hỏi lại 1 câu trắc nghiệm (mỗi kênh 1 dòng, hay giữ danh sách chu kỳ nhưng nhóm theo kênh) —
+chọn phương án đầu.
+
+**Không viết lại từ đầu — dùng lại nguyên `KpiCard`** (component đã có sẵn ở trang chi tiết kênh từ
+M5: active cycle + cảnh báo `dataGaps` + "Các kỳ trước"), chỉ thêm 1 prop `header` (avatar/tên/handle)
+để dùng được trong ngữ cảnh liệt kê nhiều kênh. Nhờ vậy 2 thứ tự nhiên có kèm miễn phí, không phải
+code thêm:
+- Cảnh báo "Thiếu số liệu đáng tin cậy N ngày" — vốn CHỈ có ở trang chi tiết kênh, `/kpi` bản cũ
+  không có, đúng thứ đã gây khó hiểu ở trên.
+- Mỗi kênh chưa từng đặt KPI vẫn hiện, kèm "+ Đặt KPI cho kênh này" — trước đây kênh không có cycle
+  nào thì biến mất khỏi `/kpi` hoàn toàn.
+
+**Bẫy suýt bỏ sót:** `KpiCard`'s "Các kỳ trước" trước giờ **không có action nào** (chỉ hiện badge) —
+vì trang chi tiết kênh không cần, có "Sửa chu kỳ này →" riêng cho active cycle rồi. Nhưng khi
+`/kpi` (bản cũ) bị xoá, đó là nơi DUY NHẤT còn giữ nút Chốt sổ cho 1 draft cycle đã cũ (kịch bản
+đúng cái vừa test ở trên: cycle đã qua `periodEnd`, vẫn `draft`, cần chốt). Nếu không thêm action vào
+"Các kỳ trước", nút Chốt sổ sẽ biến mất hẳn ngay khi cycle đó bị 1 cycle mới hơn thế chỗ "active" —
+mất tính năng vừa xây xong ở M6. Sửa bằng cách tách phần Sửa/Chốt sổ/Xem chốt sổ/Xoá ra component
+riêng `kpi-cycle-actions.tsx` (nguyên là code cũ của `KpiRow`), dùng lại cho cả active cycle lẫn từng
+dòng "Các kỳ trước" — Manager-only ở cả hai chỗ, Creator giữ nguyên chỉ thấy badge như trước giờ.
+
+**Xoá hẳn `kpi-row.tsx`** — sau khi `/kpi/page.tsx` không còn gọi nó, không còn nơi nào dùng
+(`KPI_METRIC_ROWS`/`kpiActualFor`/`kpiPctFor` nó từng có đã chuyển sang `kpi-widgets.tsx` từ lúc làm
+M6 rồi, không mất gì).
+
+**Kiểm chứng:** tài khoản QA Manager tạm, browser thật — cả 9 kênh đều hiện đúng 1 khối (8 kênh
+"Chưa có KPI" + CTA, 1 kênh có cycle thật do chính người dùng tạo lúc tự test), bấm "Chốt sổ" từ
+"Các kỳ trước" của kênh đó vẫn dẫn đúng `/kpi/[id]/finalize` và hiện đúng checklist. Xoá QA account
+sau khi xong — xác nhận cycle thật của người dùng (`Bơ Trồng Gì Đấy? 17-23/08`) không hề bị đụng tới.
+`npx tsc --noEmit` + `npm run lint` + `npx vitest run` (187 test) đều sạch.
+
+### Vòng chỉnh tiếp theo cùng ngày, sau khi người dùng tự kiểm thử trực tiếp trên `main` local
+
+Tất cả phát hiện được nhờ người dùng tự bấm thử trên dữ liệu thật, không phải tự tôi rà lại:
+
+- **Ô "Chưa có KPI" mỗi kênh từng là 1 thẻ cao căn giữa, lặp lại 9 lần trông rất nặng** ("trông khá
+  xấu") — gộp lại thành 1 dòng gọn: avatar/tên/handle trái, "Chưa có KPI · + Đặt KPI" phải. Chỉ áp
+  dụng khi `header` được truyền (ngữ cảnh liệt kê nhiều kênh) — thẻ trên `/channels/[id]` (chỉ 1 card
+  trên cả trang) giữ nguyên dạng đầy đủ, căn giữa như cũ.
+- **Tab "Theo tuần" ở form tạo KPI để trắng 2 ô ngày** dù đã chọn sẵn "Theo tuần" — tự động điền tuần
+  đang diễn ra (Thứ Hai → Chủ Nhật chứa hôm nay) ngay khi mở form, không bắt người dùng phải bấm vào ô
+  "Từ ngày" trước mới thấy tuần tự tính. `lib/kpi.ts`'s `mondayOf`/`addDaysToDateString` dùng lại y
+  nguyên, chỉ đổi thời điểm gọi (lúc khởi tạo `useState`, không phải chỉ lúc `onChange`).
+- **Ô "Tuỳ chỉnh" của bộ lọc ngày (`/`, `/channels`) hiện `01/01/2020`** khi bộ lọc đang ở mặc định
+  "Toàn bộ thời gian" — đó là sentinel `ALL_TIME_FROM` (lib/time.ts, cố tình chọn cực xa để không bao
+  giờ cần sửa lại) bị lộ ra UI như một ngày thật. Để trống ô "Từ ngày" (hiện placeholder) thay vì hiện
+  sentinel; "Đến ngày" giữ nguyên vì luôn là hôm nay, không có gì sai. **Không đổi** giá trị hằng số —
+  chỉ sửa chỗ hiển thị. Mốc thật hệ thống bắt đầu 07/2026 (người dùng xác nhận, ghi vào bộ nhớ
+  Claude, không phải vào code vì không có ý nghĩa vận hành nào cần dùng tới).
+- **"Chốt sổ" bị coi là lòng vòng thừa** — "ở giao diện KPI đã có thể check các chỉ số rồi. Nên khi
+  click chốt sổ là có thể chốt luôn". Bỏ yêu cầu bắt buộc phải qua `/kpi/[id]/finalize` mới chốt được:
+  bấm "Chốt sổ" giờ mở hộp xác nhận **tại chỗ** (cùng vị trí, cùng kiểu tương tác với "Xoá") — tick
+  xác nhận, bấm "Chốt sổ & khoá", `finalizeKpiCycleAction` chạy y nguyên 3 gate cũ, sai thì hiện lý do
+  ngay trong hộp (không cần rời trang mới biết thiếu gì). Trang `/kpi/[id]/finalize` **không xoá** —
+  đổi thành đích của link **"Xem chi tiết"** mới (Manager, cạnh Chốt sổ) cho ai muốn xem bảng đối
+  chiếu đầy đủ trước khi quyết, và vẫn là nơi duy nhất xem chu kỳ **đã** chốt ("Xem chốt sổ"). Route
+  `POST /api/kpi-cycles/:id/finalize` không đổi gì — cả trang lẫn nút tại chỗ đều gọi chung 1 action.
+
+## Bug màu link: `a {}` viết trần đè cả `text-ink-2`/`text-ink-3` (26/08/2026) — có gì dùng được ngay
+
+Phát hiện khi vừa thêm link "Xem chi tiết" (`text-ink-3`, xám) ở trên nhưng hiện ra **đỏ** — người
+dùng chỉ đúng "trang này vẫn còn lỗi màu" dù tự tôi soi code lúc đầu không thấy gì sai (class truyền
+vào đúng, chỉ là **class đó chưa từng có tác dụng**).
+
+**Nguyên nhân:** `app/globals.css` có `a { color: var(--color-red); }` viết **trần, không nằm trong
+`@layer` nào**. Theo CSS Cascade Layers: luật ngoài layer luôn thắng luật trong layer, bất kể độ cụ
+thể hay thứ tự viết trong file — mà Tailwind v4 (`@import "tailwindcss"`) phát toàn bộ class tiện ích
+(`text-ink-2`, `text-ink-3`, kể cả `text-red`) vào `@layer utilities`. Nên **mọi `<Link>` cố đặt màu
+khác đỏ đều bị ép về đỏ**, âm thầm — `<button>` không dính vì không có luật `button {}` tương tự.
+`text-red` "trông đúng" trên các link khác (Sửa, tên kênh...) chỉ vì trùng màu với luật trần, không
+phải vì class đó thắng.
+
+**Ảnh hưởng thật, không chỉ 1 chỗ:** rà theo pattern `<Link ...text-ink-2|text-ink-3>` ra ít nhất 2
+chỗ khác cũng dính — "Xem chốt sổ" (chu kỳ đã chốt, cùng file) và "Đổi kênh khác"
+(`kpi-cycle-form.tsx`, có từ trước M6) — 17 file trong repo có pattern này, chưa rà hết từng cái, chỉ
+xác nhận cơ chế sẽ tự hết khi sửa gốc.
+
+**Đã sửa:** bọc luật đó vào `@layer base` — 1 chỗ, hết bug ở toàn bộ pattern này cùng lúc, không phải
+sửa từng nơi dùng `<Link>`. Kiểm chứng bằng cách đọc thẳng `getComputedStyle(...).color` trước/sau
+(không đoán bằng mắt): "Xem chi tiết" từ `rgb(254,44,85)` (đỏ, sai) → `rgb(134,135,139)` (xám, đúng,
+khớp "Xoá"); "Sửa" vẫn `rgb(254,44,85)` (đỏ, đúng — không đổi); nav-bar + `/channels` chụp lại không
+thấy tác dụng phụ. Thay đổi thuần CSS, không đụng logic nên không chạy lại `vitest`.
+
+**Quy ước mới để không lặp lại** — xem [CLAUDE.md](../CLAUDE.md) mục "Quy ước code": mọi CSS chọn
+theo thẻ HTML trần trong `globals.css` phải nằm trong `@layer base`.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

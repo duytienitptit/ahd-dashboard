@@ -634,17 +634,32 @@ Bẫy liên quan: [DISPLAY_API.md](DISPLAY_API.md) #9, #10, #12, #13.
   video", "Cần thêm 1,2k follower") — sau đó gán lại đúng Creator cũ (Hoàng Thùy Dương) và xoá tài
   khoản QA + cycle test, xác nhận lại DB đã sạch.
 
-## M6 — Chốt sổ KPI (Finalize)
+## M6 — Chốt sổ KPI (Finalize) — xong 26/08/2026
 
 Khác M3: M3 là nhập dữ liệu kênh theo tuần (độc lập KPI); M6 là khoá kết quả 1 chu kỳ KPI cụ thể
 dựa trên dữ liệu đã có sẵn từ M3 trong đúng khoảng ngày của chu kỳ đó.
 
-- [ ] `POST /api/kpi-cycles/:id/finalize` — tổng hợp `data_snapshot` trong khoảng ngày, khoá cycle
-- [ ] **Chặn finalize** nếu chưa qua `periodEnd + 3 ngày`, hoặc còn ngày thiếu `studio_import`,
-      hoặc còn `manual_entry` chưa được thay — báo rõ thiếu ngày nào thay vì cho chốt rồi sai
-- [ ] Ghi `audit_log` mọi thao tác finalize/sửa sau final
-- [ ] UI: màn hình chốt sổ — đối chiếu số liệu trước khi khoá
-- [ ] UI: xem lại lịch sử các kỳ đã chốt
+- [x] `POST /api/kpi-cycles/:id/finalize` — tổng hợp `data_snapshot` trong khoảng ngày, khoá cycle
+- [x] **Chặn finalize** nếu chưa qua `periodEnd + 3 ngày`, hoặc còn ngày thiếu `studio_import`,
+      hoặc còn `manual_entry` chưa được thay — báo rõ thiếu ngày nào thay vì cho chốt rồi sai. Cả 3
+      điều kiện kiểm cùng lúc, không dừng ở cái đầu tiên fail — xem [API_SPEC.md](API_SPEC.md)
+- [x] Ghi `audit_log` cho thao tác finalize. **"sửa sau final" chưa có gì để ghi** — chưa có tính
+      năng nào sửa `data_snapshot` trực tiếp (chỉ có import/sync/manual_entry, đều ghi thêm chứ
+      không sửa), nên vế đó của mục này chưa phát sinh code — không phải bỏ sót
+- [x] UI: `/kpi/[id]/finalize` — checklist 3 điều kiện + bảng đối chiếu target/actual/% trước khi khoá.
+      **Không còn là bước bắt buộc** (đổi ngay trong ngày, theo phản hồi "lòng vòng, thừa") — nút
+      "Chốt sổ" ở `/kpi` giờ xác nhận tại chỗ, trang này chỉ còn là đích của link phụ "Xem chi tiết"
+      — xem [PROGRESS.md](PROGRESS.md) mục "`/kpi` đổi thành danh sách KÊNH"
+- [x] UI: cùng trang trên tự chuyển thành màn xem lại (read-only, có người chốt + thời điểm) khi
+      `status = final` — không làm trang lịch sử riêng, `/kpi`'s list + link "Xem chốt sổ" đã đủ
+
+⚠️ **Phát hiện lúc làm M6, chưa sửa:** `lib/import/plan-import.ts`/`run-import.ts` không kiểm tra
+`kpi_cycle.status = final` trước khi ghi `data_snapshot` — chỉ quan tâm cửa sổ chốt (2 ngày trễ), không
+biết gì về việc 1 chu kỳ KPI đã khoá đè lên đúng những ngày đó. Một import muộn/sửa lại vẫn có thể ghi
+đè số của ngày đã final mà không qua `audit_log` nào — trái với CLAUDE.md ("status = final → khoá số
+liệu. Mọi thay đổi sau đó phải ghi audit_log"). Chưa từng xảy ra thật (chưa có cycle nào final trước
+26/08/2026 để va phải), nhưng phải chặn trước khi số final được dùng thật cho tính thưởng/lương.
+- [ ] Chặn (hoặc audit-log) import ghi đè `data_snapshot` vào ngày nằm trong 1 `kpi_cycle` đã `final`
 
 ## M7 — Dự phòng nguồn dữ liệu
 

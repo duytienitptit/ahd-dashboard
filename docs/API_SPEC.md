@@ -225,24 +225,48 @@ Thêm ở M5, không có trong đặc tả gốc — xem lệch #4. Chỉ xoá �
 `403`. Ghi `audit_log` (`entity_type: "kpi_cycle", action: "deleted"`).
 → `{ "ok": true }`.
 
-### `POST /api/kpi-cycles/:id/finalize` — M — **chưa cài đặt, đây là đặc tả cho M6**
+### `POST /api/kpi-cycles/:id/finalize` — M — **M6, xong 26/08/2026**
 **Không nhận file.** Chỉ tổng hợp `data_snapshot` đã có trong khoảng ngày của chu kỳ rồi khoá lại.
 Import là việc riêng (xem `/api/channels/:id/import`).
 
-Điều kiện mở khoá — thiếu bất kỳ cái nào đều trả `422` kèm chi tiết:
-1. Đã qua `periodEnd + 3 ngày` (Studio trễ 2 ngày, +1 an toàn)
-2. Mọi ngày trong chu kỳ đều có row `source = studio_import`
-3. Không còn ngày nào chỉ có `manual_entry`
+Điều kiện mở khoá — thiếu bất kỳ cái nào đều trả `422` kèm chi tiết, **kiểm cả 3 cùng lúc** (không
+dừng ở điều kiện đầu tiên fail) để Manager thấy hết những gì còn thiếu trong 1 lần, không phải sửa
+xong 1 cái rồi mới biết còn cái tiếp theo:
+1. Đã qua `periodEnd + 3 ngày` (Studio trễ 2 ngày, +1 an toàn — **hằng số riêng với cửa sổ chốt
+   import** ở [DATA_SOURCES.md](DATA_SOURCES.md), giữ nguyên `+3` dù cửa sổ import đã đổi thành
+   `−1` ngày 25/08/2026; xem `lib/kpi.ts` `finalizeUnlockAt` lý do không dùng chung hằng số)
+2. Mọi ngày trong chu kỳ đều có row **đã resolve qua `v_channel_daily`** là `source = studio_import`
+   — một ngày còn ở `display_api` tính là thiếu, dù có dữ liệu
+3. Không còn ngày nào có row `manual_entry` **trong bảng thô `data_snapshot`** (không phải
+   `v_channel_daily`) — khác gate 2 ở chỗ này: `studio_import` đè lên `manual_entry` cùng ngày không
+   xoá row `manual_entry` cũ, nên một ngày có thể qua gate 2 (resolve ra studio_import) mà vẫn còn
+   dính gate 3 nếu con `manual_entry` chưa được dọn
 
 ```json
 // 422 khi chưa đủ điều kiện
 { "error": "cycle_not_ready",
-  "reasons": ["missing_studio_data"],
+  "reasons": ["too_early", "missing_studio_data", "has_manual_entry"],
   "missingDates": ["2026-08-22", "2026-08-23"],
+  "manualEntryDates": ["2026-08-20"],
   "unlockAt": "2026-08-26" }
 ```
-→ Thành công: tính % Final → `status=final`, `finalized_by`, `finalized_at` → ghi `audit_log`.
+`reasons` là mảng — có thể chứa nhiều hơn 1 lý do cùng lúc. `manualEntryDates` là trường **mở rộng
+so với bản đặc tả gốc** (chỉ có `missingDates`) — cần thiết vì gate 3 độc lập với gate 2 (xem trên).
+
+→ Thành công: `status=final`, `finalized_by`, `finalized_at` → ghi `audit_log` (`action: "finalized"`).
+Response là **shape `KpiCycleWithProgress` đầy đủ** (giống 1 phần tử của `GET /api/kpi-cycles`), không
+phải riêng `KpiCycleSummary` — "tính % Final" nghĩa là trả kèm `progress`/`health` đã tính trên đúng
+data vừa được xác nhận đủ điều kiện, không phải một field mới; không có cột lưu riêng % lúc chốt,
+`data_snapshot` trong khoảng ngày đó coi như bất biến kể từ đây (mọi nguồn tin cậy hơn đã bị chặn ghi
+đè bởi 3 gate trên) nên tính lại bằng `attachProgress()` bình thường luôn cho cùng kết quả.
 `409` nếu đã final.
+
+⚠️ **Chưa có ở M6:** import Studio không kiểm tra chu kỳ đã final trước khi ghi đè `data_snapshot` —
+`lib/import/plan-import.ts`/`run-import.ts` chỉ quan tâm cửa sổ chốt (2 ngày trễ), không biết gì về
+`kpi_cycle`. Về lý thuyết một import muộn hoặc sửa lại vẫn có thể ghi đè ngày đã "khoá vĩnh viễn" mà
+không qua audit_log nào — trái với CLAUDE.md ("status = final → khoá số liệu"). Chưa xảy ra thật (chưa
+có cycle nào final trước 26/08/2026) nhưng cần chặn trước khi dùng thật cho tính thưởng. Xem
+[TASKS.md](TASKS.md) mục M6.
 
 ---
 

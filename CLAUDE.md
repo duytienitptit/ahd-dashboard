@@ -117,6 +117,11 @@ Biến môi trường: `.env.example`.
 - Tiền/số liệu lớn dùng `bigint`. Không dùng float cho views/followers.
 - UI tiếng Việt. Code, tên biến, comment: tiếng Anh.
 - **Chỉ link trỏ RA NGOÀI hệ thống** (ra tiktok.com, không phải link nội bộ) mới mở tab mới — `target="_blank" rel="noopener noreferrer"` trên thẻ `<a>` thường, không dùng `next/link`'s `Link` cho link ngoài. Link nội bộ (`<Link>` từ `next/link`) vẫn điều hướng bình thường trong cùng tab, không tự đổi (24/08/2026: có thử áp `target="_blank"` cho toàn bộ link nội bộ theo yêu cầu, sau đó yêu cầu rút lại — chỉ giữ cho link ngoài).
+- **Mọi CSS chọn theo thẻ HTML trần trong `app/globals.css` (`a {}`, `button {}`...) phải nằm trong
+  `@layer base`**, không viết trần ngoài layer nào — luật ngoài layer thắng mọi class Tailwind
+  (`text-ink-2`...) bất kể độ cụ thể, vì Tailwind v4 phát class trong `@layer utilities`. Bug thật đã
+  gặp: `a { color: red }` viết trần khiến mọi `<Link>` cố đặt màu khác đỏ đều bị ép về đỏ, 17 file dính
+  (26/08/2026) — xem [docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug màu link".
 
 ## Cách làm việc với dự án này
 
@@ -139,33 +144,45 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M5 (KPI Cycle) xong 25/08/2026, đã lên `main`** (commit `86173aa`), kèm bản sửa cửa sổ chốt import
-cùng ngày (`3355e6f`). M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng nhập
-username + nhóm vá OAuth/view-per-day đã lên `main` từ trước.
+**M6 (Chốt sổ KPI) + `/kpi` đổi thành danh sách kênh + fix bug CSS `@layer` xong 26/08/2026 —
+đã commit (`5d30149`, `8067bfe`, `cdc5f26`), CHƯA push.** M5 (KPI Cycle) + bản sửa cửa sổ chốt
+import đã xong 25/08 và **đã** lên `main` (`86173aa`, `3355e6f`). M4 + M3c + Đợt 1 + Đợt 2 + Team +
+drill-down + CRUD đầy đủ + đăng nhập username + nhóm vá OAuth/view-per-day cũng đã lên `main` từ trước.
+
+🎯 **`/kpi` giờ là danh sách KÊNH, không phải danh sách CHU KỲ** (26/08/2026, theo yêu cầu, dùng lại
+`KpiCard` của trang chi tiết kênh) — mỗi kênh luôn có 1 khối dù chưa từng đặt KPI. Đổi lại hướng này
+là cố ý, khớp nguyên tắc "kênh trước, KPI sau" ở đầu file này — đừng tưởng nhầm là quên và trả về
+dạng danh sách chu kỳ cũ. **"Chốt sổ" cũng không còn bắt buộc qua `/kpi/[id]/finalize` nữa** — xác
+nhận tại chỗ trên `/kpi`, trang kia chỉ còn là link phụ "Xem chi tiết"/"Xem chốt sổ". Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "`/kpi` đổi thành danh sách KÊNH".
+
+🎨 **Bug CSS đã sửa (26/08/2026):** `a {}` viết trần trong `globals.css` (ngoài mọi `@layer`) đè cả
+`text-ink-2`/`text-ink-3` trên `<Link>`, ép về đỏ — đã bọc vào `@layer base`. Quy ước mới: mọi CSS
+chọn theo thẻ trần phải nằm trong `@layer base`, xem mục "Quy ước code". Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug màu link".
 Chi tiết đầy đủ từng milestone ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục tương ứng, tìm theo tên).
 Checklist ở [docs/TASKS.md](docs/TASKS.md) (mục tương ứng).
 
 🔑 **Tài khoản Manager thật giờ đăng nhập bằng username `andang`** (không còn dùng email nữa, đổi
 22/08/2026) — mật khẩu giữ nguyên như cũ. Xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
 
-✅ **Display API (25/08/2026): 9/9 kênh ĐÃ KẾT NỐI thật** — migration
-`20260824000001_oauth_hardening.sql` đã áp lên Supabase (xác nhận: cột `channel_oauth.authorized_handle`
-tồn tại và có dữ liệu thật khớp từng kênh), cả 9 kênh Authorize lại qua TikTok thật, đã đồng bộ thành
-công ít nhất 1 lần (`node scripts/diagnose-oauth.mjs`: đủ scope, xác minh tài khoản, video đúng kênh
-— 25/08/2026). Việc reconnect chạy qua local dev server bằng chính code M5 + nhóm vá
-OAuth/view-per-day (nay đã lên `main`), nên đã tự kiểm chứng luôn 2 nhóm code đó với tài khoản TikTok
-thật. `is_complete=false` trên mọi kênh hiện tại (còn ít ngày dữ liệu, bình thường lúc mới nối lại).
-Sandbox trần 10 tài khoản/sandbox → còn đúng 1 chỗ cho kênh thứ 11 (phải nộp duyệt app chính thức
-1-2 tuần nếu cần). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Siết kết nối Display API +
-sửa cách tính view/ngày". Chẩn đoán read-only: `node scripts/diagnose-oauth.mjs`,
-`node scripts/diagnose-data.mjs`.
+✅ **Display API: 9/9 kênh đã kết nối thật** (25/08/2026) — sandbox trần 10 tài khoản/sandbox nên chỉ
+còn đúng 1 chỗ cho kênh thứ 11 (nộp duyệt app chính thức ~1-2 tuần nếu cần thêm). Chẩn đoán read-only:
+`node scripts/diagnose-oauth.mjs`, `node scripts/diagnose-data.mjs`. Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Siết kết nối Display API + sửa cách tính view/ngày".
 
-⚠️ **Nhân lúc kiểm chứng M5 phát hiện thêm 1 bug thật của code M4** (không thuộc phạm vi M5, vá luôn
-vì chặn hẳn việc xem cột "Tiến độ KPI" mới build): `/channels` và Tổng quan crash
-`HeadersOverflowError` khi tổng video toàn team vượt ~vài trăm —
-`fetchLatestVideoMetricsByChannel`/`fetchRecentVideoViewsByChannel` (`lib/dashboard.ts`) giờ chia nhỏ
-câu `.in(...)` thành lô 150 thay vì gửi hết 1 lần. Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md)
-mục "M5 — KPI Cycle".
+✅ **Đã nộp app "AHD Dashboard" lên TikTok Production, đang "in review"** (26/08/2026) — mục đích là bỏ
+trần 10 tài khoản/sandbox, không đổi API đang dùng (vẫn Display API, vẫn 3 scope cũ). Kết quả xem trực
+tiếp trên Developer Portal, không có webhook báo app. ⚠️ Bẫy đã gặp: file site-verification
+(`public/tiktok<token>.txt`) bị `proxy.ts` chặn redirect về `/login` như mọi request khác vì không nằm
+trong `PUBLIC_PATHS` — TikTok verify bằng bot không có session nên luôn thấy "không tìm thấy
+signature". Bất kỳ file verification nào sau này (Google, Facebook...) cũng phải thêm path vào
+`PUBLIC_PATHS` trong `proxy.ts` mới verify được.
+
+⚠️ **M6 chưa chặn import ghi đè ngày đã `final`** — `lib/import/plan-import.ts` chỉ biết cửa sổ chốt
+(2 ngày trễ), không biết gì về `kpi_cycle.status`. Chưa xảy ra thật (chưa có cycle final nào trước
+26/08/2026) nhưng phải chặn trước khi dùng số final tính thưởng thật. Xem [docs/TASKS.md](docs/TASKS.md)
+mục M6.
 
 ⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
@@ -191,12 +208,13 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
+1. **Push `main`** — đã commit xong (`5d30149`, `8067bfe`, `cdc5f26`), chưa push. Cả hai tính năng đã
+   kiểm chứng bằng browser thật qua tài khoản QA tạm, xem [docs/PROGRESS.md](docs/PROGRESS.md) 2 mục
+   "M6 — Chốt sổ KPI" và "`/kpi` đổi thành danh sách KÊNH".
+2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
    có, tự đầy ở kỳ import sau (từ 26/08).
-2. **M6 (Chốt sổ KPI)** — chưa bắt đầu, không bị chặn bởi mục trên. `POST
-   /api/kpi-cycles/:id/finalize` theo đặc tả ở [docs/API_SPEC.md](docs/API_SPEC.md) (điều kiện mở
-   khoá, shape lỗi `422`) + UI màn chốt sổ.
+3. **Chặn import ghi đè ngày đã `final`** — lỗ hổng phát hiện lúc làm M6, xem cảnh báo ⚠️ ở trên.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
 Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
