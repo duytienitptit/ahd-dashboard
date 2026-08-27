@@ -315,8 +315,11 @@ Upload file Studio. Body: `multipart/form-data`, nhận thẳng `.zip` (nhiều 
 files[]: Overview_*.zip, Followers_*.zip, Viewers_*.zip, Content_*.zip (Content không bắt buộc)
 ```
 Query: `?dryRun=true` — **thêm ở M3a**, không có trong bản đặc tả gốc. Parse + trả về đúng response
-bên dưới nhưng **không ghi gì vào DB/Storage** — dùng cho bước "xem trước" trước khi Manager bấm
+bên dưới nhưng **không ghi gì vào DB** — dùng cho bước "xem trước" trước khi Manager bấm
 "Lưu dữ liệu" (`design/Import.dc.html`). Bỏ `dryRun` (hoặc `dryRun=false`) mới ghi thật.
+
+File `.zip` upload lên chỉ được parse lấy số rồi bỏ — **không lưu file** ở đâu (bỏ lưu zip 27/08/2026,
+xem [DATABASE_ERD.md](../docs/DATABASE_ERD.md) mục "Storage: bucket studio-imports").
 
 → Giải nén, parse, ghi `data_snapshot(source=studio_import)` **chỉ cho ngày `< ngàyImport − 1`**
 (cửa sổ chốt) — cửa sổ này **chỉ áp cho `data_snapshot`**, không áp cho `follower_activity`/

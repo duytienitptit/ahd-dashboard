@@ -129,8 +129,9 @@ test ngay), tầng API sau khi M0 kiểm chứng xong.
 - [x] Parse `FollowerActivity.csv` → bảng `follower_activity` (⚠️ chỉ 7 ngày/lần export, bỏ tuần là mất —
       xác nhận: ghi toàn bộ, không qua cửa sổ chốt, để không mất dữ liệu)
 - [x] Parse `FollowerGender.csv` + `FollowerTopTerritories.csv` → `audience_snapshot` mỗi lần import
-- [x] Lưu zip gốc vào Supabase Storage → `raw_file_ref` (bucket `studio-imports`,
-      `20260820000008_studio_import_storage.sql`)
+- [~] ~~Lưu zip gốc vào Supabase Storage → `raw_file_ref`~~ — **bỏ 27/08/2026** (`20260827000001_drop_studio_zip_archive.sql`).
+      Import chỉ parse lấy số, không lưu file. `raw_file_ref` giờ là batch id (uuid) để truy vết. Bucket
+      `studio-imports` + policy để nguyên, inert. Xem [DATABASE_ERD.md](DATABASE_ERD.md) mục "Storage".
 - [x] Test bằng data thật ở `data/` (2 kênh, 60 ngày) trước khi coi phần này xong —
       `lib/import/plan-import.test.ts` (parse+plan thuần, không cần DB) + chạy thật `runStudioImport`
       1 lần trên DB thật cho cả 2 kênh (script tạm, đã xoá) → cả 2 kênh giờ có đủ 60 ngày

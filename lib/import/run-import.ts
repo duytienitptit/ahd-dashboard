@@ -30,8 +30,6 @@ export type RunImportResult = {
 
 const REQUIRED_FILES = ["Overview.csv", "FollowerHistory.csv", "Viewers.csv"] as const;
 
-const STORAGE_BUCKET = "studio-imports";
-
 /** Every calendar date this channel has already `final`-locked, across every finalized cycle — not
  *  just the newest one, a channel can have several closed weeks. Reuses `listKpiCycles` (lib/kpi.ts)
  *  rather than a raw query so this stays in sync with whatever that function considers "final". */
@@ -48,7 +46,7 @@ async function fetchLockedDates(supabase: SupabaseServerClient, channelId: strin
   return locked;
 }
 
-function toDataSnapshotRow(channelId: string, date: string, m: MergedDailyMetrics, rawFileRef: string) {
+function toDataSnapshotRow(channelId: string, date: string, m: MergedDailyMetrics, batchId: string) {
   return {
     channel_id: channelId,
     date,
@@ -62,7 +60,7 @@ function toDataSnapshotRow(channelId: string, date: string, m: MergedDailyMetric
     total_viewers: m.totalViewers,
     new_viewers: m.newViewers,
     returning_viewers: m.returningViewers,
-    raw_file_ref: rawFileRef,
+    raw_file_ref: batchId,
   };
 }
 
@@ -151,15 +149,14 @@ export async function runStudioImport(input: {
   const contentRows = entries.has("Content.csv") ? parseContentCsv(entries.get("Content.csv")!, exportDate) : [];
 
   if (!dryRun) {
-    // One batch id shared by every table this import touches, so a Manager can trace any row on
-    // any date back to the exact upload that produced it.
+    // One batch id stamped on every data_snapshot row this import writes (raw_file_ref), so a
+    // Manager can trace any row on any date back to the exact upload that produced it. The uploaded
+    // zips are parsed and then discarded — nothing is stored anywhere (user decision, 27/08/2026).
     const batchId = randomUUID();
-    const storagePrefix = `${channelId}/${batchId}`;
-    const rawFileRef = `${STORAGE_BUCKET}/${storagePrefix}`;
 
     if (plan.dailyWrites.size > 0) {
       const rows = [...plan.dailyWrites.entries()].map(([date, m]) =>
-        toDataSnapshotRow(channelId, date, m, rawFileRef),
+        toDataSnapshotRow(channelId, date, m, batchId),
       );
       const { error } = await supabase.from("data_snapshot").upsert(rows, { onConflict: "channel_id,date,source" });
       if (error) throw error;
@@ -235,16 +232,6 @@ export async function runStudioImport(input: {
           .upsert(snapshotRows, { onConflict: "content_video_id,date" });
         if (snapshotError) throw snapshotError;
       }
-    }
-
-    for (const file of input.files) {
-      const { error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(`${storagePrefix}/${file.filename}`, file.buffer, {
-          contentType: "application/zip",
-          upsert: true,
-        });
-      if (error) throw error;
     }
   }
 

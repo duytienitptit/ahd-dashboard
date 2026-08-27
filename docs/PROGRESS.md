@@ -92,9 +92,10 @@ gian TikTok cần để tài khoản mới có hiệu lực).
   test được thao tác kéo-thả qua browser automation (giới hạn bảo mật trình duyệt, không set được giá
   trị `<input type="file">` bằng script) — đã xác nhận UI render đúng, còn pipeline phía sau đã chạy
   thật (không qua UI) trên DB thật, xem dòng dưới.
-- **Bucket Storage `studio-imports`** — zip gốc lưu tại `<channelId>/<batchId>/<tên file>`, RLS chỉ
-  Manager, cùng mẫu `channel_oauth`. `data_snapshot.raw_file_ref` trỏ tới **thư mục batch**, không
-  phải 1 file — xem [DATABASE_ERD.md](DATABASE_ERD.md).
+- **Bucket Storage `studio-imports`** — ⚠️ **đã bỏ lưu zip gốc 27/08/2026** (chỉ parse lấy số rồi bỏ
+  file; bản lưu không có giá trị + đường ghi của Creator vướng bug Storage/ES256). `raw_file_ref` giờ
+  chỉ là batch id (uuid) để truy vết. Bucket + policy để nguyên không xoá. Xem
+  [DATABASE_ERD.md](DATABASE_ERD.md) mục "Storage: bucket studio-imports".
 - ⚠️ **Cửa sổ chốt (3 ngày) chỉ áp cho `data_snapshot`** — `follower_activity`/`audience_snapshot`/
   `content_video` luôn ghi toàn bộ file mỗi lần, không lọc theo ngày export. Lý do:
   `FollowerActivity.csv` chỉ giữ 7 ngày/lần, cửa sổ 7 ngày không chồng giữa các tuần — lọc sẽ mất dữ

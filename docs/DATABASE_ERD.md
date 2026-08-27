@@ -268,17 +268,25 @@ xem múi giờ ở đầu file):
 lúc không cùng đi qua nhánh 2/3 và cùng cố insert — request thua sẽ đợi rồi tự rơi vào nhánh phù hợp
 thay vì vỡ `channel_ownership_history_one_open_idx`.
 
-## Storage: bucket `studio-imports`
+## Storage: bucket `studio-imports` — KHÔNG còn dùng (27/08/2026)
 
-Zip gốc từ mỗi lần import Studio ([migration](../supabase/migrations/20260820000008_studio_import_storage.sql))
-— bucket riêng, `public = false`, RLS trên `storage.objects` chỉ cho `is_manager()` đọc/ghi, cùng mẫu
-với `channel_oauth`/`audit_log`. Route dùng `createSupabaseServerClient()` như thường lệ (Manager tự
-ghi qua RLS), không cần admin client.
+**Đã bỏ lưu zip gốc.** Import chỉ parse lấy số rồi bỏ file đi — không lưu file ở đâu cả (quyết định
+của người dùng 27/08/2026, [migration](../supabase/migrations/20260827000001_drop_studio_zip_archive.sql)).
+Lý do kép: bản lưu zip không mang lại giá trị thực, **và** đường ghi file của Creator bị chặn bởi bug
+Supabase Storage + JWT bất đối xứng (ES256) — PostgREST verify token ES256 và resolve `auth.uid()`
+đúng, nhưng Storage service của project này thì không, nên RLS của Storage thấy `auth.uid()` = NULL và
+từ chối mọi lần Creator upload. Bỏ bước lưu file là tránh hẳn bug đó. Import dữ liệu không bao giờ phụ
+thuộc vào việc file có được lưu hay không.
 
-Đường dẫn: `studio-imports/<channelId>/<batchId>/<tên file gốc>`. `data_snapshot.raw_file_ref` lưu
-**đường dẫn thư mục batch** (`studio-imports/<channelId>/<batchId>`), không phải 1 file cụ thể — một
-ngày trong `data_snapshot` được gộp từ tối đa 3 file khác nhau (Overview/Followers/Viewers) của cùng
-1 lần upload, nên không có 1 file duy nhất để trỏ tới; batch là đơn vị "lần import" tự nhiên hơn.
+`data_snapshot.raw_file_ref` **vẫn còn** nhưng giờ chỉ chứa **batch id (uuid)**, không phải đường dẫn
+Storage: mọi dòng `data_snapshot` từ cùng 1 lần upload dùng chung id này để Manager truy vết một con
+số về đúng lần import đã ghi nó. Không có gì đọc field này để tải file (ngoài bước upload đã xoá thì
+trước giờ cũng không).
+
+Bucket `studio-imports` + RLS policy của nó (migration [0008](../supabase/migrations/20260820000008_studio_import_storage.sql),
+[0012](../supabase/migrations/20260821000004_creator_studio_import.sql)) **để nguyên, không xoá** — giờ
+không có gì ghi vào. Cố ý giữ: xoá không được lợi gì, mà đây là toàn bộ scaffold nếu sau này muốn lưu
+file trở lại (hoặc khi Supabase sửa xong phần Storage đọc token ES256).
 
 **Cửa sổ chốt (3 ngày, xem "Đối chiếu khi Studio trễ 2 ngày" ở [DATA_SOURCES.md](DATA_SOURCES.md))
 chỉ áp dụng cho `data_snapshot`.** `follower_activity`, `audience_snapshot`, `content_video` luôn ghi
