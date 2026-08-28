@@ -298,6 +298,32 @@ lời mời trong app TikTok), rồi mới bấm "Kết nối" lại.
     kết nối lại thì không bao giờ null. **Sửa:** hoặc reset 3 cột đó trong upsert của callback, hoặc
     áp phương án ở bẫy #12 (không còn phụ thuộc `last_sync_at` nữa thì lỗi này tự biến mất).
 
+14. 🐞 **ĐÃ SỬA (28/08/2026) — `proxy.ts` nuốt luôn cron: route đồng bộ chưa bao giờ chạy tự động.**
+    `PUBLIC_PATHS` trong `proxy.ts` không có `/api/sync/display-api`, nên mọi request không mang
+    cookie session bị redirect `307 → /login?next=…` **trước khi** tới route handler. Vercel Cron gửi
+    GET thuần (không session, chỉ có header `Authorization: Bearer $CRON_SECRET`) → luôn ăn 307,
+    `isValidCronSecret()` không bao giờ được gọi. Triệu chứng khó đoán: cron **báo thành công** (307
+    là 3xx, không phải lỗi), Vercel log không có gì bất thường, `channel_oauth.last_sync_status` vẫn
+    `ok` từ lần bấm tay gần nhất — chỉ có dữ liệu là đứng im. Chẩn đoán bằng một dòng curl vào chính
+    prod, `location` trả về là bằng chứng trực tiếp:
+
+    ```bash
+    curl -sD - -o /dev/null https://ahd-dashboard-dusky.vercel.app/api/sync/display-api
+    ```
+
+    Đúng thì phải là `401 {"error":"Thiếu hoặc sai CRON_SECRET."}` (đã tới handler); sai là `307` kèm
+    `location: /login?next=%2Fapi%2Fsync%2Fdisplay-api`. Bằng chứng phụ trong DB: toàn bộ
+    `data_snapshot` chỉ có **đúng một** ngày `display_api` (25/08), `created_at` rơi vào 08:48 và
+    13:39 giờ VN — giờ hành chính, tức là hai lần bấm "Chạy đồng bộ ngay", không phải cron 23:30.
+    **Sửa:** thêm path vào `PUBLIC_PATHS`; route tự gác sẵn rồi (GET so `CRON_SECRET` bằng
+    `timingSafeEqual`, POST gọi `requireManager()`), bỏ proxy chỉ đổi redirect mù thành 401 đúng
+    nghĩa. Cùng họ với bẫy file site-verification TikTok: **bất kỳ path nào do dịch vụ ngoài gọi vào
+    — cron, webhook, file verify — đều phải nằm trong `PUBLIC_PATHS` kèm cơ chế tự xác thực trong
+    handler.** Lưu ý phần vận hành: Vercel chỉ gắn header `Authorization` khi biến `CRON_SECRET` có
+    mặt trong env của project — thiếu biến thì qua được proxy vẫn 401. Số của các ngày cron chết
+    (26–28/08) **không lấy lại được** — Display API chỉ trả luỹ kế hiện tại, không có lịch sử theo
+    ngày; phải chờ `studio_import` phủ.
+
 ## Việc cần kiểm chứng (M0)
 
 > Bộ kiểm chứng đã viết sẵn: [`tools/m0-display-api-probe/`](../tools/m0-display-api-probe/README.md)

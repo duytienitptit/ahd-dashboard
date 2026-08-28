@@ -195,9 +195,15 @@ cuối** — xem [DISPLAY_API.md](DISPLAY_API.md)
       [DISPLAY_API.md](DISPLAY_API.md) mục 1
 - [x] Xử lý HTTP 429 `rate_limit_exceeded` — dừng phân trang, đánh dấu `isComplete=false`
       (`rateLimited`), không crash cả batch
-- [x] Cron chạy hằng ngày (Vercel Cron) — `vercel.json`, `0 20 * * *` UTC = 03:00 giờ VN.
+- [x] Cron chạy hằng ngày (Vercel Cron) — `vercel.json`, `30 16 * * *` UTC = 23:30 giờ VN (dời từ
+      03:00 ngày 24/08, xem [DISPLAY_API.md](DISPLAY_API.md) bẫy #12).
       **`GET /api/sync/display-api`**, không phải `POST` — Vercel Cron luôn gửi GET, đã sửa
       [API_SPEC.md](API_SPEC.md)
+- [x] **Cron thật sự tới được handler** (sửa 28/08/2026) — `proxy.ts` từng redirect `307 → /login`
+      mọi request không session, nuốt luôn cron nên nó chưa từng ghi được dòng nào. Đã thêm
+      `/api/sync/display-api` vào `PUBLIC_PATHS`; route tự gác bằng `CRON_SECRET`/`requireManager`.
+      Chờ người dùng deploy prod + kiểm biến `CRON_SECRET`. Chi tiết:
+      [DISPLAY_API.md](DISPLAY_API.md) bẫy #14
 - [x] Unit test cho hàm tính delta: video mới, video bị xoá, response bị cắt ngắn —
       `lib/tiktok/video-delta.test.ts`, đủ 6 case kể cả kênh không có video nào
 

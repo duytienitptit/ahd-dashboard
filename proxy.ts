@@ -12,12 +12,21 @@ import { requireEnv } from "@/lib/env";
 
 /** Reachable without a session. `/api/oauth/callback` is here because TikTok calls it directly.
  *  `/tiktok0archA9IxK5WFiSpJsLU9PuyBgeCxmBY.txt` is TikTok's Developer Portal site-verification
- *  file (public/) — their verifier fetches it unauthenticated, same reason as the callback. */
+ *  file (public/) — their verifier fetches it unauthenticated, same reason as the callback.
+ *
+ *  `/api/sync/display-api` is NOT actually public — it guards itself: GET compares `CRON_SECRET`
+ *  with timingSafeEqual, POST calls requireManager(). It has to sit here because Vercel Cron sends
+ *  a plain GET with no session cookie, so leaving it behind this gate turned every cron run into a
+ *  307 → /login and the handler never ran at all (diagnosed 28/08/2026: data_snapshot held exactly
+ *  one display_api day, and its timestamps were both manual "Chạy đồng bộ ngay" clicks). Anything
+ *  else called by an external service — a cron, a webhook, another verification file — needs the
+ *  same treatment plus its own in-handler auth. */
 const PUBLIC_PATHS = [
   "/login",
   "/terms",
   "/privacy",
   "/api/oauth/callback",
+  "/api/sync/display-api",
   "/tiktok0archA9IxK5WFiSpJsLU9PuyBgeCxmBY.txt",
 ];
 
