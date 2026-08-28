@@ -1234,6 +1234,61 @@ xem `/channels` (badge −95% biến mất, follower delta vẫn còn) và `/cre
 (194 test, +5: `viewsDeltaComparable` ×4, rollup suppression ×1; +sửa fixture cho field mới) đều
 sạch. Tài khoản QA đã xoá.
 
+## Cron `display_api` chưa từng chạy — proxy chặn nhầm route (28/08/2026)
+
+**Phát hiện:** người dùng báo "display API hình như không hoạt động". `channel_oauth.last_sync_at`
+cả 9 kênh đứng ở 25/08, cron 23:30 VN hằng đêm (`vercel.json`) không ghi gì thêm dù đã qua 3 ngày
+(26, 27, 28/08).
+
+**Chẩn đoán:** nghi ban đầu (ghi tạm vào CLAUDE.md) là `CRON_SECRET` thiếu/sai trên Vercel
+Production. Kiểm bằng curl thẳng route trên chính prod, không kèm secret:
+
+```bash
+curl -sD - -o /dev/null https://ahd-dashboard-dusky.vercel.app/api/sync/display-api
+```
+
+Trả về `307` kèm `location: /login?next=%2Fapi%2Fsync%2Fdisplay-api` — chưa tới được route handler,
+bị `proxy.ts` chặn từ vòng ngoài. Kèm Bearer giả vào request vẫn `307` y hệt, chứng minh proxy chặn
+trước khi route handler kịp so `CRON_SECRET`. Nguyên nhân: `PUBLIC_PATHS` trong `proxy.ts` không có
+`/api/sync/display-api`, nên mọi request không kèm cookie session (đúng loại request Vercel Cron
+luôn gửi — GET thuần, không session) bị redirect về `/login`.
+
+Bằng chứng phụ trong DB: `data_snapshot` chỉ có đúng **1 ngày** `display_api` (25/08, 9 dòng, tất cả
+`is_complete=false`), `created_at` hai cụm là 08:48 và 13:39 giờ VN — giờ hành chính, tức 2 lần bấm
+"Chạy đồng bộ ngay" thủ công. Cron chưa từng ghi được dòng nào, **kể cả trước 25/08** — không phải
+"hỏng từ 25/08" như suy đoán ban đầu, mà chưa từng chạy được từ lúc cron tồn tại.
+
+**Đã loại trừ trước khi kết luận:** OAuth khoẻ (9/9 verified, đủ 3 scope, refresh token còn 362
+ngày); `is_complete=false` của ngày 25/08 không phải lỗi — lần chạy đầu tiên không có baseline nên
+mọi video rơi vào `lateDiscoveredVideoIds` (đúng thiết kế B1, xem [DISPLAY_API.md](DISPLAY_API.md)
+bẫy #10/#12).
+
+**Sửa:** thêm `/api/sync/display-api` vào `PUBLIC_PATHS`. An toàn vì route tự gác sẵn — GET so
+`CRON_SECRET` bằng `timingSafeEqual` (401 nếu sai/thiếu), POST gọi `requireManager()`; bỏ gate ở
+proxy chỉ đổi "redirect mù" thành "401 JSON đúng nghĩa". Cùng họ bẫy với file site-verification
+TikTok gặp hôm 26/08 (`public/tiktok<token>.txt`) — **quy tắc chung: bất kỳ path bị gọi bởi dịch vụ
+ngoài (cron, webhook, file verify) phải nằm trong `PUBLIC_PATHS` kèm cơ chế tự xác thực riêng trong
+handler**, không dựa vào proxy.
+
+**Kiểm chứng:**
+1. Local: `GET` không secret → `401` (đã tới handler, trước đó `307`); `GET /kpi` không session →
+   vẫn `307` (gate không bị nới lỏng ngoài ý muốn). `npm run lint` sạch, `npm test` 194/194 pass.
+2. Local với `CRON_SECRET` thật (đọc từ `.env.local`, ghi thẳng Supabase production — y hệt request
+   Vercel Cron sẽ gửi): `{synced:9, failed:0, unverified:0}`. `channel_oauth.last_refreshed_at` cập
+   nhật cho cả 9 kênh (access token vừa hết hạn, tự refresh đúng cơ chế xoay vòng).
+3. Sau khi push + Vercel deploy: curl thẳng prod (không secret) → `401` kèm
+   `x-matched-path: /api/sync/display-api` (trước đó `307`) — xác nhận route đã sống trên
+   Production.
+4. Người dùng xác nhận qua ảnh chụp Vercel dashboard: `CRON_SECRET` tồn tại ở scope Production
+   (thêm từ 21/08, trước cả khi phát sinh vấn đề) — không phải nguyên nhân.
+
+**Còn treo:** cron 23:30 VN đêm 28/08 là lần đầu tiên thực sự có cơ hội tự chạy sau khi sửa. Xác
+nhận sáng 29/08 bằng `node scripts/diagnose-oauth.mjs` — `last_sync_at` cả 9 kênh phải rơi vào
+~23:30 VN (16:30 UTC), không phải giờ hành chính. Ngày 26–28/08 mất vĩnh viễn với `display_api` —
+API chỉ trả luỹ kế hiện tại, không có lịch sử theo ngày, không backfill được.
+
+Commit: `c3faafb` (fix + docs), `90f6384` + `7b1f580` (cập nhật CLAUDE.md Trạng thái).
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

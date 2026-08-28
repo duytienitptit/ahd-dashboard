@@ -151,110 +151,58 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**M6 (Chốt sổ KPI) + `/kpi` danh sách kênh + fix bug CSS `@layer` + chặn import ghi đè chu kỳ final +
-bỏ lưu zip Storage — tất cả đã lên `main` (`origin/main` ở `39df291`).** M5 (KPI Cycle) + sửa cửa sổ
-chốt import lên `main` từ 25/08. M4 + M3c + Đợt 1 + Đợt 2 + Team + drill-down + CRUD đầy đủ + đăng
-nhập username + nhóm vá OAuth/view-per-day cũng đã lên `main` từ trước.
+**Milestone hiện tại: sửa cron `display_api` chưa từng chạy được (proxy chặn nhầm route) — đã
+deploy, `CRON_SECRET` đã xác nhận có trên Production, chờ cron 23:30 VN tối nay chạy tự động lần
+đầu.** M6 (chốt sổ KPI) + `/kpi` danh sách kênh + M5 (KPI Cycle) + M4 + M3c + Đợt 1/2 + Team +
+drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh thật + bỏ lưu zip Storage — tất
+cả đã lên `main`. Chi tiết từng milestone: [docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên mục).
+Checklist: [docs/TASKS.md](docs/TASKS.md).
 
-📊 **Sửa % lượt xem gây hiểu nhầm + `/channels` mặc định 7 ngày (27/08/2026) — commit `1378ca9`, CHƯA
-push** (số chính xác: `git log origin/main..HEAD`). `viewsDeltaPct` giờ ẩn ("chưa đủ dữ liệu kỳ này")
-khi kỳ hiện tại phủ ít ngày hơn hẳn kỳ so sánh, và loại ngày `is_complete=false` khỏi tổng view. Xem
-mục "Quy tắc nghiệp vụ" ở trên + [docs/PROGRESS.md](docs/PROGRESS.md) mục "`/channels` mặc định 7 ngày".
+🟡 **Cron `display_api` — đã sửa (28/08/2026), chờ xác nhận qua đêm nay.** `proxy.ts` thiếu
+`/api/sync/display-api` trong `PUBLIC_PATHS` → Vercel Cron (GET, không session) ăn `307 → /login`
+trước khi tới handler, chưa từng chạy tự động lần nào (không phải "hỏng từ 25/08" như nghi ban đầu).
+Đã thêm path, push, xác nhận trên prod (`401` thay vì `307`) và xác nhận `CRON_SECRET` có sẵn ở
+Vercel Production. Xác nhận sáng mai bằng `node scripts/diagnose-oauth.mjs` — `last_sync_at` cả 9
+kênh phải rơi vào ~23:30 VN (16:30 UTC), không phải giờ hành chính (= bấm tay). Ngày 26–28/08 mất
+vĩnh viễn (API không có lịch sử theo ngày). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục
+"Cron display_api chưa từng chạy" + [docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
 
-🎯 **`/kpi` giờ là danh sách KÊNH, không phải danh sách CHU KỲ** (26/08/2026, theo yêu cầu, dùng lại
-`KpiCard` của trang chi tiết kênh) — mỗi kênh luôn có 1 khối dù chưa từng đặt KPI. Đổi lại hướng này
-là cố ý, khớp nguyên tắc "kênh trước, KPI sau" ở đầu file này — đừng tưởng nhầm là quên và trả về
-dạng danh sách chu kỳ cũ. **"Chốt sổ" cũng không còn bắt buộc qua `/kpi/[id]/finalize` nữa** — xác
-nhận tại chỗ trên `/kpi`, trang kia chỉ còn là link phụ "Xem chi tiết"/"Xem chốt sổ". Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "`/kpi` đổi thành danh sách KÊNH".
-
-🎨 **Bug CSS đã sửa (26/08/2026):** `a {}` viết trần trong `globals.css` (ngoài mọi `@layer`) đè cả
-`text-ink-2`/`text-ink-3` trên `<Link>`, ép về đỏ — đã bọc vào `@layer base`. Quy ước mới: mọi CSS
-chọn theo thẻ trần phải nằm trong `@layer base`, xem mục "Quy ước code". Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug màu link".
-Chi tiết đầy đủ từng milestone ở [docs/PROGRESS.md](docs/PROGRESS.md) (mục tương ứng, tìm theo tên).
-Checklist ở [docs/TASKS.md](docs/TASKS.md) (mục tương ứng).
-
-📦 **Import KHÔNG còn lưu zip gốc lên Storage** (27/08/2026, `665c5c5`) — chỉ parse lấy số rồi bỏ
-file. Bước upload bị bug Supabase (Storage không verify được JWT ES256; PostgREST thì được). Bucket
-`studio-imports` + RLS policy để nguyên, inert. `data_snapshot.raw_file_ref` giờ là batch id (uuid)
-để truy vết, không phải đường dẫn file. Migration `20260827000001` (chỉ sửa comment cột). Đừng thêm
-lại bước lưu file trừ khi Supabase sửa xong Storage/ES256. Chi tiết: [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md)
-mục "Storage: bucket studio-imports".
-
-🔑 **Tài khoản Manager thật giờ đăng nhập bằng username `andang`** (không còn dùng email nữa, đổi
-22/08/2026) — mật khẩu giữ nguyên như cũ. Xem [docs/DATABASE_ERD.md](docs/DATABASE_ERD.md) mục "Auth".
-
-✅ **Display API: 9/9 kênh đã kết nối thật** (25/08/2026) — sandbox trần 10 tài khoản/sandbox nên chỉ
-còn đúng 1 chỗ cho kênh thứ 11 (nộp duyệt app chính thức ~1-2 tuần nếu cần thêm). Chẩn đoán read-only:
-`node scripts/diagnose-oauth.mjs`, `node scripts/diagnose-data.mjs`. Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Siết kết nối Display API + sửa cách tính view/ngày".
-
-✅ **Đã nộp app "AHD Dashboard" lên TikTok Production, đang "in review"** (26/08/2026) — mục đích là bỏ
-trần 10 tài khoản/sandbox, không đổi API đang dùng (vẫn Display API, vẫn 3 scope cũ). Kết quả xem trực
-tiếp trên Developer Portal, không có webhook báo app. ⚠️ Bẫy đã gặp: file site-verification
-(`public/tiktok<token>.txt`) bị `proxy.ts` chặn redirect về `/login` như mọi request khác vì không nằm
-trong `PUBLIC_PATHS` — TikTok verify bằng bot không có session nên luôn thấy "không tìm thấy
-signature". Bất kỳ file verification nào sau này (Google, Facebook...) cũng phải thêm path vào
-`PUBLIC_PATHS` trong `proxy.ts` mới verify được.
+✅ **Đã nộp app "AHD Dashboard" lên TikTok Production, đang "in review"** (26/08/2026, để bỏ trần 10
+tài khoản/sandbox) — kiểm kết quả trên Developer Portal, không có webhook báo.
 
 ⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
-lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
-nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" trước khi tải file lên.
+lỗi gì, dữ liệu vẫn ghi sai `channel_id`. Nhắc người import kiểm kỹ dropdown "1. Chọn kênh".
 
-🟡 **Cron `display_api` — đã sửa + đã deploy (28/08/2026), còn 1 việc vận hành chờ xác nhận.**
-Nguyên nhân thật không phải `CRON_SECRET` như từng nghi: `proxy.ts` thiếu `/api/sync/display-api`
-trong `PUBLIC_PATHS` nên Vercel Cron (GET, không session) ăn `307 → /login` trước khi tới handler —
-cron **chưa từng chạy được lần nào**, kể cả trước 25/08. Đã thêm path vào `PUBLIC_PATHS`
-(`c3faafb`), push lên `main`, xác nhận trên chính prod: `curl` route giờ trả `401` kèm
-`x-matched-path: /api/sync/display-api` (đã tới handler) thay vì `307`. Test đủ vòng bằng
-`CRON_SECRET` thật ở local (ghi thẳng Supabase production) → `synced:9, failed:0`.
-**Còn lại, chỉ người dùng kiểm được:** xác nhận `CRON_SECRET` **tồn tại** ở Vercel Project Settings
-→ Environment Variables, scope Production (giá trị cụ thể không quan trọng — cron tự gửi đúng giá
-trị đang lưu ở đó nên luôn tự khớp; thiếu biến mới là thứ duy nhất còn có thể làm cron 23:30 tối nay
-thất bại). Có thì không cần làm gì thêm, cron tự chạy. Ngày 26–28/08 mất vĩnh viễn với `display_api`
-(API không có lịch sử theo ngày), chờ `studio_import` phủ. Chi tiết:
-[docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
+🔑 Manager thật đăng nhập bằng username `andang`. `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không
+sinh khoá mới**, cần ở `.env.local` thì copy nguyên giá trị từ Vercel xuống.
 
-🔑 `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không sinh khoá mới**. Cần dùng ở `.env.local` thì
-copy nguyên giá trị từ Vercel Environment Variables xuống.
+🔒 `.claude/settings.json` chặn cứng `git push` — chủ động, không phải quên cấu hình. Push do người
+dùng tự chạy.
 
-🔒 `.claude/settings.json` chặn cứng `git push` (nhóm chung với `rm -rf`, `git reset --hard`) — chủ
-động, không phải quên cấu hình. Push phải do người dùng tự chạy hoặc tự nới rule, Claude không tự làm.
-
-Deploy: `https://ahd-dashboard-dusky.vercel.app` (kèm `/terms` `/privacy`) — Vercel tự build từ commit
-mới nhất trên `main` (không có Vercel CLI trong máy để tự xác nhận build pass, kiểm tra trên Vercel
-dashboard). Git: repo **private** `https://github.com/duytienitptit/ahd-dashboard`, branch `main`,
-`origin/main` ở `39df291` (1 commit local `1378ca9` chưa push — xem "Việc tiếp theo").
-Supabase: project `ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong) —
-đặt ở Vercel Project Settings → Functions, không có trong code. Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Chuẩn bị trước M4".
-
-Supabase ở Tokyo còn function ở Hong Kong → mỗi round-trip tới DB ~50ms. Nếu về sau một màn hình
-nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trước khi đổ lỗi cho DB**. Cùng lý do đó,
-`getCurrentUser()` trong `lib/auth.ts` bọc `cache()` của React — **giữ nguyên**.
+Deploy: `https://ahd-dashboard-dusky.vercel.app`. Git: repo **private**
+`https://github.com/duytienitptit/ahd-dashboard`, branch `main`. Supabase: project
+`ftdfmclxkjmrfikdipnt`, region Tokyo. **Function region: `hkg1`** (Hong Kong, đặt ở Vercel Project
+Settings → Functions, không có trong code) → mỗi round-trip tới DB ~50ms; nghi màn hình chậm thì
+**đếm số query TUẦN TỰ trước khi đổ lỗi DB**. `getCurrentUser()` (`lib/auth.ts`) bọc `cache()` của
+React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only: `node scripts/diagnose-oauth.mjs`,
+`node scripts/diagnose-data.mjs`.
 
 ### Việc tiếp theo
 
-1. **Xác nhận `CRON_SECRET` tồn tại ở Vercel Production env** (xem 🟡 ở trên — deploy + curl đã
-   xong, `401` xác nhận route ăn tới nơi). Chờ cron 23:30 VN tối nay tự chạy rồi kiểm
-   `channel_oauth.last_sync_at` cả 9 kênh có tiến thêm không kèm giờ hành chính (tức không phải bấm
-   tay). Trong lúc chờ, bấm "Chạy đồng bộ ngay" ở `/connections` để có số tạm.
-2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
-   (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
-   có, tự đầy ở kỳ import sau (từ 26/08).
-3. **Push `main`** — chưa push: `1378ca9` (sửa % view + `/channels` 7 ngày) + commit docs kèm theo;
-   số chính xác `git log origin/main..HEAD`. Migration `20260827000001` (chỉ sửa comment cột
-   `raw_file_ref`, từ `665c5c5` đã push) — chạy `supabase db push` khi tiện, không gấp.
+1. **Chờ cron 23:30 VN tối nay, xác nhận sáng mai** bằng `node scripts/diagnose-oauth.mjs` —
+   `last_sync_at` phải tiến thêm đúng giờ đó. Trong lúc chờ, bấm "Chạy đồng bộ ngay" ở `/connections`
+   để có số tạm.
+2. **Import lại bộ zip Studio đã upload ngày 25/08** — dữ liệu 22-23/08 chỉ xuất hiện sau khi import
+   lại (cửa sổ chốt cũ chỉ ghi tới 21/08, đã sửa code nhưng chưa import lại). Ngày 24/08 không nguồn
+   nào có, tự đầy ở kỳ import sau (từ 26/08).
+3. **Push commit cron fix** — local trước `origin/main` đúng 1 commit (`7b1f580`), không gấp.
 
-Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó).
-Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
+Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó). Các
+mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
 
-🎨 **Màu theo chỉ số áp TOÀN APP** (24/08/2026, theo yêu cầu, mở rộng sang `/kpi` ở M5) — 4 token màu
-`blue`/`purple`/`orange`/`crimson`, nguồn sự thật code: [lib/metric-tone.ts](lib/metric-tone.ts). Chi
-tiết đầy đủ (mapping, ngoại lệ, lý do): [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Màu theo chỉ
-số". **Người dùng đã xác nhận cho phép đổi màu** — không cần hỏi lại. Lưu ý ngoại lệ hay quên: thanh
-tiến độ KPI dùng màu 🟢🟡🔴 (đúng tiến độ/lệch), **không** dùng bộ màu theo chỉ số này.
+🎨 **Màu theo chỉ số áp TOÀN APP** — 4 token `blue`/`purple`/`orange`/`crimson`, nguồn sự thật:
+[lib/metric-tone.ts](lib/metric-tone.ts). Chi tiết: [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục
+"Màu theo chỉ số". Ngoại lệ: thanh tiến độ KPI dùng 🟢🟡🔴, không dùng bộ màu này.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
