@@ -202,12 +202,15 @@ signature". Bất kỳ file verification nào sau này (Google, Facebook...) cũ
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
 nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" trước khi tải file lên.
 
-🔴 **Cron `display_api` NGỪNG ra dữ liệu từ 25/08** (phát hiện 27/08) — `channel_oauth.last_sync_at`
-cả 9 kênh đứng ở 25/08 13:39 (lần bấm "Chạy đồng bộ ngay" thủ công, `is_complete=false` toàn bộ), cron
-23:30 VN (`vercel.json`) không ghi gì thêm. OAuth vẫn khoẻ (9/9 verified, token còn 363 ngày). Nghi:
-`CRON_SECRET` trên Vercel Production thiếu/sai → route `/api/sync/display-api` trả 401 im lặng / prod
-chưa deploy lại sau khi thêm `crons` / giới hạn cron gói free. **Việc vận hành của người dùng** —
-Claude không sờ Vercel được.
+🔴 **Cron `display_api` CHƯA TỪNG chạy được lần nào** (chẩn đoán 28/08/2026, đã sửa code, CHỜ
+DEPLOY) — nguyên nhân không phải `CRON_SECRET` như từng nghi: `proxy.ts` không có
+`/api/sync/display-api` trong `PUBLIC_PATHS` nên Vercel Cron (GET, không session) ăn `307 → /login`
+trước khi tới handler. DB chỉ có đúng 1 ngày `display_api` (25/08), cả hai `created_at` đều là giờ
+hành chính = bấm tay. Đã thêm path vào `PUBLIC_PATHS` (route tự gác bằng `CRON_SECRET`/`requireManager`).
+**Còn 2 việc vận hành của người dùng, Claude không sờ Vercel được:** deploy lại prod, và kiểm biến
+`CRON_SECRET` có trong env Production (Vercel chỉ gắn header `Authorization` khi biến này tồn tại).
+Ngày 26–28/08 mất vĩnh viễn với `display_api` (API không có lịch sử theo ngày), chờ `studio_import` phủ.
+Chi tiết: [docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
 
 🔑 `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không sinh khoá mới**. Cần dùng ở `.env.local` thì
 copy nguyên giá trị từ Vercel Environment Variables xuống.
@@ -229,8 +232,9 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Khôi phục cron `display_api`** (xem 🔴 ở trên) — kiểm `CRON_SECRET` trên Vercel Production,
-   deploy lại prod, hoặc bấm "Chạy đồng bộ ngay" ở `/connections` để có số tạm. Đây là nguyên nhân
+1. **Deploy bản sửa cron + kiểm `CRON_SECRET` trên Vercel Production** (xem 🔴 ở trên). Xác minh
+   sau khi deploy: `curl -sD - -o /dev/null <prod>/api/sync/display-api` phải trả `401`, không phải
+   `307`. Trong lúc chờ, bấm "Chạy đồng bộ ngay" ở `/connections` để có số tạm — đây là nguyên nhân
    gốc khiến `/channels` toàn "chưa đủ dữ liệu kỳ này".
 2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
@@ -247,3 +251,13 @@ Các mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
 tiết đầy đủ (mapping, ngoại lệ, lý do): [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md) mục "Màu theo chỉ
 số". **Người dùng đã xác nhận cho phép đổi màu** — không cần hỏi lại. Lưu ý ngoại lệ hay quên: thanh
 tiến độ KPI dùng màu 🟢🟡🔴 (đúng tiến độ/lệch), **không** dùng bộ màu theo chỉ số này.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
