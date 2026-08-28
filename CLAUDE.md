@@ -202,15 +202,19 @@ signature". Bất kỳ file verification nào sau này (Google, Facebook...) cũ
 lỗi gì — dữ liệu vẫn ghi, chỉ sai `channel_id`. Đã xảy ra thật 1 lần, đã dọn xong. Chưa sửa tại
 nguồn — nhắc người import kiểm tra kỹ dropdown "1. Chọn kênh" trước khi tải file lên.
 
-🔴 **Cron `display_api` CHƯA TỪNG chạy được lần nào** (chẩn đoán 28/08/2026, đã sửa code, CHỜ
-DEPLOY) — nguyên nhân không phải `CRON_SECRET` như từng nghi: `proxy.ts` không có
-`/api/sync/display-api` trong `PUBLIC_PATHS` nên Vercel Cron (GET, không session) ăn `307 → /login`
-trước khi tới handler. DB chỉ có đúng 1 ngày `display_api` (25/08), cả hai `created_at` đều là giờ
-hành chính = bấm tay. Đã thêm path vào `PUBLIC_PATHS` (route tự gác bằng `CRON_SECRET`/`requireManager`).
-**Còn 2 việc vận hành của người dùng, Claude không sờ Vercel được:** deploy lại prod, và kiểm biến
-`CRON_SECRET` có trong env Production (Vercel chỉ gắn header `Authorization` khi biến này tồn tại).
-Ngày 26–28/08 mất vĩnh viễn với `display_api` (API không có lịch sử theo ngày), chờ `studio_import` phủ.
-Chi tiết: [docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
+🟡 **Cron `display_api` — đã sửa + đã deploy (28/08/2026), còn 1 việc vận hành chờ xác nhận.**
+Nguyên nhân thật không phải `CRON_SECRET` như từng nghi: `proxy.ts` thiếu `/api/sync/display-api`
+trong `PUBLIC_PATHS` nên Vercel Cron (GET, không session) ăn `307 → /login` trước khi tới handler —
+cron **chưa từng chạy được lần nào**, kể cả trước 25/08. Đã thêm path vào `PUBLIC_PATHS`
+(`c3faafb`), push lên `main`, xác nhận trên chính prod: `curl` route giờ trả `401` kèm
+`x-matched-path: /api/sync/display-api` (đã tới handler) thay vì `307`. Test đủ vòng bằng
+`CRON_SECRET` thật ở local (ghi thẳng Supabase production) → `synced:9, failed:0`.
+**Còn lại, chỉ người dùng kiểm được:** xác nhận `CRON_SECRET` **tồn tại** ở Vercel Project Settings
+→ Environment Variables, scope Production (giá trị cụ thể không quan trọng — cron tự gửi đúng giá
+trị đang lưu ở đó nên luôn tự khớp; thiếu biến mới là thứ duy nhất còn có thể làm cron 23:30 tối nay
+thất bại). Có thì không cần làm gì thêm, cron tự chạy. Ngày 26–28/08 mất vĩnh viễn với `display_api`
+(API không có lịch sử theo ngày), chờ `studio_import` phủ. Chi tiết:
+[docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
 
 🔑 `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không sinh khoá mới**. Cần dùng ở `.env.local` thì
 copy nguyên giá trị từ Vercel Environment Variables xuống.
@@ -232,10 +236,10 @@ nào chậm bất thường, **đếm số query TUẦN TỰ tới Supabase trư
 
 ### Việc tiếp theo
 
-1. **Deploy bản sửa cron + kiểm `CRON_SECRET` trên Vercel Production** (xem 🔴 ở trên). Xác minh
-   sau khi deploy: `curl -sD - -o /dev/null <prod>/api/sync/display-api` phải trả `401`, không phải
-   `307`. Trong lúc chờ, bấm "Chạy đồng bộ ngay" ở `/connections` để có số tạm — đây là nguyên nhân
-   gốc khiến `/channels` toàn "chưa đủ dữ liệu kỳ này".
+1. **Xác nhận `CRON_SECRET` tồn tại ở Vercel Production env** (xem 🟡 ở trên — deploy + curl đã
+   xong, `401` xác nhận route ăn tới nơi). Chờ cron 23:30 VN tối nay tự chạy rồi kiểm
+   `channel_oauth.last_sync_at` cả 9 kênh có tiến thêm không kèm giờ hành chính (tức không phải bấm
+   tay). Trong lúc chờ, bấm "Chạy đồng bộ ngay" ở `/connections` để có số tạm.
 2. **Import lại bộ zip Studio đã upload ngày 25/08** — cửa sổ chốt cũ chỉ ghi tới 21/08, sửa xong
    (`3355e6f`) nhưng dữ liệu 22-23/08 chỉ xuất hiện sau khi import lại. Ngày 24/08 không nguồn nào
    có, tự đầy ở kỳ import sau (từ 26/08).
