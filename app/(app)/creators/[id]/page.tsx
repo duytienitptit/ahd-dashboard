@@ -134,13 +134,21 @@ export default async function CreatorDetailPage({
 
         <FilterPendingOverlay>
           <div className="mb-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {/* null total = no measurable day, not a measured zero — "—" with a reason instead of
+                the "0 view" this used to show (28/08/2026, lib/dashboard.ts `sumViewsOrNull`). */}
             <StatTile
               label="Lượt xem"
-              value={formatCompact(rollup.totalViews)}
-              unit="view"
-              deltaText={formatDeltaPct(rollup.viewsDeltaPct)}
+              value={rollup.totalViews !== null ? formatCompact(rollup.totalViews) : "—"}
+              unit={rollup.totalViews !== null ? "view" : undefined}
+              deltaText={rollup.totalViews !== null ? formatDeltaPct(rollup.viewsDeltaPct) : undefined}
               deltaGood={rollup.viewsDeltaPct === null ? null : rollup.viewsDeltaPct >= 0}
-              note={rollup.viewsDeltaInsufficientData ? "kỳ này chưa đủ ngày số liệu" : "so với tuần trước"}
+              note={
+                rollup.totalViews === null
+                  ? "chưa có số liệu kỳ này"
+                  : rollup.viewsDeltaInsufficientData
+                    ? "kỳ này chưa đủ ngày số liệu"
+                    : "so với tuần trước"
+              }
               icon={<EyeIcon />}
               tone="blue"
             />

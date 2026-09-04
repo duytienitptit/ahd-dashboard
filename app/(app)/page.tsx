@@ -69,10 +69,12 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               filename={`tong-quan_${from}_${to}.csv`}
               headers={["Chỉ số", "Giá trị", "So với kỳ trước"]}
               rows={[
-                ["Lượt xem", teamStats.views.value, formatDeltaPct(teamStats.views.deltaPct)],
+                // Empty cell, not 0, when nothing was measurable — a spreadsheet reader can't see a
+                // "—" the way the tile shows it (lib/dashboard.ts `sumViewsOrNull`).
+                ["Lượt xem", teamStats.views.value ?? "", formatDeltaPct(teamStats.views.deltaPct)],
                 ["Follower toàn team", teamStats.followers.value, formatSignedNumber(teamStats.followers.deltaAbs)],
                 ["Video đã đăng", teamStats.videos.value, formatDeltaPct(teamStats.videos.deltaPct)],
-                ["View / video", teamStats.viewsPerVideo.value, formatDeltaPct(teamStats.viewsPerVideo.deltaPct)],
+                ["View / video", teamStats.viewsPerVideo.value ?? "", formatDeltaPct(teamStats.viewsPerVideo.deltaPct)],
                 ["Tổng số like", teamStats.totalLikes.value, ""],
               ]}
               label="Xuất dữ liệu"

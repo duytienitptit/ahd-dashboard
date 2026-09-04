@@ -1282,12 +1282,89 @@ handler**, không dựa vào proxy.
 4. Người dùng xác nhận qua ảnh chụp Vercel dashboard: `CRON_SECRET` tồn tại ở scope Production
    (thêm từ 21/08, trước cả khi phát sinh vấn đề) — không phải nguyên nhân.
 
-**Còn treo:** cron 23:30 VN đêm 28/08 là lần đầu tiên thực sự có cơ hội tự chạy sau khi sửa. Xác
-nhận sáng 29/08 bằng `node scripts/diagnose-oauth.mjs` — `last_sync_at` cả 9 kênh phải rơi vào
-~23:30 VN (16:30 UTC), không phải giờ hành chính. Ngày 26–28/08 mất vĩnh viễn với `display_api` —
-API chỉ trả luỹ kế hiện tại, không có lịch sử theo ngày, không backfill được.
+**✅ ĐÃ XÁC NHẬN CHẠY (sáng 29/08/2026).** `last_sync_at` cả 9 kênh = `2026-08-28T16:48:20Z` =
+**23:48 VN**, cả 9 nằm gọn trong 1,1 giây (16:48:20.002 → 16:48:21.101), `last_sync_status = ok`
+toàn bộ. Không thao tác tay nào có được dấu vân tay đó. Cron **trễ 18 phút** so với lịch 23:30 —
+bình thường với Vercel Cron (không đảm bảo đúng phút), và `sampleDateForRun()` vẫn quy đúng về ngày
+28/08. Fix `PUBLIC_PATHS` là đủ, không cần đụng gì thêm.
+
+Ngày 26–27/08 mất vĩnh viễn với `display_api` — API chỉ trả luỹ kế hiện tại, không có lịch sử theo
+ngày, không backfill được.
+
+**Hệ quả kéo theo của khoảng thủng đó — `is_complete = false` toàn bộ, và nó tự khỏi:** lần chạy
+28/08 ghi được số cho 8/9 kênh nhưng **mọi hàng đều `is_complete = false`**, nên vẫn bị loại khỏi KPI
+lẫn tổng views dashboard. Nguyên nhân đã truy đến cùng, **không phải lỗi mới**: 35 video được đăng
+trong 26–27/08 (những ngày cron không chạy) chỉ lộ ra ở lần sync 28/08, nên `computeViewsDelta` xếp
+chúng vào `lateDiscoveredVideoIds` — đúng như thiết kế, vì đóng góp thật của chúng cho ngày 28/08 là
+*không biết*, không phải *bằng 0* — và `syncChannel` hạ cờ `isComplete` theo. Đã kiểm: **0 video nào
+đăng sau 23:48 ngày 28/08**, tức không còn nguồn late-discovered nào cho hôm sau, nên lần cron đêm
+29/08 là lần đầu tiên có đủ điều kiện cho `is_complete = true`. Xác nhận sáng 30/08 bằng
+`node scripts/diagnose-data.mjs` mục A (cột `⚠ is_complete=false` phải biến mất).
+
+**Phát hiện phụ — Bé Na xoá 7 video:** `content_video` giữ 55 hàng trong khi API báo `video_count`
+48. Không phải bug: 7 video (đăng 29/07 → 19/08) thấy lần cuối ở snapshot 25/08 rồi biến mất khỏi
+response 28/08 — bị xoá hoặc ẩn trên TikTok. Code xử lý đúng (`disappearedVideoIds` bỏ qua, **không
+trừ**), và `content_video` cố ý giữ lịch sử. Đây là lý do CLAUDE.md bắt đếm `videosInPeriod` từ
+`content_video` chứ không lấy hiệu `video_count`. Đáng hỏi lại team xem có chủ ý không.
 
 Commit: `c3faafb` (fix + docs), `90f6384` + `7b1f580` (cập nhật CLAUDE.md Trạng thái).
+
+## "0 view" giả ở tầng rollup + 2 lỗi hiển thị dữ liệu (28/08/2026, phát hiện qua audit production)
+
+Audit toàn bộ prod (HTTP → dữ liệu DB → 12 màn UI → luồng ghi) phát hiện 3 chỗ **màn hình nói sai về
+dữ liệu**, cùng một gốc: không phân biệt *"không đo được"* với *"đo được và bằng 0"*.
+
+Hoàn cảnh làm lỗi lộ ra: cron chưa từng tự chạy nên `display_api` chỉ có 2 ngày rời rạc, **cả 2 đều
+`is_complete=false`** (bị loại khỏi mọi phép tính), còn `studio_import` dừng ở 21/08 và chỉ phủ 6/9
+kênh. Với khung "7 ngày qua" thì **mọi kênh đều `views = null`** — ca thoái hoá mà code chưa lường.
+
+**1. Rollup hiện "0 view" — nghiêm trọng nhất, sai về dữ liệu.** `aggregateChannelStats` và phần
+`teamStats` của `getDashboard` đều cộng bằng `(pick(s) ?? 0)`. Một kênh `null` không đóng góp là
+**đúng** khi còn kênh khác đo được — nhưng khi *mọi* kênh đều `null`, tổng ra `0` và Tổng quan /
+Nhân sự / Team hiện **"0 view"** như một sự thật: Manager đọc thành "team không có view nào".
+Sửa bằng `sumViewsOrNull()` (mới, thuần, có test): `null` khi không có gì đo được, giữ nguyên
+semantics cũ khi có ít nhất một số. `RollupStat.totalViews` và `teamStats.views.value` nay là
+`number | null`; `viewsPerVideo` null theo (trung bình của một ẩn số vẫn là ẩn số); `viewsDeltaPct`
+null theo. Danh sách rỗng cũng `null` — team chưa có kênh nào thì không có gì để báo, không phải
+"đo được 0". Consumer dùng lại đúng pattern `x !== null ? formatCompact(x) : "—"` đã có sẵn 8 chỗ.
+
+**2. `/channels` hiện "—" trơn không nói vì sao.** Bảng chỉ có nhánh nhãn cho
+`viewsDeltaInsufficientData` (có số nhưng không so được kỳ trước); ca `views === null` — *không có
+số nào cả* — rơi thẳng vào `: null`, im lặng. Thêm nhánh **"chưa có số liệu kỳ này"** (kèm `title=`
+giải thích cả lý do `is_complete=false`), áp cùng lúc ở bảng "Kênh phụ trách" trong Nhân sự để hai
+bảng không lệch nhau. Ba trạng thái giờ tách bạch: không có số → có số nhưng không so được → có %.
+
+**3. "đã đối chiếu tới 21/08" nói thay cho cả 9 kênh.** `fetchDataFreshness` lấy `MAX(date)` **toàn
+cục** — một kênh import tốt là đủ để nhãn sáng lên, trong khi 3/9 kênh (Mộc Đi Rừng, Tiến Sĩ Sprout,
+Vườn Của Hant) **chưa từng có `studio_import` nào** và không chốt sổ KPI được. Đổi sang: ngày sớm
+nhất trong các "studio_import mới nhất" của **từng** kênh, chỉ hiện khi mọi kênh đều có ít nhất một
+lần import; thêm `channelsNeverReconciled` và vế **"N kênh chưa đối chiếu lần nào"** ở header.
+
+- **Query:** N query `limit(1)` song song trong `Promise.all` sẵn có (1 round-trip), **không** gộp
+  `.in()` rồi group ở JS — 9 kênh × 365 ngày vượt xa mốc 1000 dòng mà PostgREST **cắt im lặng**
+  (đúng cái bẫy `fetchAll()` trong `scripts/diagnose-data.mjs` sinh ra để tránh). Cố ý **không** tạo
+  view Postgres: cùng lựa chọn đã ghi ở mục `sumLatestVideoLikes()` — ~9 kênh chưa đáng một
+  migration. Nếu số kênh lên vài chục, đây là chỗ đổi sang view đầu tiên.
+- `StatTile` sửa kèm: `note` trước đây chỉ render khi có `deltaText`, nên thẻ hiện "—" không nói
+  được lý do. Giờ `note` đứng một mình được.
+
+**Đổi có chủ đích 1 test cũ:** `aggregateChannelStats([])` từ `totalViews: 0` → `null`. Thêm 6 test
+mới (200/200 pass) phủ: mọi kênh null → null; có 1 kênh đo được → giữ semantics cũ; **0 thật vẫn là
+0, không thành null**.
+
+**Không làm (người dùng chốt):** tràn ngang trên mobile — Tổng quan tràn 329px, header nav 215px,
+thanh filter `/channels` 148px không cuộn được. App nội bộ, mockup gốc thiết kế cho desktop.
+
+**Kiểm chứng:** `npm test` 200/200, `npm run lint` sạch, `npx tsc --noEmit` sạch; browser thật trên
+dev server với DB production — khung "7 ngày qua" cho ra "—" + lý do ở cả 3 màn, header hiện "3 kênh
+chưa đối chiếu lần nào". Chống hồi quy bằng đối chiếu thẳng DB ở khung "Toàn bộ thời gian": UI
+35,34M view / 1,06M like / 484 video **khớp từng con số** với tổng tính tay từ `video_snapshot`.
+(Lưu ý cho lần đọc sau: ở "Toàn bộ thời gian", `views` lấy **view trọn đời** từ `video_snapshot`,
+không phải sum `data_snapshot.video_views` — xem `isAllTime` trong `getChannelPeriodStats`.)
+
+**Phụ:** `.claude/launch.json` thêm `"autoPort": true` — port 3000 hay bị dự án khác chiếm, Next tự
+nhảy port và preview tự bám theo. Display API không dùng localhost redirect (TikTok từ chối mọi dạng
+localhost) nên đổi port không ảnh hưởng gì.
 
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 

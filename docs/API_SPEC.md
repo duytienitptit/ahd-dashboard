@@ -395,6 +395,17 @@ quả rỗng nếu 2 điều kiện không giao nhau — là câu trả lời đ
 `"2026-08-08/2026-08-14"` gộp — để không màn hình nào render "so với kỳ trước" mà bỏ sót không nói
 kỳ đó là ngày nào (CLAUDE.md, vấn đề 21/08/2026).
 
+`teamStats.views.value` và `teamStats.viewsPerVideo.value` là **`number | null`** (28/08/2026):
+`null` = không kênh nào trong tập có nổi một ngày đo được, khác hẳn `0` (đo được và thật sự bằng 0).
+UI phải render "—", **không bao giờ render "0 view"** — cùng luật `unknown ≠ known-zero` mà
+`data_snapshot.video_views` đã theo. Nguồn: `sumViewsOrNull()` trong `lib/dashboard.ts`; cùng luật
+áp cho `RollupStat.totalViews` (Nhân sự / Team).
+
+`dataFreshness.reconciledThrough` là ngày **TOÀN BỘ** kênh trong tập đã đối chiếu tới — ngày sớm
+nhất trong các "studio_import mới nhất" của từng kênh, **không** phải ngày muộn nhất trên toàn tập
+(sửa 28/08/2026: lấy max khiến 1 kênh import tốt nói thay cho cả 9). `null` khi còn kênh chưa đối
+chiếu lần nào, và số kênh đó nằm ở `channelsNeverReconciled` — chúng chưa chốt sổ KPI được.
+
 `trend` trả **cả 2 mức chia** `week` (8 tuần gần nhất) và `month` (6 tháng gần nhất, thêm 21/08/2026
 — docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client chuyển đổi không cần gọi lại API, giống hệt
 cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm `{label, value}` có
@@ -416,7 +427,8 @@ vấn đề #7, 21/08/2026).
     "totalLikes":     { "value": 88400 }
   },
   "dataFreshness": { "latestDate": "2026-08-16", "source": "studio_import",
-                     "label": "đã đối chiếu", "reconciledThrough": "2026-08-16" },
+                     "label": "đã đối chiếu", "reconciledThrough": "2026-08-16",
+                     "channelsNeverReconciled": 0 },
   "trend": {
     "week":  { "views": [{ "label": "T27", "value": 1820000 }],
                "followers": [{ "label": "T27", "value": 51200 }],

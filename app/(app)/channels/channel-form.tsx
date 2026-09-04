@@ -373,11 +373,20 @@ export function ChannelRow({
         <div className={`text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
           {stat?.views !== null && stat?.views !== undefined ? formatCompact(stat.views) : "—"}
         </div>
-        {stat?.viewsDeltaPct !== null && stat?.viewsDeltaPct !== undefined ? (
+        {/* Three distinct states, and the bare "—" used to swallow the worst of them:
+            no number at all → say so; a number that can't be compared → the existing note; a real %. */}
+        {stat?.views === null || stat?.views === undefined ? (
+          <div
+            className="mt-0.5 text-[11px] font-medium leading-tight text-ink-3"
+            title="Không ngày nào trong kỳ có số liệu lượt xem đầy đủ — kênh chưa đồng bộ, hoặc dữ liệu lấy về bị cắt (is_complete = false) nên không được dùng để tính."
+          >
+            chưa có số liệu kỳ này
+          </div>
+        ) : stat.viewsDeltaPct !== null ? (
           <div className={`mt-0.5 text-[11.5px] font-semibold ${stat.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
             {formatDeltaPct(stat.viewsDeltaPct)}
           </div>
-        ) : stat?.viewsDeltaInsufficientData ? (
+        ) : stat.viewsDeltaInsufficientData ? (
           <div
             className="mt-0.5 text-[11px] font-medium leading-tight text-ink-3"
             title="Kỳ đang chọn chưa có đủ ngày số liệu để so với kỳ trước — số này sẽ hiện lại khi dữ liệu về đủ."

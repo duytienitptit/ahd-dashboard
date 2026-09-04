@@ -155,15 +155,17 @@ export function StatTile({
         <div className="text-[12.5px] font-semibold text-ink-3">{label}</div>
         {icon ? <StatIcon tone={tone ?? "cyan"}>{icon}</StatIcon> : null}
       </div>
-      <div className={deltaText ? "mb-[9px] flex items-baseline gap-2" : "flex items-baseline gap-2"}>
+      <div className={deltaText || note ? "mb-[9px] flex items-baseline gap-2" : "flex items-baseline gap-2"}>
         <div className={`text-[30px] font-extrabold leading-none tracking-[-1.1px] ${tone ? STAT_TONE_TEXT[tone] : ""}`}>
           {value}
         </div>
         {unit ? <div className="text-xs font-medium text-ink-3">{unit}</div> : null}
       </div>
-      {deltaText ? (
+      {/* `note` also renders on its own (no deltaText) — a tile showing "—" has no delta to pair
+          with but still needs to say WHY it's empty (28/08/2026). */}
+      {deltaText || note ? (
         <div className="flex items-center gap-1.5">
-          <DeltaPill text={deltaText} good={deltaGood ?? null} />
+          {deltaText ? <DeltaPill text={deltaText} good={deltaGood ?? null} /> : null}
           {note ? <span className="text-[11.5px] text-ink-3">{note}</span> : null}
         </div>
       ) : null}
@@ -177,7 +179,16 @@ export function StatTile({
 export function TeamStatsRow({ teamStats }: { teamStats: DashboardResponse["teamStats"] }) {
   return (
     <div className="mb-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <StatTile label="Lượt xem" value={formatCompact(teamStats.views.value)} unit="view" icon={<EyeIcon />} tone="blue" />
+      {/* "—" + a reason, never "0 view": a null total means no day could be measured, not that the
+          channels earned nothing (28/08/2026 — see lib/dashboard.ts `sumViewsOrNull`). */}
+      <StatTile
+        label="Lượt xem"
+        value={teamStats.views.value !== null ? formatCompact(teamStats.views.value) : "—"}
+        unit={teamStats.views.value !== null ? "view" : undefined}
+        note={teamStats.views.value === null ? "chưa có số liệu kỳ này" : undefined}
+        icon={<EyeIcon />}
+        tone="blue"
+      />
       <StatTile
         label="Follower toàn team"
         value={formatCompact(teamStats.followers.value)}
@@ -222,8 +233,19 @@ export function DataFreshnessLine({
         <span className={`h-[5px] w-[5px] rounded-pill ${isFresh ? "bg-green" : "bg-amber"}`} />
         {freshness.label}
       </span>
+      {/* `reconciledThrough` is the date the WHOLE set is reconciled through, so it only shows when
+          every channel has been imported at least once. Otherwise the honest thing to report is how
+          many channels have never been reconciled — those can't be finalized at all (28/08/2026). */}
       {!isFresh && freshness.reconciledThrough ? (
         <span className="text-[12.5px]">đã đối chiếu tới {formatFullDate(freshness.reconciledThrough)}</span>
+      ) : null}
+      {freshness.channelsNeverReconciled > 0 ? (
+        <span
+          className="text-[12.5px] font-semibold text-amber-dark"
+          title="Kênh chưa có lần import file Studio nào — chưa đối chiếu được ngày nào và chưa chốt sổ KPI được."
+        >
+          {freshness.channelsNeverReconciled} kênh chưa đối chiếu lần nào
+        </span>
       ) : null}
       <SourcePriorityInfo />
     </div>

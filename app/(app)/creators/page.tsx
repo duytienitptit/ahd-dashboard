@@ -68,8 +68,12 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
   }
 
   function sortRows(rows: ReturnType<typeof toRow>[]) {
-    const active = rows.filter((r) => r.isActive).sort((a, b) => b.totalViews - a.totalViews);
-    const disabled = rows.filter((r) => !r.isActive).sort((a, b) => b.totalViews - a.totalViews);
+    // `-1` for an unmeasured creator, not 0 — they sort below someone with a genuine measured 0
+    // rather than tying with them (lib/dashboard.ts `sumViewsOrNull`).
+    const byViews = (a: ReturnType<typeof toRow>, b: ReturnType<typeof toRow>) =>
+      (b.totalViews ?? -1) - (a.totalViews ?? -1);
+    const active = rows.filter((r) => r.isActive).sort(byViews);
+    const disabled = rows.filter((r) => !r.isActive).sort(byViews);
     return [...active, ...disabled];
   }
 

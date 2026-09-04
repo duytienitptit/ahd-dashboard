@@ -41,6 +41,26 @@ export function viewsDeltaComparable(currentMeasuredDays: number, previousMeasur
   return currentMeasuredDays >= Math.ceil(previousMeasuredDays * VIEWS_DELTA_MIN_COVERAGE_RATIO);
 }
 
+/**
+ * Sums a channel set's per-channel `views`, keeping the unknown-vs-known-zero distinction that
+ * `ChannelPeriodStat.views` carries ("Render as '—', never '0 view'").
+ *
+ * A `null` channel contributing nothing to the total is correct and unchanged — that's ordinary
+ * rollup semantics as long as SOMETHING in the set was measured. The degenerate case is the one
+ * that used to lie: when every channel is `null`, a plain `?? 0` sum produces `0`, and the UI
+ * renders "0 view" — a confident claim that the channels got no views, when the truth is that no
+ * day could be measured at all (28/08/2026: cron had never run, so a "7 ngày qua" window had zero
+ * complete days and every screen showed a dead team). Same `unknown ≠ known-zero` rule
+ * lib/tiktok/sync.ts applies when it writes `video_views: null`.
+ *
+ * An empty channel set is `null` for the same reason — a team with no channels yet has nothing to
+ * report, not a measured zero.
+ */
+export function sumViewsOrNull(values: (number | null)[]): number | null {
+  const measured = values.filter((v): v is number => v !== null);
+  return measured.length === 0 ? null : measured.reduce((acc, v) => acc + v, 0);
+}
+
 /** The immediately-preceding period of the SAME length as `[from, to]` — "so với kỳ trước" has to
  *  mean "the same number of days, right before this one" once the period is a user-picked range
  *  instead of always 7 days (M4 date-range picker). */
@@ -365,16 +385,23 @@ export type CreatorRank = "leader" | "growth" | "attention" | "stable";
  *  docs/DESIGN_SYSTEM.md (`pct >= 70 cyan / >= 45 amber / < 45 red`) adapted to a delta instead of a
  *  percent-of-target. "stable" (no badge) otherwise, including creators with zero channels. */
 export function rankCreatorPerformance(
-  creators: { creatorId: string; totalViews: number; avgViewsDeltaPct: number | null; channelCount: number }[],
+  creators: { creatorId: string; totalViews: number | null; avgViewsDeltaPct: number | null; channelCount: number }[],
 ): Map<string, CreatorRank> {
   const ranked = new Map<string, CreatorRank>();
   const withChannels = creators.filter((c) => c.channelCount > 0);
   if (withChannels.length === 0) return ranked;
 
-  const leader = withChannels.length >= 2 ? withChannels.reduce((best, c) => (c.totalViews > best.totalViews ? c : best)) : null;
+  // An unmeasured creator (`totalViews: null`) can never take the lead — `-1` keeps them below even
+  // a genuine measured 0, and the `> 0` guard below still rules out an all-zero field having a
+  // "leader" at all (lib/dashboard.ts `sumViewsOrNull`).
+  const viewsOrUnmeasured = (c: { totalViews: number | null }) => c.totalViews ?? -1;
+  const leader =
+    withChannels.length >= 2
+      ? withChannels.reduce((best, c) => (viewsOrUnmeasured(c) > viewsOrUnmeasured(best) ? c : best))
+      : null;
 
   for (const c of withChannels) {
-    if (leader && c.creatorId === leader.creatorId && leader.totalViews > 0) {
+    if (leader && c.creatorId === leader.creatorId && viewsOrUnmeasured(leader) > 0) {
       ranked.set(c.creatorId, "leader");
     } else if (c.avgViewsDeltaPct !== null && c.avgViewsDeltaPct >= 10) {
       ranked.set(c.creatorId, "growth");
@@ -559,19 +586,42 @@ export type DataFreshness = {
   latestDate: string | null;
   source: string | null;
   label: "tạm tính" | "đã đối chiếu" | null;
+  /** The date EVERY channel in the set is reconciled through — the earliest of the per-channel
+   *  "latest studio_import" dates, not the latest across all of them. Answers the question the
+   *  finalize gate actually asks ("how far back is the whole set safe to close?"); a single
+   *  well-imported channel must not speak for the rest. `null` when at least one channel has never
+   *  been reconciled at all (`channelsNeverReconciled > 0`) — there is no such date yet. */
   reconciledThrough: string | null;
+  /** Channels in the set with no `studio_import` row at any date. They cannot be finalized until
+   *  someone imports a Studio export for them, so the count is surfaced rather than hidden behind
+   *  a reassuring "đã đối chiếu tới …" (28/08/2026: 3 of 9 channels were in this state while the
+   *  header claimed the whole system was reconciled through 21/08). */
+  channelsNeverReconciled: number;
 };
 
-/** The single most recent (date, source) among the given channels, plus the most recent date any
- *  of them was reconciled by Studio — "17-19/08 tạm tính · đã đối chiếu tới 16/08" in the mockups. */
+/** The single most recent (date, source) among the given channels, plus how far the WHOLE set is
+ *  reconciled by Studio — "17-19/08 tạm tính · đã đối chiếu tới 16/08" in the mockups. */
 export async function fetchDataFreshness(
   supabase: SupabaseServerClient,
   channelIds: string[],
 ): Promise<DataFreshness> {
-  const empty: DataFreshness = { latestDate: null, source: null, label: null, reconciledThrough: null };
+  const empty: DataFreshness = {
+    latestDate: null,
+    source: null,
+    label: null,
+    reconciledThrough: null,
+    channelsNeverReconciled: 0,
+  };
   if (channelIds.length === 0) return empty;
 
-  const [latestResult, reconciledResult] = await Promise.all([
+  // One `limit(1)` query per channel instead of a single `.in()` fetch grouped in JS: the grouped
+  // version would have to read every studio_import row (9 channels × 365 days blows past the 1000-row
+  // cap PostgREST applies SILENTLY — the exact trap scripts/diagnose-data.mjs's fetchAll() exists to
+  // avoid) and would still have to reduce it client-side. These all go out in one Promise.all batch,
+  // so it costs one round-trip, not N. Deliberately not a Postgres view: same call made for
+  // `sumLatestVideoLikes()` (docs/PROGRESS.md) — at ~9 channels a migration isn't worth it. If the
+  // channel count reaches the dozens, this is the first place to swap in a grouped view.
+  const [latestResult, ...reconciledResults] = await Promise.all([
     supabase
       .from("v_channel_daily")
       .select("date, source")
@@ -579,28 +629,40 @@ export async function fetchDataFreshness(
       .order("date", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("data_snapshot")
-      .select("date")
-      .in("channel_id", channelIds)
-      .eq("source", "studio_import")
-      .order("date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    ...channelIds.map((channelId) =>
+      supabase
+        .from("data_snapshot")
+        .select("date")
+        .eq("channel_id", channelId)
+        .eq("source", "studio_import")
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
   ]);
   if (latestResult.error) throw latestResult.error;
-  if (reconciledResult.error) throw reconciledResult.error;
+  for (const result of reconciledResults) {
+    if (result.error) throw result.error;
+  }
 
   const latest = latestResult.data;
   if (!latest) return empty;
 
-  const reconciledThrough = reconciledResult.data?.date ?? null;
+  const perChannelLatest = reconciledResults.map((r) => r.data?.date ?? null);
+  const channelsNeverReconciled = perChannelLatest.filter((date) => date === null).length;
+  // ISO dates sort lexicographically, so a plain string compare is the min.
+  const reconciledThrough =
+    channelsNeverReconciled > 0
+      ? null
+      : perChannelLatest.reduce<string | null>((min, date) => (min === null || date! < min ? date! : min), null);
+
   const isReconciled = latest.source === "studio_import";
   return {
     latestDate: latest.date,
     source: latest.source,
     label: isReconciled ? "đã đối chiếu" : "tạm tính",
     reconciledThrough,
+    channelsNeverReconciled,
   };
 }
 
@@ -874,7 +936,9 @@ export type ChannelPeriodStat = {
 };
 
 export type RollupStat = {
-  totalViews: number;
+  /** `null` = not one channel in the set had a measurable view-day this period — render "—", never
+   *  "0 view" (see `sumViewsOrNull`). A `0` here is a real, measured zero. */
+  totalViews: number | null;
   viewsDeltaPct: number | null;
   /** Same meaning as `ChannelPeriodStat.viewsDeltaInsufficientData`, at rollup level — the channel
    *  set's current-period view coverage is too thin next to the comparison period to trust a %. */
@@ -908,7 +972,10 @@ export function aggregateChannelStats(channelIds: string[], statsByChannel: Map<
   const sum = (pick: (s: ChannelPeriodStat) => number | null) =>
     channelStats.reduce((acc, s) => acc + (pick(s) ?? 0), 0);
 
-  const totalViews = sum((s) => s.views);
+  // `sumViewsOrNull`, not `sum` — an all-unmeasured set is "—", not a measured 0 (see its doc).
+  // `previousViews` stays a plain sum: it is never rendered, it only feeds the % below, which is
+  // already suppressed by its own coverage gate.
+  const totalViews = sumViewsOrNull(channelStats.map((s) => s.views));
   const previousViews = sum((s) => s.previousViews);
   // Same coverage gate as per-channel (`getChannelPeriodStats`), re-applied on the channel set's
   // summed measured-day counts — a rollup % is only as trustworthy as the days behind it.
@@ -918,7 +985,7 @@ export function aggregateChannelStats(channelIds: string[], statsByChannel: Map<
 
   return {
     totalViews,
-    viewsDeltaPct: comparable ? pctChange(totalViews, previousViews) : null,
+    viewsDeltaPct: comparable && totalViews !== null ? pctChange(totalViews, previousViews) : null,
     viewsDeltaInsufficientData: previousMeasuredDays > 0 && !comparable,
     followersNow: sum((s) => s.followersNow),
     followerGain: sum((s) => s.followersGain),
@@ -1092,10 +1159,13 @@ export type DashboardResponse = {
    *  plain date fields so a caller can't forget to show them. */
   period: { from: string; to: string; comparedFrom: string; comparedTo: string };
   teamStats: {
-    views: { value: number; deltaPct: number | null };
+    /** `value: null` = no channel in the set had a measurable view-day this period — render "—",
+     *  never "0 view" (see `sumViewsOrNull`). `0` is a real, measured zero. */
+    views: { value: number | null; deltaPct: number | null };
     followers: { value: number; deltaAbs: number };
     videos: { value: number; deltaPct: number | null };
-    viewsPerVideo: { value: number; deltaPct: number | null };
+    /** `null` whenever `views.value` is — a per-video average of an unknown is still unknown. */
+    viewsPerVideo: { value: number | null; deltaPct: number | null };
     /** Current total of every video's latest known like count — not period-scoped, same shape as
      *  `followers`. Replaces the old `engagementRate` tile on the Tổng quan overview specifically
      *  (22/08/2026, theo yêu cầu) — engagement rate itself is unchanged everywhere else (kênh/Creator
@@ -1205,11 +1275,14 @@ export async function getDashboard(
   // which filter it out of those lists instead of silently showing it at 0%).
   const sum = (pick: (s: ChannelPeriodStat) => number | null) => stats.reduce((acc, s) => acc + (pick(s) ?? 0), 0);
 
-  const teamViews = sum((s) => s.views);
+  // `sumViewsOrNull`, not `sum` — see its doc: every channel unmeasured must stay "—", not become
+  // a "0 view" tile that reads as a real, measured zero.
+  const teamViews = sumViewsOrNull(stats.map((s) => s.views));
   const teamPreviousViews = sum((s) => s.previousViews);
   const teamVideos = sum((s) => s.videos);
   const teamPreviousVideos = sum((s) => s.previousVideos);
-  const teamViewsPerVideo = teamVideos > 0 ? Math.round(teamViews / teamVideos) : 0;
+  // Derived from an unknown is still unknown — "0 view/video" would be the same lie as "0 view".
+  const teamViewsPerVideo = teamViews === null ? null : teamVideos > 0 ? Math.round(teamViews / teamVideos) : 0;
   const teamPreviousViewsPerVideo = teamPreviousVideos > 0 ? teamPreviousViews / teamPreviousVideos : 0;
   const teamFollowersNow = sum((s) => s.followersNow ?? 0);
   const teamFollowersGain = sum((s) => s.followersGain ?? 0);
@@ -1242,7 +1315,9 @@ export async function getDashboard(
       channelId: s.channelId,
       channelName: nameById.get(s.channelId) ?? "",
       views: s.views!,
-      sharePct: teamViews > 0 ? Math.round((s.views! / teamViews) * 1000) / 10 : 0,
+      // teamViews can only be null when nothing was measured, in which case `.filter` above already
+      // emptied this list — the guard is for the type, not a reachable branch.
+      sharePct: teamViews !== null && teamViews > 0 ? Math.round((s.views! / teamViews) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.views - a.views);
 
@@ -1277,12 +1352,18 @@ export async function getDashboard(
     channels: activeChannels.map((c) => ({ id: c.id, name: c.name })),
     period: { from, to, comparedFrom, comparedTo },
     teamStats: {
-      views: { value: teamViews, deltaPct: teamViewDeltaComparable ? pctChange(teamViews, teamPreviousViews) : null },
+      views: {
+        value: teamViews,
+        deltaPct: teamViewDeltaComparable && teamViews !== null ? pctChange(teamViews, teamPreviousViews) : null,
+      },
       followers: { value: teamFollowersNow, deltaAbs: teamFollowersGain },
       videos: { value: teamVideos, deltaPct: pctChange(teamVideos, teamPreviousVideos) },
       viewsPerVideo: {
         value: teamViewsPerVideo,
-        deltaPct: teamViewDeltaComparable ? pctChange(teamViewsPerVideo, teamPreviousViewsPerVideo) : null,
+        deltaPct:
+          teamViewDeltaComparable && teamViewsPerVideo !== null
+            ? pctChange(teamViewsPerVideo, teamPreviousViewsPerVideo)
+            : null,
       },
       totalLikes: { value: totalLikes },
     },

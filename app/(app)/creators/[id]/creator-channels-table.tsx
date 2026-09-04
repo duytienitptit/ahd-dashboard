@@ -84,7 +84,16 @@ export function CreatorChannelsTable({ channels }: { channels: CreatorPerformanc
                 <div className={`text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
                   {channel.views !== null ? formatCompact(channel.views) : "—"}
                 </div>
-                {channel.viewsDeltaPct !== null ? (
+                {/* Same three states as the /channels table (channel-form.tsx) — kept in step so the
+                    two never disagree about why a cell is empty. */}
+                {channel.views === null ? (
+                  <div
+                    className="mt-0.5 text-[11px] font-medium leading-tight text-ink-3"
+                    title="Không ngày nào trong kỳ có số liệu lượt xem đầy đủ — kênh chưa đồng bộ, hoặc dữ liệu lấy về bị cắt (is_complete = false) nên không được dùng để tính."
+                  >
+                    chưa có số liệu kỳ này
+                  </div>
+                ) : channel.viewsDeltaPct !== null ? (
                   <div className={`mt-0.5 text-[11.5px] font-semibold ${channel.viewsDeltaPct < 0 ? "text-red-dark" : "text-green-dark"}`}>
                     {formatDeltaPct(channel.viewsDeltaPct)}
                   </div>

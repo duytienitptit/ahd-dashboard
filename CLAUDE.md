@@ -151,21 +151,26 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: sửa cron `display_api` chưa từng chạy được (proxy chặn nhầm route) — đã
-deploy, `CRON_SECRET` đã xác nhận có trên Production, chờ cron 23:30 VN tối nay chạy tự động lần
-đầu.** M6 (chốt sổ KPI) + `/kpi` danh sách kênh + M5 (KPI Cycle) + M4 + M3c + Đợt 1/2 + Team +
-drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh thật + bỏ lưu zip Storage — tất
-cả đã lên `main`. Chi tiết từng milestone: [docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên mục).
-Checklist: [docs/TASKS.md](docs/TASKS.md).
+**Milestone hiện tại: audit production — cron đã xác nhận tự chạy, đã sửa 3 lỗi hiển thị dữ liệu
+(chưa commit).** M6 (chốt sổ KPI) + `/kpi` danh sách kênh + M5 (KPI Cycle) + M4 + M3c + Đợt 1/2 +
+Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh thật + bỏ lưu zip Storage
+— tất cả đã lên `main`. Chi tiết từng milestone: [docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên
+mục). Checklist: [docs/TASKS.md](docs/TASKS.md).
 
-🟡 **Cron `display_api` — đã sửa (28/08/2026), chờ xác nhận qua đêm nay.** `proxy.ts` thiếu
-`/api/sync/display-api` trong `PUBLIC_PATHS` → Vercel Cron (GET, không session) ăn `307 → /login`
-trước khi tới handler, chưa từng chạy tự động lần nào (không phải "hỏng từ 25/08" như nghi ban đầu).
-Đã thêm path, push, xác nhận trên prod (`401` thay vì `307`) và xác nhận `CRON_SECRET` có sẵn ở
-Vercel Production. Xác nhận sáng mai bằng `node scripts/diagnose-oauth.mjs` — `last_sync_at` cả 9
-kênh phải rơi vào ~23:30 VN (16:30 UTC), không phải giờ hành chính (= bấm tay). Ngày 26–28/08 mất
-vĩnh viễn (API không có lịch sử theo ngày). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục
-"Cron display_api chưa từng chạy" + [docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
+✅ **Cron `display_api` đã tự chạy — xác nhận 29/08/2026.** `last_sync_at` cả 9 kênh
+`2026-08-28T16:48:20Z` = 23:48 VN, trong 1,1 giây, `ok` toàn bộ (trễ 18 phút so với lịch 23:30 là
+bình thường với Vercel Cron). Gốc lỗi cũ: `proxy.ts` thiếu `/api/sync/display-api` trong
+`PUBLIC_PATHS` → Cron ăn `307 → /login`. Ngày 26–27/08 mất vĩnh viễn (API không có lịch sử theo
+ngày). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Cron display_api chưa từng chạy" +
+[docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
+
+🟡 **`is_complete = false` toàn bộ — hệ quả một lần của khoảng thủng 26–27/08, tự khỏi sau cron đêm
+29/08.** 35 video đăng trong 2 ngày cron không chạy chỉ lộ ra ở lần sync 28/08 → `computeViewsDelta`
+xếp vào `lateDiscoveredVideoIds` → `isComplete` bị hạ (đúng thiết kế: đóng góp của chúng cho ngày đó
+là *không biết*, không phải *0*). Hệ quả: dữ liệu 28/08 có nhưng bị loại khỏi KPI + tổng views, nên
+"7 ngày qua" vẫn trống. Đã kiểm: **0 video đăng sau 23:48 ngày 28/08** → không còn nguồn
+late-discovered. Xác nhận sáng 30/08: `node scripts/diagnose-data.mjs` mục A, cờ `⚠ is_complete=false`
+phải biến mất.
 
 ✅ **Đã nộp app "AHD Dashboard" lên TikTok Production, đang "in review"** (26/08/2026, để bỏ trần 10
 tài khoản/sandbox) — kiểm kết quả trên Developer Portal, không có webhook báo.
@@ -189,13 +194,16 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **Chờ cron 23:30 VN tối nay, xác nhận sáng mai** bằng `node scripts/diagnose-oauth.mjs` —
-   `last_sync_at` phải tiến thêm đúng giờ đó. Trong lúc chờ, bấm "Chạy đồng bộ ngay" ở `/connections`
-   để có số tạm.
-2. **Import lại bộ zip Studio đã upload ngày 25/08** — dữ liệu 22-23/08 chỉ xuất hiện sau khi import
+1. **Commit + push 3 fix hiển thị dữ liệu** (đang nằm trong working tree, đã test/lint/tsc sạch) —
+   xem [docs/PROGRESS.md](docs/PROGRESS.md) mục `"0 view" giả ở tầng rollup`.
+2. **Sáng 30/08: xác nhận `is_complete` đã lên `true`** bằng `node scripts/diagnose-data.mjs` mục A.
+   Đây là điều kiện để "7 ngày qua" có số trở lại và để KPI tính được.
+3. **Import lại bộ zip Studio đã upload ngày 25/08** — dữ liệu 22-23/08 chỉ xuất hiện sau khi import
    lại (cửa sổ chốt cũ chỉ ghi tới 21/08, đã sửa code nhưng chưa import lại). Ngày 24/08 không nguồn
-   nào có, tự đầy ở kỳ import sau (từ 26/08).
-3. **Push commit cron fix** — local trước `origin/main` đúng 1 commit (`7b1f580`), không gấp.
+   nào có, tự đầy ở kỳ import sau (từ 26/08). **3/9 kênh chưa từng có `studio_import` nào** (Mộc Đi
+   Rừng, Tiến Sĩ Sprout, Vườn Của Hant) → chưa chốt sổ KPI được.
+4. **Hỏi team: Bé Na có chủ ý xoá 7 video không?** (đăng 29/07→19/08, còn thấy ở snapshot 25/08, mất
+   khỏi response 28/08). Code xử lý đúng, chỉ là chuyện vận hành cần biết.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó). Các
 mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).

@@ -23,6 +23,7 @@ import {
   rankCreatorPerformance,
   sumEngagementParts,
   sumViews,
+  sumViewsOrNull,
   viewsDeltaComparable,
 } from "./dashboard";
 
@@ -80,6 +81,23 @@ describe("viewsDeltaComparable", () => {
   it("returns false when the comparison period has no measured days (nothing to compare against)", () => {
     expect(viewsDeltaComparable(5, 0)).toBe(false);
     expect(viewsDeltaComparable(0, 0)).toBe(false);
+  });
+});
+
+describe("sumViewsOrNull", () => {
+  it("sums the measured channels, ignoring unmeasured ones — unchanged rollup semantics", () => {
+    expect(sumViewsOrNull([100, null, 50])).toBe(150);
+    expect(sumViewsOrNull([100, 50])).toBe(150);
+  });
+
+  it("returns null when nothing was measured — the case that used to render a lying '0 view'", () => {
+    expect(sumViewsOrNull([null, null])).toBeNull();
+    expect(sumViewsOrNull([])).toBeNull();
+  });
+
+  it("keeps a genuinely measured 0 as 0, not null — known-zero is not unknown", () => {
+    expect(sumViewsOrNull([0])).toBe(0);
+    expect(sumViewsOrNull([0, null])).toBe(0);
   });
 });
 
@@ -216,10 +234,35 @@ describe("aggregateChannelStats", () => {
     expect(rollup.totalViews).toBe(100);
   });
 
-  it("returns totalViews: 0 and totalLikes: 0 for an empty channel list (e.g. a team with no channels yet)", () => {
+  it("returns totalViews: null (not 0) for an empty channel list — a team with no channels has nothing to report, not a measured zero", () => {
     const rollup = aggregateChannelStats([], new Map());
-    expect(rollup.totalViews).toBe(0);
+    expect(rollup.totalViews).toBeNull();
     expect(rollup.totalLikes).toBe(0);
+  });
+
+  it("returns totalViews: null when EVERY channel is unmeasured — the '0 view' this used to render read as a real zero (28/08/2026)", () => {
+    const statsByChannel = new Map([
+      ["a", channelStat({ channelId: "a", views: null, previousViews: null })],
+      ["b", channelStat({ channelId: "b", views: null, previousViews: null })],
+    ]);
+    const rollup = aggregateChannelStats(["a", "b"], statsByChannel);
+    expect(rollup.totalViews).toBeNull();
+    expect(rollup.viewsDeltaPct).toBeNull();
+  });
+
+  it("keeps the existing 'an unmeasured channel contributes nothing' rule when at least one channel HAS a number", () => {
+    const statsByChannel = new Map([
+      ["a", channelStat({ channelId: "a", views: 5000, previousViews: 4000, viewsMeasuredDays: 7, previousViewsMeasuredDays: 7 })],
+      ["b", channelStat({ channelId: "b", views: null, previousViews: null })],
+    ]);
+    const rollup = aggregateChannelStats(["a", "b"], statsByChannel);
+    expect(rollup.totalViews).toBe(5000);
+  });
+
+  it("distinguishes a genuinely measured 0 from unmeasured — a channel that really got 0 views still totals 0, not null", () => {
+    const statsByChannel = new Map([["a", channelStat({ channelId: "a", views: 0, previousViews: 0 })]]);
+    const rollup = aggregateChannelStats(["a"], statsByChannel);
+    expect(rollup.totalViews).toBe(0);
   });
 
   it("sums videos across channels alongside the other rollup fields", () => {

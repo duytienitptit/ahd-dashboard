@@ -17,7 +17,8 @@ export type CreatorRowData = {
   isActive: boolean;
   team: { id: string; name: string } | null;
   channels: { id: string; name: string; tiktokHandle: string }[];
-  totalViews: number;
+  /** `null` = nothing measurable this period — render "—", never "0" (lib/dashboard.ts `sumViewsOrNull`). */
+  totalViews: number | null;
   followersNow: number;
   videos: number;
   rank: CreatorRank;
@@ -140,7 +141,9 @@ function CreatorRow({
         {creator.channels.length > 0 ? creator.channels.map((ch) => ch.name).join(", ") : <span className="text-ink-3">Chưa phụ trách kênh nào</span>}
       </div>
 
-      <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>{formatCompact(creator.totalViews)}</div>
+      <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
+        {creator.totalViews !== null ? formatCompact(creator.totalViews) : "—"}
+      </div>
 
       <div className={`text-right text-sm font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.followers]}`}>{formatCompact(creator.followersNow)}</div>
 
@@ -198,7 +201,12 @@ function TeamPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const hasNumbers = group.rollup.totalViews > 0 || group.rollup.followersNow > 0 || group.rollup.followerGain !== 0;
+  // `!== null` rather than `> 0`: a team whose views are unmeasured this period can still have real
+  // followers/gain worth showing, and the views chip below renders "—" for it.
+  const hasNumbers =
+    (group.rollup.totalViews !== null && group.rollup.totalViews > 0) ||
+    group.rollup.followersNow > 0 ||
+    group.rollup.followerGain !== 0;
   const heading = group.name ?? "Chưa gán team";
   const avatar = avatarPalette(index);
 
@@ -226,7 +234,11 @@ function TeamPanel({
 
         {hasNumbers ? (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <RollupStatChip label="Lượt xem" value={formatCompact(group.rollup.totalViews)} tone={METRIC_TONE.views} />
+            <RollupStatChip
+              label="Lượt xem"
+              value={group.rollup.totalViews !== null ? formatCompact(group.rollup.totalViews) : "—"}
+              tone={METRIC_TONE.views}
+            />
             <RollupStatChip label="Follower" value={formatCompact(group.rollup.followersNow)} tone={METRIC_TONE.followers} />
             <RollupStatChip label="Video" value={String(group.rollup.videos)} tone={METRIC_TONE.videos} />
           </div>
