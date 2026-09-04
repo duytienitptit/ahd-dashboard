@@ -53,3 +53,6 @@ data/*
 !data/samples/
 data/samples/*
 !data/samples/*.example.*
+# Supabase CLI ghi file tạm vào đây (số phiên bản CLI mới nhất) — dirty lại mỗi lần chạy CLI,
+# không phải cấu hình của dự án.
+supabase/.temp/
