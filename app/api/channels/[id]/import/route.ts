@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthorizationError, requireUser } from "@/lib/auth";
+import { AuthorizationError, requireWritableUser } from "@/lib/auth";
 import { errorResponse } from "@/lib/http";
 import { runStudioImport } from "@/lib/import/run-import";
 import { nowVnDateString } from "@/lib/time";
@@ -17,7 +17,7 @@ import { ValidationError } from "@/lib/validation";
 // a Creator writing to a channel they don't own even if this check were ever removed or wrong.
 export async function POST(request: NextRequest, context: RouteContext<"/api/channels/[id]/import">) {
   try {
-    const user = await requireUser();
+    const user = await requireWritableUser();
     const { id: channelId } = await context.params;
     const supabase = await createSupabaseServerClient();
 

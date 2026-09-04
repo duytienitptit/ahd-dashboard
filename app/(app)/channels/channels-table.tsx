@@ -36,7 +36,9 @@ export function ChannelsTable({
   rows: Row[];
   creators: CreatorOption[];
   isManager: boolean;
-  currentUserId: string;
+  /** `undefined` disables the Creator-owned rename in `ChannelRow` — that is how the TikTok
+   *  reviewer's demo account gets a read-only /channels (app/(app)/channels/page.tsx). */
+  currentUserId: string | undefined;
   /** This channel's active KPI cycle, keyed by channelId (M5) — `undefined` map/entry both render
    *  ChannelRow's original "Chưa đặt KPI" chip. */
   kpiByChannel?: Map<string, KpiCycleWithProgress>;

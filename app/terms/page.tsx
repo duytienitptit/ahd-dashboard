@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service — AHD Dashboard",
@@ -26,6 +27,11 @@ export default function TermsPage() {
         Contact: anzstudio.acc@gmail.com
         <br />
         Last updated: August 2026
+      </p>
+      <p className="mt-8 border-t border-line-soft pt-5 text-[13px]">
+        <Link href="/login" className="font-semibold text-ink-3 hover:text-ink">
+          ← Quay lại đăng nhập
+        </Link>
       </p>
     </main>
   );

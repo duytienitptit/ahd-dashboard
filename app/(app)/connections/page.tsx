@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { isDemoAccount, requireUser } from "@/lib/auth";
 import { listChannels } from "@/lib/channels";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -96,7 +96,12 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/conn
           bar for everyone so it's obvious /import exists, not just Manager. isManager still hides
           the Nhập tay tab from Creator — that one stays a Manager-only exception. */}
       <DataTabs isManager={isManager} />
-      <ConnectionsClient initialStatus={statusList} initialMessage={initialMessage} isManager={isManager} />
+      <ConnectionsClient
+        initialStatus={statusList}
+        initialMessage={initialMessage}
+        isManager={isManager}
+        canWrite={!isDemoAccount(user)}
+      />
     </div>
   );
 }

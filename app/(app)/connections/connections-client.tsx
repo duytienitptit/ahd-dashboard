@@ -61,10 +61,14 @@ export function ConnectionsClient({
   initialStatus,
   initialMessage,
   isManager,
+  canWrite,
 }: {
   initialStatus: ChannelOauthStatus[];
   initialMessage: Message | null;
   isManager: boolean;
+  /** False for the TikTok reviewer's demo account (lib/auth.ts `isDemoAccount`) — the server
+   *  already refuses these calls, this only keeps the buttons from being offered at all. */
+  canWrite: boolean;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [message, setMessage] = useState(initialMessage);
@@ -179,7 +183,7 @@ export function ConnectionsClient({
           <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Kết nối Display API</h1>
           <p className="mt-1.5 text-[13px] text-ink-3">Đồng bộ tự động 23:30 mỗi ngày (giờ VN)</p>
         </div>
-        {isManager ? (
+        {isManager && canWrite ? (
           // Đồng bộ toàn bộ kênh active cùng lúc (POST /api/sync/display-api yêu cầu Manager) — ẩn
           // với Creator, họ chỉ quản lý kết nối của đúng kênh mình, không phải thao tác toàn hệ thống.
           <button
@@ -357,7 +361,7 @@ export function ConnectionsClient({
                     </div>
 
                     <div className="flex flex-wrap justify-end gap-2">
-                      {row.connected && !row.accountVerified ? (
+                      {canWrite && row.connected && !row.accountVerified ? (
                         <button
                           type="button"
                           disabled={busy}
@@ -368,7 +372,7 @@ export function ConnectionsClient({
                           {connectingId === row.channelId ? "Đang xác nhận…" : "Xác nhận đúng tài khoản"}
                         </button>
                       ) : null}
-                      {row.connected ? (
+                      {canWrite && row.connected ? (
                         <button
                           type="button"
                           disabled={busy}
@@ -378,7 +382,7 @@ export function ConnectionsClient({
                           {disconnectingId === row.channelId ? "Đang ngắt…" : "Ngắt kết nối"}
                         </button>
                       ) : null}
-                      {showConnectButton ? (
+                      {canWrite && showConnectButton ? (
                         <button
                           type="button"
                           disabled={busy}

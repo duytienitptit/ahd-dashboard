@@ -1366,6 +1366,94 @@ không phải sum `data_snapshot.video_views` — xem `isAllTime` trong `getChan
 nhảy port và preview tự bám theo. Display API không dùng localhost redirect (TikTok từ chối mọi dạng
 localhost) nên đổi port không ảnh hưởng gì.
 
+## Đơn Production TikTok bị từ chối + tài khoản demo read-only (04/09/2026) — có gì dùng được ngay
+
+**Bối cảnh.** Đơn nộp lên TikTok Production hôm 26/08 (để bỏ trần 10 tài khoản/sandbox) bị trả về.
+Reviewer chỉ chê **một** field — Website URL:
+
+> Your externally facing website must be fully developed and cannot be a landing or login page.
+> If it is a login page, you must provide a test account and password in the Apply Reason field.
+
+Kiểm bằng `curl` trên chính prod: `/` trả `307 → /login?next=%2F`, `/login` `200`, `/terms` `200`,
+`/privacy` `200`. Đúng như mô tả: reviewer mở URL, rơi vào một form đăng nhập trần.
+
+**Quyết định: không dựng landing page.** Reviewer nói rõ landing page cũng không được tính, nên bỏ
+công làm marketing site là làm sai hướng. Đi đúng đường TikTok chỉ định: giữ trang login, khai tài
+khoản test trong ô "Apply Reason".
+
+**Vấn đề thật nằm ở chỗ khác: Creator KHÔNG phải read-only.** Trước khi đưa credential cho người lạ,
+rà lại những gì một Creator được gán kênh làm được:
+
+| Việc | Đường vào | Hậu quả nếu reviewer bấm nhầm |
+| :--- | :--- | :--- |
+| Ngắt kết nối Display API | `POST /api/channels/:id/oauth/disconnect` (Creator được phép trên kênh mình) | Revoke grant phía TikTok → cron ngừng chạy cho kênh đó, phải nhờ chủ kênh Authorize lại |
+| Upload zip Studio | `POST /api/channels/:id/import` | Ghi đè `data_snapshot` thật |
+| Đổi tên kênh | `updateChannelNameAction` / `PATCH /api/channels/:id/name` | Lệch handle → hỏng guard chống sai tài khoản lần OAuth sau |
+
+Nút "Ngắt kết nối" nằm ngay `/connections` — đúng màn reviewer nhiều khả năng vào nhất để kiểm luồng
+TikTok Login. Manager thì khỏi bàn: xoá kênh/nhân sự là xoá thật.
+
+**Chốt read-only, bật bằng env `DEMO_CREATOR_USERNAME`** (không thêm cột, không migration — hết kỳ
+review thì xoá biến là mọi thứ về như cũ):
+
+- `lib/auth.ts` — `isDemoAccount()` (thuần, so `username` không phân biệt hoa thường, trim env) và
+  `requireWritableUser()` = `requireUser()` + chặn. `requireManager()` cũng đi qua cùng `demoGuard()`
+  để **fail closed** nếu ai đó lỡ trỏ biến vào một Manager.
+- Server: 5 route Creator chạm được đổi sang `requireWritableUser()` — `oauth/start`, `oauth/verify`,
+  `oauth/disconnect`, `import`, `name` — cộng `updateChannelNameAction`.
+- UI ẩn nút tương ứng: `/connections` (Kết nối / Kết nối lại / Ngắt kết nối / Xác nhận đúng tài khoản
+  + "Chạy đồng bộ ngay"), `/import` (thay uploader bằng một dòng thông báo), `/channels` (bỏ
+  `currentUserId` → mất nút sửa tên). **Ẩn UI không phải để cho gọn**: reviewer bấm nút rồi ăn 403 sẽ
+  đọc thành "app hỏng", lại thành một lý do từ chối khác.
+
+**Trang login bớt trần** (`app/login/page.tsx`): thêm 1 câu mô tả app làm gì + link
+`Điều khoản sử dụng` / `Chính sách riêng tư`; `/terms` và `/privacy` thêm link quay lại đăng nhập.
+Cả 3 trang này đã nằm sẵn trong `PUBLIC_PATHS` của `proxy.ts` nên khách chưa đăng nhập xem được.
+⚠️ Dính lại **bug màu link** (mục riêng bên trên): đặt `text-ink-3` trên `<p>` cha không ăn thua, `a
+{}` trong `@layer base` vẫn ép về đỏ — phải đặt class màu trên chính thẻ `<Link>`.
+
+**Gán kênh cho tài khoản demo hay không — kiểm bằng tài khoản thật, không suy luận.**
+`20260820000006_rls.sql` cho mọi tài khoản đã đăng nhập `select` toàn bộ
+`channel`/`data_snapshot`/`video_snapshot`/`kpi_cycle` (RLS chỉ chặn ghi), nên ban đầu tưởng "không
+cần gán kênh, vẫn xem đủ". Đăng nhập thật bằng tài khoản `test` (không gán kênh) cho thấy đúng một
+nửa: `/` Tổng quan và `/channels` đầy đủ (52,5M view, cả 9 kênh), nhưng **`/kpi` rỗng** — với Creator
+đó là "KPI của tôi", lọc theo `creatorId` — cộng block "Kênh của tôi (0)" ngay đầu Tổng quan và
+`/connections` + `/import` rỗng. Tổng cộng **3 màn rỗng** trước mắt một reviewer vừa chê "not fully
+developed". Đánh đổi (gán 1 kênh = cướp kênh khỏi creator thật vì `channel.current_creator_id` chỉ
+giữ được một người) ghi ở [DISPLAY_API.md](DISPLAY_API.md).
+
+**Cái này KHÔNG làm:** không đụng tới phân quyền Manager, không tạo tài khoản demo hộ (Manager tự tạo
+ở `/creators` — mật khẩu chỉ hiện đúng một lần), không nộp lại đơn hộ.
+
+**Kiểm chứng:** `npx tsc --noEmit` sạch, `npm run lint` sạch, `npm test` 205/205 (thêm
+`lib/auth.test.ts`, 5 case cho `isDemoAccount` — quan trọng nhất là env rỗng/không đặt **không**
+biến mọi tài khoản thành demo). Browser thật trên dev server: `/login` hiện mô tả + 2 link đúng màu
+xám, `/terms` và `/privacy` mở được khi chưa đăng nhập, không lỗi console.
+
+Kiểm nốt bằng tài khoản demo `test` thật (đã gán kênh "Làm Nông Thông Thái"), đăng nhập qua trình
+duyệt trên dev server nối DB production:
+
+| Màn | Kết quả |
+| :--- | :--- |
+| `/` Tổng quan | "Kênh của tôi (1)" + 3 thanh KPI (view 177,9% · video 50% · follower 49,7%), số liệu toàn team đầy đủ |
+| `/channels` | 9 kênh, **mất hẳn cột "Sửa"** (so với cùng màn của Manager) |
+| `/import` | Chỉ còn khối "Tài khoản demo — chỉ xem" kèm mô tả màn này làm gì; không còn dropdown/uploader |
+| `/connections` | Giữ dòng trạng thái token (Đang chạy · còn 355 ngày) nhưng cột **Thao tác trống** — không còn "Ngắt kết nối" |
+| `/kpi` | 1 kênh với chi tiết chu kỳ + 3 thanh tiến độ |
+
+Tầng server kiểm riêng bằng request vô hại — `PATCH /api/channels/:id/name` với **đúng tên kênh đang
+có** (guard hỏng thì cũng chỉ ghi lại chính nó): trả `403 {"error":"Tài khoản demo chỉ xem được,
+không thay đổi dữ liệu."}`.
+
+🐞 **Bẫy mất 2 vòng mới ra: `echo 'X=y' >> .env.local` khi file không kết thúc bằng newline.** Dòng
+mới dính vào dòng chót → `SEED_MANAGER_NAME=Đặng AnDEMO_CREATOR_USERNAME=test`: không có biến mới nào
+được tạo, mà biến cũ còn mang giá trị rác. Triệu chứng ở app là "đã đặt env rồi mà guard không ăn".
+Kiểm nhanh mà không lộ secret: script in **tên key + độ dài value** cho từng dòng, dòng nào không
+parse ra key thì lộ ngay. Dùng `printf '\nX=y\n' >>` hoặc sửa file thay vì `echo >>`.
+
+**Quy trình resubmit + nội dung "Apply Reason"**: [docs/DISPLAY_API.md](DISPLAY_API.md) mục "Nộp duyệt
+Production — bị từ chối lần 1 vì Website URL".
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**

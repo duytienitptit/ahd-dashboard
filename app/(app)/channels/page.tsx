@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isDemoAccount } from "@/lib/auth";
 import { listChannels } from "@/lib/channels";
 import { listCreators } from "@/lib/creators";
 import { getChannelPeriodStats, previousPeriod } from "@/lib/dashboard";
@@ -66,7 +66,9 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Sea
             rows={rows}
             creators={creatorOptions}
             isManager={isManager}
-            currentUserId={user.id}
+            /* Demo account của reviewer TikTok: bỏ id đi là mất luôn nút sửa tên kênh
+               (updateChannelNameAction đằng sau cũng đã chặn). Xem lib/auth.ts. */
+            currentUserId={isDemoAccount(user) ? undefined : user.id}
             kpiByChannel={kpiByChannel}
           />
         </FilterPendingOverlay>

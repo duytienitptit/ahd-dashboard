@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthorizationError, requireUser } from "@/lib/auth";
+import { AuthorizationError, requireWritableUser } from "@/lib/auth";
 import { errorResponse } from "@/lib/http";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { buildAuthorizeUrl, encodeOauthStateCookie, generateOauthState, OAUTH_STATE_COOKIE, OAUTH_STATE_MAX_AGE_SECONDS } from "@/lib/tiktok/oauth";
@@ -8,7 +8,7 @@ import { buildAuthorizeUrl, encodeOauthStateCookie, generateOauthState, OAUTH_ST
 // GET /api/channels/:id/oauth/start — M/C (Creator chỉ kênh mình đang phụ trách). docs/API_SPEC.md
 export async function GET(_request: NextRequest, context: RouteContext<"/api/channels/[id]/oauth/start">) {
   try {
-    const user = await requireUser();
+    const user = await requireWritableUser();
     const { id: channelId } = await context.params;
 
     const supabase = await createSupabaseServerClient();

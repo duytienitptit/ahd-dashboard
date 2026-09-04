@@ -108,6 +108,128 @@ lỗi code/config phía app (redirect URI, client key đều bình thường). S
 tab **Sandbox** → **Target Users** → thêm tài khoản TikTok thật của kênh (chủ tài khoản cần xác nhận
 lời mời trong app TikTok), rồi mới bấm "Kết nối" lại.
 
+## Nộp duyệt Production — bị từ chối lần 1 vì Website URL (04/09/2026)
+
+Đơn nộp 26/08 bị trả về. Đúng **một** field bị chê: **Website URL**. Nguyên văn reviewer:
+
+> Your externally facing website must be fully developed and cannot be a landing or login page.
+> If it is a login page, you must provide a test account and password in the Apply Reason field.
+
+Nguyên nhân: `https://ahd-dashboard-dusky.vercel.app/` trả `307 → /login`, reviewer chỉ thấy một form
+đăng nhập trần. App không bị chê gì về scope hay cách dùng dữ liệu.
+
+**Không dựng landing page để chữa** — reviewer nói rõ landing page cũng không được tính. Cách họ chỉ
+định là: giữ nguyên trang login, **khai username + password của một tài khoản test trong ô "Apply
+Reason"** lúc resubmit.
+
+### Tài khoản demo cho reviewer
+
+⚠️ **Không bao giờ đưa tài khoản Manager** (`andang`): Manager xoá kênh/nhân sự là xoá thật, chốt sổ
+KPI, tạo tài khoản.
+
+Creator **cũng không phải read-only**. Một Creator được gán kênh vẫn:
+
+- ngắt kết nối Display API của kênh đó (`POST /api/channels/:id/oauth/disconnect`) → revoke grant
+  phía TikTok, phải nhờ chủ kênh Authorize lại;
+- upload zip Studio đè lên `data_snapshot` thật;
+- đổi tên kênh.
+
+Nên có thêm chốt chặn ghi, bật bằng biến môi trường **`DEMO_CREATOR_USERNAME`** (`.env.example`):
+
+| | |
+| :--- | :--- |
+| Nguồn sự thật | `isDemoAccount()` / `requireWritableUser()` trong `lib/auth.ts` |
+| Chặn ở server | 5 route ghi Creator chạm được (`oauth/start`, `oauth/verify`, `oauth/disconnect`, `import`, `name`) + `updateChannelNameAction`. `requireManager()` cũng chặn — fail closed nếu lỡ trỏ biến vào một Manager |
+| Ẩn ở UI | nút Kết nối / Ngắt kết nối / Xác nhận tài khoản (`/connections`), uploader (`/import`), nút sửa tên kênh (`/channels`) |
+| Vì sao ẩn cả UI | reviewer bấm nút rồi ăn 403 sẽ đọc thành "app hỏng" — lại thành lý do từ chối khác |
+
+Biến này chỉ là **tạm thời**. App duyệt xong: xoá biến trên Vercel **và** xoá tài khoản demo.
+
+### Có cần gán kênh cho tài khoản demo không?
+
+`20260820000006_rls.sql` cho **mọi tài khoản đã đăng nhập** `select` toàn bộ `channel`,
+`data_snapshot`, `video_snapshot`, `content_video`, `kpi_cycle`… (RLS chỉ chặn GHI) — nên phần lớn app
+xem được kể cả khi không gán kênh. Nhưng các màn "của tôi" thì lọc theo `creatorId`, và đó mới là chỗ
+quyết định:
+
+Kiểm bằng tài khoản demo thật (`test`, 04/09/2026 — ảnh chụp từng màn):
+
+| Màn | Creator không có kênh thấy gì |
+| :--- | :--- |
+| `/` Tổng quan | Số liệu toàn team **đầy đủ** (52,5M view · 78,3k follower · 541 video · 1,49M like, biểu đồ 8 tuần, "Tình hình KPI 1/1"). Nhưng block đầu trang là **"Kênh của tôi (0) — Bạn chưa được gán phụ trách kênh nào"** |
+| `/channels` + chi tiết kênh | **Toàn bộ 9 kênh** kèm follower/view/video/KPI — `listChannels(supabase)` ở trang này không lọc theo creator |
+| `/kpi` | ❌ **RỖNG** — với Creator đây là "KPI của tôi", lọc theo creator: "0 kênh · Bạn chưa được phân công phụ trách kênh nào" |
+| `/connections`, `/import` | Rỗng (2 trang này lọc theo `creatorId`) |
+
+⚠️ Vậy tài khoản không gán kênh để lại **3 màn rỗng** (Kênh của tôi, KPI của tôi, Kết nối). Với một
+reviewer vừa từ chối app vì "not fully developed", đó là rủi ro thật.
+
+**Đánh đổi phải cân:**
+
+- **Không gán kênh** — không đụng gì tới creator thật, nhưng 3 màn rỗng như trên.
+- **Gán 1 kênh** — cả 4 tab đều có nội dung, `/connections` hiện đúng một dòng trạng thái token
+  (nút đã ẩn) nên reviewer thấy được chỗ dùng Login Kit. Cái giá: `channel.current_creator_id` chỉ
+  giữ được **một** creator → creator thật mất `/connections`, `/import` và "KPI của tôi" của kênh đó
+  suốt kỳ review. Manager vẫn import hộ được mọi kênh nên thiệt hại vận hành nhỏ. **Gán lại đúng
+  creator cũ ngay sau khi app được duyệt.**
+
+Kể cả có gán, reviewer **cũng không tự Authorize được**: app còn ở sandbox, tài khoản TikTok của họ
+không nằm trong Target Users → `non_sandbox_target`. Ẩn nút + nói rõ trong Apply Reason sạch hơn là
+để họ bấm rồi ăn lỗi khó hiểu.
+
+📌 **Đã gán (04/09/2026): kênh "Làm Nông Thông Thái" đang thuộc tài khoản demo `test`.** Creator thật
+của kênh này là **Phạm Minh Trí** — vẫn còn giữ "Cùng Anh Đi Muôn Nơi" nên không mất hết quyền.
+⚠️ **Gán lại "Làm Nông Thông Thái" cho Phạm Minh Trí ngay khi app được duyệt** — không có gì tự nhắc
+việc này, `channel_ownership_history` chỉ ghi lại chứ không hoàn tác.
+
+### Quy trình resubmit
+
+1. Manager tạo Creator demo ở `/creators`, **không gán kênh**. (Creator không tự đổi được mật khẩu —
+   đó là thao tác Manager-only — nên credential đã khai vẫn đúng suốt kỳ review.)
+2. Đặt `DEMO_CREATOR_USERNAME` = username đó trên Vercel (scope Production), redeploy.
+3. Tự đăng nhập bằng tài khoản demo kiểm 3 điểm: `/channels` có đủ kênh và số liệu; `/connections`
+   không còn nút Kết nối/Ngắt kết nối; `/import` hiện dòng "Tài khoản demo chỉ xem".
+4. Sửa Website URL (giữ nguyên URL cũ) + dán "Apply Reason" dưới đây, resubmit.
+
+### Nội dung "Apply Reason" (dán nguyên, thay `<username>` / `<password>`)
+
+```
+AHD Dashboard is an internal analytics tool used by our company to track the
+9 TikTok accounts we own and operate. It is not a consumer product and there
+is no public sign-up, so the site is behind a login by design.
+
+Test account:
+  URL:      https://ahd-dashboard-dusky.vercel.app/login
+  Username: <username>          (the form takes a USERNAME, not an email)
+  Password: <password>
+
+The interface is in Vietnamese. After signing in the reviewer can see:
+  - Tổng quan (Overview): daily followers, video views and video counts, charted over time
+  - Kênh (Channels): all 9 channels, with per-channel detail, follower history
+    and per-video metrics
+  - KPI: internal targets computed from the same stored data
+  - Kết nối (Connections): where a channel owner authorizes our app via TikTok
+    Login and can revoke that authorization
+
+This test account is read-only, so "Kết nối" (Connections) is empty for it and
+the authorize/revoke buttons are hidden. The authorization flow is used by the
+owners of our own channels; while the app is still in sandbox, an account that
+is not in our Sandbox Target Users cannot complete it anyway.
+
+Scope usage:
+  - user.info.basic  — display name/avatar, and matching an authorized account
+                       to the correct channel record
+  - user.info.stats  — follower count and video count, stored daily to show growth
+  - video.list       — per-video view/like/comment/share counts, used to compute
+                       daily views per channel
+
+Data is stored only for internal reporting. It is never shared with third
+parties and never used for advertising.
+
+Privacy Policy: https://ahd-dashboard-dusky.vercel.app/privacy
+Terms of Service: https://ahd-dashboard-dusky.vercel.app/terms
+```
+
 ## Những gì Display API KHÔNG có
 
 Đây là lý do vẫn phải giữ import Studio hằng tuần:

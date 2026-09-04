@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthorizationError, requireUser } from "@/lib/auth";
+import { AuthorizationError, requireWritableUser } from "@/lib/auth";
 import { errorResponse } from "@/lib/http";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -14,7 +14,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // sync until this flips true.
 export async function POST(_request: NextRequest, context: RouteContext<"/api/channels/[id]/oauth/verify">) {
   try {
-    const user = await requireUser();
+    const user = await requireWritableUser();
     const { id: channelId } = await context.params;
 
     const supabase = await createSupabaseServerClient();

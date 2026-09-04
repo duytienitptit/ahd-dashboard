@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { AuthorizationError, requireManager, requireUser } from "@/lib/auth";
+import { AuthorizationError, requireManager, requireWritableUser } from "@/lib/auth";
 import { createChannel, deleteChannel, updateChannel, updateChannelName } from "@/lib/channels";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -80,7 +80,8 @@ export async function updateChannelAction(
  * Creator-safe rename — CLAUDE.md vấn đề #11. Deliberately not `requireManager()`: any signed-in
  * user can call this action, but `updateChannelName()` (via the `update_channel_name` SECURITY
  * DEFINER function) only actually renames a channel the caller is currently assigned to — see
- * supabase/migrations/20260821000002_creator_edit_channel_name.sql.
+ * supabase/migrations/20260821000002_creator_edit_channel_name.sql. `requireWritableUser()` rather
+ * than `requireUser()` only to keep the TikTok reviewer's demo account out (lib/auth.ts).
  */
 export async function updateChannelNameAction(
   channelId: string,
@@ -88,7 +89,7 @@ export async function updateChannelNameAction(
   formData: FormData,
 ): Promise<ChannelFormState> {
   try {
-    await requireUser();
+    await requireWritableUser();
 
     const name = String(formData.get("name") ?? "").trim();
     if (!name) return { error: "Vui lòng nhập tên kênh." };

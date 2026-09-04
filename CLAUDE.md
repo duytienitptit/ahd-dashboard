@@ -172,8 +172,15 @@ là *không biết*, không phải *0*). Hệ quả: dữ liệu 28/08 có nhưn
 late-discovered. Xác nhận sáng 30/08: `node scripts/diagnose-data.mjs` mục A, cờ `⚠ is_complete=false`
 phải biến mất.
 
-✅ **Đã nộp app "AHD Dashboard" lên TikTok Production, đang "in review"** (26/08/2026, để bỏ trần 10
-tài khoản/sandbox) — kiểm kết quả trên Developer Portal, không có webhook báo.
+❌ **TikTok từ chối đơn Production (04/09/2026), sai đúng 1 field: Website URL** trỏ tới trang login
+trần. Cách chữa TikTok chỉ định là khai **tài khoản test trong ô "Apply Reason"** lúc resubmit —
+KHÔNG phải dựng landing page (reviewer nói rõ landing page cũng không tính). Đã thêm chốt read-only
+cho tài khoản demo (`DEMO_CREATOR_USERNAME`, xem `lib/auth.ts` `isDemoAccount`) — chưa commit. Quy
+trình resubmit đầy đủ: [docs/DISPLAY_API.md](docs/DISPLAY_API.md) mục "Nộp duyệt Production".
+
+⏳ **Đang mượn kênh "Làm Nông Thông Thái" cho tài khoản demo `test`** (đã gán 04/09/2026, phục vụ đợt
+duyệt app TikTok). Creator thật: **Phạm Minh Trí** — **gán lại ngay khi app được duyệt**, rồi xoá tài khoản
+`test` và biến `DEMO_CREATOR_USERNAME`.
 
 ⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
 lỗi gì, dữ liệu vẫn ghi sai `channel_id`. Nhắc người import kiểm kỹ dropdown "1. Chọn kênh".
@@ -194,15 +201,19 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **Commit + push 3 fix hiển thị dữ liệu** (đang nằm trong working tree, đã test/lint/tsc sạch) —
-   xem [docs/PROGRESS.md](docs/PROGRESS.md) mục `"0 view" giả ở tầng rollup`.
-2. **Sáng 30/08: xác nhận `is_complete` đã lên `true`** bằng `node scripts/diagnose-data.mjs` mục A.
+1. **Resubmit đơn Production TikTok**: đã có Creator demo `test`; còn đặt `DEMO_CREATOR_USERNAME`
+   trên Vercel + `.env.local`, quyết định có gán 1 kênh cho nó không (3 màn "của tôi" rỗng nếu
+   không), rồi dán "Apply Reason" đã soạn sẵn ở [docs/DISPLAY_API.md](docs/DISPLAY_API.md).
+2. **Commit + push 2 nhóm thay đổi rời nhau** trong working tree (cả hai đã test/lint/tsc sạch):
+   3 fix hiển thị dữ liệu ([docs/PROGRESS.md](docs/PROGRESS.md) mục `"0 view" giả ở tầng rollup`) và
+   chốt read-only cho tài khoản demo — commit riêng, đừng gộp.
+3. **Sáng 30/08: xác nhận `is_complete` đã lên `true`** bằng `node scripts/diagnose-data.mjs` mục A.
    Đây là điều kiện để "7 ngày qua" có số trở lại và để KPI tính được.
-3. **Import lại bộ zip Studio đã upload ngày 25/08** — dữ liệu 22-23/08 chỉ xuất hiện sau khi import
+4. **Import lại bộ zip Studio đã upload ngày 25/08** — dữ liệu 22-23/08 chỉ xuất hiện sau khi import
    lại (cửa sổ chốt cũ chỉ ghi tới 21/08, đã sửa code nhưng chưa import lại). Ngày 24/08 không nguồn
    nào có, tự đầy ở kỳ import sau (từ 26/08). **3/9 kênh chưa từng có `studio_import` nào** (Mộc Đi
    Rừng, Tiến Sĩ Sprout, Vườn Của Hant) → chưa chốt sổ KPI được.
-4. **Hỏi team: Bé Na có chủ ý xoá 7 video không?** (đăng 29/07→19/08, còn thấy ở snapshot 25/08, mất
+5. **Hỏi team: Bé Na có chủ ý xoá 7 video không?** (đăng 29/07→19/08, còn thấy ở snapshot 25/08, mất
    khỏi response 28/08). Code xử lý đúng, chỉ là chuyện vận hành cần biết.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó). Các

@@ -679,6 +679,10 @@ dựa trên dữ liệu đã có sẵn từ M3 trong đúng khoảng ngày của
 Chỉ làm nếu M0 cho thấy Display API không khả thi.
 
 - [ ] Nếu sandbox không đủ → nộp hồ sơ duyệt Display API chính thức (~1-2 tuần)
+      — nộp 26/08/2026, **bị từ chối 04/09/2026** vì Website URL trỏ tới trang login trần. Chốt
+      read-only cho tài khoản demo đã xong (`DEMO_CREATOR_USERNAME`); còn lại là việc vận hành:
+      Manager tạo Creator demo, đặt env trên Vercel, resubmit kèm credential ở ô "Apply Reason" —
+      [docs/DISPLAY_API.md](DISPLAY_API.md) mục "Nộp duyệt Production"
 - [ ] Nếu Display API bị từ chối → đánh giá vendor scraping (ScrapeCreators rẻ nhất, ~$47/25K credit)
       — lưu ý vi phạm ToS TikTok, chỉ dùng khi không còn lựa chọn
 - [ ] Nếu cả hai đều không được → bật `manual_entry` với đủ ràng buộc kiểm soát ([DATA_SOURCES.md](DATA_SOURCES.md))

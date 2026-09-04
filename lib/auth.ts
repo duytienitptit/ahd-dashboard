@@ -110,5 +110,43 @@ export async function requireManager(): Promise<AppUser> {
   if (user.role !== "manager") {
     throw new AuthorizationError(403, "Chỉ Manager được thực hiện thao tác này.");
   }
+  // Fail closed if `DEMO_CREATOR_USERNAME` is ever pointed at a Manager by mistake: the UI only
+  // hides Creator-reachable buttons, so without this a typo would hand a stranger delete-channel.
+  return demoGuard(user);
+}
+
+/**
+ * True for the read-only account whose username/password we hand to TikTok's app reviewer
+ * (04/09/2026 — the production submission was rejected because the Website URL is a login page, and
+ * TikTok's remedy is to publish test credentials in the Apply Reason field).
+ *
+ * A plain Creator is NOT read-only: assigned a channel, they can disconnect that channel's Display
+ * API grant, upload a Studio export over real snapshots, and rename the channel. None of that is
+ * something a stranger should reach, so writes are blocked for this one account.
+ *
+ * Driven by an env var rather than a column on purpose: no migration, and clearing
+ * `DEMO_CREATOR_USERNAME` on Vercel turns the account back into an ordinary Creator the moment the
+ * review is over (delete the account too — see docs/DISPLAY_API.md "Tài khoản demo cho reviewer").
+ */
+export function isDemoAccount(user: AppUser): boolean {
+  const demo = process.env.DEMO_CREATOR_USERNAME?.trim().toLowerCase();
+  return Boolean(demo) && user.username.toLowerCase() === demo;
+}
+
+/**
+ * `requireUser()` for every write path a Creator can reach. Read paths keep using `requireUser()` —
+ * the demo account is meant to browse the whole app, that is the point of handing it over.
+ *
+ * Server-side is the real gate, but hide the matching buttons in the UI too: a reviewer who clicks
+ * "Ngắt kết nối" and gets a 403 toast reads it as a broken app, which is its own rejection reason.
+ */
+export async function requireWritableUser(): Promise<AppUser> {
+  return demoGuard(await requireUser());
+}
+
+function demoGuard(user: AppUser): AppUser {
+  if (isDemoAccount(user)) {
+    throw new AuthorizationError(403, "Tài khoản demo chỉ xem được, không thay đổi dữ liệu.");
+  }
   return user;
 }

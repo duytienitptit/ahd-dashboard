@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { isDemoAccount, requireUser } from "@/lib/auth";
 import { listChannels } from "@/lib/channels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -28,7 +28,19 @@ export default async function ImportPage() {
         </p>
       </div>
 
-      <ImportClient channels={channelOptions} />
+      {isDemoAccount(user) ? (
+        // Tài khoản demo của reviewer TikTok — trang vẫn xem được (đó là điểm của việc bàn giao tài
+        // khoản), nhưng không dựng uploader: POST /api/channels/:id/import đằng sau trả 403 và một
+        // lỗi đỏ ở đây trông như app hỏng. Xem lib/auth.ts `isDemoAccount`.
+        <div className="rounded-card border border-line bg-surface px-[18px] py-4 text-[13px] leading-relaxed text-ink-2">
+          <div className="mb-1.5 font-bold text-ink">Tài khoản demo — chỉ xem</div>
+          Màn này để tải lên file export từ TikTok Studio (3-4 file <code>.zip</code> mỗi kênh, chạy
+          thứ Tư hàng tuần cho tuần trước đó). Số liệu trong đó được dùng để đối chiếu với số lấy
+          hằng ngày qua Display API, rồi mới chốt sổ KPI. Tài khoản demo không tải file lên được.
+        </div>
+      ) : (
+        <ImportClient channels={channelOptions} />
+      )}
     </div>
   );
 }
