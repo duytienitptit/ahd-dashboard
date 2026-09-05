@@ -1,7 +1,14 @@
 import Link from "next/link";
 
 import type { DashboardResponse } from "@/lib/dashboard";
-import { avatarPalette, formatCompact, formatFullDate, formatSignedNumber, initialsFromStart } from "@/lib/format";
+import {
+  avatarPalette,
+  formatCompact,
+  formatFullDate,
+  formatSignedCompact,
+  formatSignedNumber,
+  initialsFromStart,
+} from "@/lib/format";
 import type { KpiHealthValue } from "@/lib/kpi";
 import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
@@ -173,10 +180,18 @@ export function StatTile({
   );
 }
 
-/** The 4-tile row shared by the Manager and Creator "Tổng quan" headers — same data, same math. Just
- *  totals, no per-tile "so với kỳ trước" — that comparison lives in the trend chart right below
- *  instead of repeating on every tile (22/08/2026, theo yêu cầu). */
-export function TeamStatsRow({ teamStats }: { teamStats: DashboardResponse["teamStats"] }) {
+/** The 4-tile row shared by the Manager and Creator "Tổng quan" headers — same data, same math.
+ *  Value = the page's selected filter (`teamStats`); the small badge underneath is always "tuần
+ *  này" (`weekStats`, fixed Monday VN → today VN) regardless of that filter — reversed 22/08/2026's
+ *  "no per-tile delta, see trend chart instead" for this one fixed number (04/09/2026, theo yêu cầu).
+ */
+export function TeamStatsRow({
+  teamStats,
+  weekStats,
+}: {
+  teamStats: DashboardResponse["teamStats"];
+  weekStats: DashboardResponse["weekStats"];
+}) {
   return (
     <div className="mb-3.5 grid grid-cols-2 gap-3 lg:grid-cols-4">
       {/* "—" + a reason, never "0 view": a null total means no day could be measured, not that the
@@ -186,6 +201,8 @@ export function TeamStatsRow({ teamStats }: { teamStats: DashboardResponse["team
         value={teamStats.views.value !== null ? formatCompact(teamStats.views.value) : "—"}
         unit={teamStats.views.value !== null ? "view" : undefined}
         note={teamStats.views.value === null ? "chưa có số liệu kỳ này" : undefined}
+        deltaText={weekStats.views !== null ? `${formatSignedCompact(weekStats.views)} tuần này` : undefined}
+        deltaGood={weekStats.views !== null ? true : undefined}
         icon={<EyeIcon />}
         tone="blue"
       />
@@ -193,11 +210,32 @@ export function TeamStatsRow({ teamStats }: { teamStats: DashboardResponse["team
         label="Follower toàn team"
         value={formatCompact(teamStats.followers.value)}
         unit="follower"
+        deltaText={`${formatSignedNumber(weekStats.followers)} tuần này`}
+        deltaGood={true}
         icon={<UsersIcon />}
         tone="purple"
       />
-      <StatTile label="Video đã đăng" value={String(teamStats.videos.value)} unit="video" icon={<VideoIcon />} tone="orange" />
-      <StatTile label="Tổng số like" value={formatCompact(teamStats.totalLikes.value)} unit="like" icon={<HeartIcon />} tone="crimson" />
+      <StatTile
+        label="Video đã đăng"
+        value={String(teamStats.videos.value)}
+        unit="video"
+        deltaText={`${formatSignedNumber(weekStats.videos)} tuần này`}
+        deltaGood={true}
+        icon={<VideoIcon />}
+        tone="orange"
+      />
+      <StatTile
+        label="Tổng số like"
+        value={formatCompact(teamStats.totalLikes.value)}
+        unit="like"
+        // `0` ẩn hẳn badge thay vì hiện "+0 tuần này" — likes chỉ nhảy số khi Manager upload file
+        // Studio (1 lần/tuần), nên đầu tuần gần như luôn ra 0 và một badge "+0" ở đây đọc như "tuần
+        // này không có tương tác" trong khi sự thật là "chưa có dữ liệu" (theo yêu cầu 04/09/2026).
+        deltaText={weekStats.likes > 0 ? `${formatSignedCompact(weekStats.likes)} tuần này` : undefined}
+        deltaGood={weekStats.likes > 0 ? true : undefined}
+        icon={<HeartIcon />}
+        tone="crimson"
+      />
     </div>
   );
 }
@@ -306,10 +344,11 @@ export function KpiSummaryCard({ kpiSummary }: { kpiSummary: DashboardResponse["
 
 type ChannelListItem = { channelId: string; channelName: string };
 
-/** "Tăng trưởng follower" card. */
+/** "Tăng trưởng follower" card — always "tuần này" (fixed Monday VN → today VN), independent of the
+ *  page's period filter (04/09/2026, theo yêu cầu — xem lib/dashboard.ts `thisWeekRangeVn`). */
 export function GrowthCard({ growth }: { growth: DashboardResponse["growth"] }) {
   return (
-    <ListCard title="Tăng trưởng follower" subtitle="Số follower tăng thêm trong kỳ" empty={growth.length === 0}>
+    <ListCard title="Tăng trưởng follower" subtitle="Số follower tăng thêm trong tuần" empty={growth.length === 0}>
       {growth.map((g, i) => (
         <ChannelRow key={g.channelId} channel={g} index={i}>
           <div className="text-right">

@@ -96,7 +96,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             </div>
           ) : null}
 
-          <TeamStatsRow teamStats={dashboard.teamStats} />
+          <TeamStatsRow teamStats={dashboard.teamStats} weekStats={dashboard.weekStats} />
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-[1fr_320px]">
             <TrendChart

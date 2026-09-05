@@ -81,6 +81,15 @@ export function isoWeekStart(dateStr: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Monday of the current ISO week (VN calendar day) through today — the fixed "tuần này" window
+ *  `growth` and `weekStats` use, independent of whatever `[from, to]` the page is filtered to
+ *  (04/09/2026, theo yêu cầu: "tăng trưởng" phải luôn là tuần lịch thật, không lùi theo độ dài kỳ
+ *  đang chọn — kỳ "Toàn bộ thời gian" từng đẩy kỳ so sánh lùi về trước khi kênh tồn tại, ra "+0" giả). */
+export function thisWeekRangeVn(now?: Date): { from: string; to: string } {
+  const to = nowVnDateString(now);
+  return { from: isoWeekStart(to), to };
+}
+
 /** ISO week-number label ("T34"), matching design/Main.dc.html's trend-chart x-axis. */
 export function isoWeekLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -1172,6 +1181,21 @@ export type DashboardResponse = {
      *  detail still show it; CLAUDE.md's "chỉ số dẫn báo duy nhất" rule still holds there). */
     totalLikes: { value: number };
   };
+  /** Fixed "tuần này" window (Monday VN → today VN, see `thisWeekRangeVn`) — independent of `period`
+   *  above, so these numbers don't move when someone filters the page to a different range
+   *  (04/09/2026, theo yêu cầu). `growth` below is sourced from this same window. */
+  weekStats: {
+    /** `null` = not one channel has a measured view-day yet this week (e.g. Monday before the
+     *  nightly cron has run) — same "—", never "0 view" rule as `teamStats.views` (`sumViewsOrNull`). */
+    views: number | null;
+    followers: number;
+    videos: number;
+    /** Raw sum of `data_snapshot.likes` (studio_import only — Display API never writes likes) across
+     *  the week, no coverage gate. Days without a Studio import yet just contribute 0, so this reads
+     *  low until the weekly upload lands (theo yêu cầu 04/09/2026: hiện số hiện có, không chặn bằng
+     *  "chưa đủ dữ liệu" như `views` — likes chỉ cập nhật 1 lần/tuần nên gate sẽ luôn treo giữa tuần). */
+    likes: number;
+  };
   dataFreshness: DataFreshness;
   /** Deviates from docs/API_SPEC.md's original `{ metric, series }` (one series at a time) — the
    *  mockups' trend chart has a Lượt xem/Follower/Video tab-switcher, so all three are computed
@@ -1184,6 +1208,8 @@ export type DashboardResponse = {
     week: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
     month: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
   };
+  /** Per-channel follower gain over `weekStats`'s fixed "tuần này" window, NOT `period`
+   *  (04/09/2026, theo yêu cầu) — see `thisWeekRangeVn`. */
   growth: { channelId: string; channelName: string; followers: number; gain: number; ratePct: number | null }[];
   viewShare: { channelId: string; channelName: string; views: number; sharePct: number }[];
   efficiency: { channelId: string; channelName: string; videos: number; viewsPerVideo: number }[];
@@ -1227,6 +1253,8 @@ export async function getDashboard(
 ): Promise<DashboardResponse> {
   const { role, userId, from, to, creatorId, teamId } = params;
   const { comparedFrom, comparedTo } = previousPeriod(from, to);
+  const { from: weekFrom, to: weekTo } = thisWeekRangeVn();
+  const { comparedFrom: weekComparedFrom, comparedTo: weekComparedTo } = previousPeriod(weekFrom, weekTo);
   const weekTrendFrom = isoWeekStart(addDaysToDateString(to, -55)); // ~8 full ISO weeks, snapped to Monday
   // ~6 months back — enough to compare "tháng 7 với tháng 8" (docs/TASKS.md Đợt 2 #2), same 180-day
   // window channels/[id]/page.tsx's DailyTable already uses (HISTORY_DAYS), so this superset covers
@@ -1257,13 +1285,24 @@ export async function getDashboard(
   const channelIds = activeChannels.map((c) => c.id);
   const nameById = new Map(activeChannels.map((c) => [c.id, c.name]));
 
-  const [periodStats, trendRows, trendPostedDates, freshness, totalLikes] = await Promise.all([
-    getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo }),
-    fetchDailyRows(supabase, channelIds, monthTrendFrom, to),
-    fetchPostedVnDates(supabase, channelIds, monthTrendFrom, to),
-    fetchDataFreshness(supabase, channelIds),
-    sumLatestVideoLikes(supabase, channelIds),
-  ]);
+  const [periodStats, trendRows, trendPostedDates, freshness, totalLikes, weekPeriodStats, weekRows] =
+    await Promise.all([
+      getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo }),
+      fetchDailyRows(supabase, channelIds, monthTrendFrom, to),
+      fetchPostedVnDates(supabase, channelIds, monthTrendFrom, to),
+      fetchDataFreshness(supabase, channelIds),
+      sumLatestVideoLikes(supabase, channelIds),
+      // Independent of the page's own period filter — always the fixed "tuần này" window (see
+      // `thisWeekRangeVn`'s doc comment for why `period`'s comparedFrom/comparedTo isn't reused here).
+      getChannelPeriodStats(supabase, {
+        channelIds,
+        from: weekFrom,
+        to: weekTo,
+        comparedFrom: weekComparedFrom,
+        comparedTo: weekComparedTo,
+      }),
+      fetchDailyRows(supabase, channelIds, weekFrom, weekTo),
+    ]);
   // Week granularity is a subset of the 180-day fetch above — filtering in memory instead of a
   // second, near-duplicate query.
   const weekTrendRows = trendRows.filter((r) => r.date >= weekTrendFrom);
@@ -1293,10 +1332,17 @@ export async function getDashboard(
     sum((s) => s.previousViewsMeasuredDays),
   );
 
+  const weekStatsList = [...weekPeriodStats.values()];
+  const weekViews = sumViewsOrNull(weekStatsList.map((s) => s.views));
+  const weekFollowersGain = weekStatsList.reduce((acc, s) => acc + (s.followersGain ?? 0), 0);
+  const weekVideos = weekStatsList.reduce((acc, s) => acc + s.videos, 0);
+  const weekLikes = sumEngagementParts(weekRows).likes;
+
   // No `.slice()` here — every channel, not just a top-N (24/08/2026, theo yêu cầu: xem hết mọi
   // kênh, sẽ có nhiều kênh về sau). `ListCard` (dashboard-widgets.tsx) scrolls internally instead of
-  // the page growing unbounded.
-  const growth = stats
+  // the page growing unbounded. Sourced from `weekStatsList` (fixed "tuần này"), not `stats` (the
+  // page's own filter) — see `thisWeekRangeVn`'s doc comment.
+  const growth = weekStatsList
     .filter((s) => s.followersNow !== null)
     .map((s) => ({
       channelId: s.channelId,
@@ -1366,6 +1412,12 @@ export async function getDashboard(
             : null,
       },
       totalLikes: { value: totalLikes },
+    },
+    weekStats: {
+      views: weekViews,
+      followers: weekFollowersGain,
+      videos: weekVideos,
+      likes: weekLikes,
     },
     dataFreshness: freshness,
     trend: {

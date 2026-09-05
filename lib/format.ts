@@ -28,6 +28,13 @@ export function formatSignedNumber(n: number): string {
   return (rounded >= 0 ? "+" : "−") + Math.abs(rounded).toLocaleString("vi-VN");
 }
 
+/** "+1,2M" / "+470k" / "−12" — signed compact form, for deltas too large for `formatSignedNumber`'s
+ *  full grouping (view/like counts gained in a period). */
+export function formatSignedCompact(n: number): string {
+  const rounded = Math.round(n);
+  return (rounded >= 0 ? "+" : "−") + formatCompact(Math.abs(rounded));
+}
+
 /** "+12%" / "−5%" / "—" for a `null` (nothing to compare against). */
 export function formatDeltaPct(pct: number | null): string {
   if (pct === null) return "—";

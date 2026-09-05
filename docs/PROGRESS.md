@@ -1454,6 +1454,72 @@ parse ra key thì lộ ngay. Dùng `printf '\nX=y\n' >>` hoặc sửa file thay 
 **Quy trình resubmit + nội dung "Apply Reason"**: [docs/DISPLAY_API.md](DISPLAY_API.md) mục "Nộp duyệt
 Production — bị từ chối lần 1 vì Website URL".
 
+## weekStats — tăng trưởng theo tuần lịch cố định (04/09/2026, theo yêu cầu) — có gì dùng được ngay
+
+**Bug ban đầu:** ô "Tăng trưởng follower" ở Tổng quan hiện "+0" cho mọi kênh dù số follower tổng bên
+dưới không phải 0. Root cause: Tổng quan mặc định "Toàn bộ thời gian" (`from=2020-01-01`), nên "kỳ
+so sánh trước đó" (`previousPeriod()` — lùi lại đúng bằng độ dài `[from,to]`) bị đẩy lùi ~2.440 ngày
+trước 2020, tới thời điểm các kênh chưa hề tồn tại → `previousRows` rỗng → `followersBefore = null`
+→ `followersGain = null` — đúng ra là "không so sánh được", nhưng `growth` builder cũ coerce thẳng
+`gain: s.followersGain ?? 0`, biến "thiếu dữ liệu" thành "+0 follower" giả.
+
+**Quyết định (không chỉ vá bug, đổi hẳn ý nghĩa số liệu):** "Tăng trưởng follower" không còn nghĩa
+là "so với kỳ trước của bộ lọc đang chọn" nữa — nó luôn là **tuần lịch cố định** (thứ Hai giờ VN →
+hôm nay), độc lập với `?from=`/`?to=` trên trang. Cách này vừa sửa bug gốc (kỳ so sánh giờ chỉ lùi
+vài ngày về tuần trước, không còn lùi về trước khi kênh tồn tại), vừa đúng câu hỏi thật người dùng
+hay hỏi: "tuần này tăng bao nhiêu", không phải "so với kỳ trước của filter đang xem".
+
+**Implementation:**
+- `lib/dashboard.ts` `thisWeekRangeVn(now?)` — `{ from: isoWeekStart(nowVnDateString(now)), to:
+  nowVnDateString(now) }`. Tuần chưa hết (vd hôm nay thứ Năm) vẫn tính đến hôm nay luôn, không chờ
+  đủ 7 ngày (theo yêu cầu) — khác `viewsDeltaComparable`/`viewsDeltaInsufficientData` của views vốn
+  chặn số khi kỳ mỏng; ở đây người dùng muốn thấy số ngay cả khi tuần mới đi được vài ngày.
+- `getDashboard()` gọi thêm một lượt `getChannelPeriodStats()` với `{from: weekFrom, to: weekTo,
+  comparedFrom/comparedTo: previousPeriod(weekFrom, weekTo)}` — **không viết logic tính mới**, tái
+  dùng nguyên hàm cũ (đã đúng, chỉ là trước đây bị truyền sai date range) nên `views`/`followersGain`/
+  `videos` tuần này tự động đúng công thức, không có case đặc biệt nào phải thêm. Chạy song song
+  (cùng `Promise.all`) với các query khác — không tăng round-trip tuần tự (lưu ý hkg1 latency ở
+  CLAUDE.md), chỉ tăng số query.
+- `growth` (field cũ, dùng cho `GrowthCard`) đổi nguồn từ `periodStats` (bộ lọc trang) sang
+  `weekPeriodStats` (tuần cố định) — không đổi shape, chỉ đổi input.
+- `DashboardResponse.weekStats: { views: number|null; followers: number; videos: number; likes:
+  number }` (field mới) — nuôi 4 thẻ đầu Tổng quan (`TeamStatsRow`), mỗi thẻ thêm 1 dòng badge
+  "+N tuần này" bên dưới số tổng hiện có (badge dùng lại `StatTile`'s `deltaText`/`deltaGood`). Đây
+  là đảo ngược một phần quyết định 22/08/2026 "bỏ badge so-kỳ-trước ở 4 thẻ, xem trend chart thay" —
+  chỉ đảo cho đúng 1 con số cố định (tuần này), không phải "so với kỳ trước" theo filter như trước.
+  Views/Follower/Video luôn `deltaGood: true` (tô xanh lá) — không phải phán xét tốt/xấu thật, chỉ
+  dùng màu xanh để biểu diễn (theo yêu cầu 04/09/2026); 3 số này không thể âm nên không cần state
+  "xấu"/đỏ.
+- `weekStats.views`: `sumViewsOrNull` — vẫn giữ luật `null` ≠ `0` (vd sáng thứ Hai trước khi cron
+  chạy, chưa đo được ngày nào trong tuần → ẩn badge, không hiện "+0 view" giả).
+- `weekStats.likes`: **cân nhắc rồi chấp nhận** — tổng thô `sumEngagementParts(weekRows).likes`, đọc
+  qua `v_channel_daily` (đã ưu tiên nguồn) nhưng **không có gate độ phủ nào**. Lý do kỹ thuật: cột
+  `data_snapshot.likes` chỉ `studio_import` ghi (Display API không bao giờ ghi likes), và Manager chỉ
+  upload 1 lần/tuần (thứ Tư) — nghĩa là số này gần như luôn "thấp" từ thứ Hai tới thứ Tư, cho tới khi
+  file tuần đó được upload. Đã hỏi người dùng có nên thêm gate kiểu `viewsDeltaInsufficientData`
+  không — **quyết định: không**, cứ hiện số hiện có, chấp nhận đánh đổi (gate sẽ luôn treo giữa tuần
+  vì like chỉ có 1 nguồn cập nhật hằng tuần, khác hẳn views có cả Display API hằng ngày). Riêng khi
+  `weekStats.likes === 0` (đúng case "gần như luôn" nói trên) thì `TeamStatsRow` **ẩn hẳn badge**
+  thay vì hiện "+0 tuần này" (theo yêu cầu 04/09/2026, phát hiện ngay khi kiểm chứng bằng browser
+  thật — "+0" đọc như "tuần này không ai tương tác" trong khi sự thật là "chưa có dữ liệu"). Không
+  đụng tới quyết định 22/08/2026 "Tổng số like không theo kỳ, không badge so-kỳ-trước" ở phần **giá trị
+  chính** của thẻ — chỉ thêm 1 badge tuần độc lập bên dưới, giá trị chính (`teamStats.totalLikes`)
+  vẫn y nguyên logic cũ (`sumLatestVideoLikes`, cộng dồn mọi thời gian).
+- `formatSignedCompact()` (`lib/format.ts`) — bản compact (M/k) có dấu của `formatSignedNumber`, cho
+  view/like tuần (có thể lên tới hàng triệu, `formatSignedNumber`'s full grouping sẽ quá dài trên thẻ).
+
+**Không đổi:** `teamStats` (4 số chính + `deltaPct`/`deltaAbs` theo bộ lọc trang) — vẫn y nguyên, vẫn
+dùng cho export CSV. `viewShare`/`efficiency` vẫn theo bộ lọc trang (`periodStats`), không đổi sang
+tuần cố định — chỉ `growth` (follower) đổi, vì đó là ô người dùng chỉ ra bị "+0" giả.
+
+**Chỉ đổi 1 chỗ "trong kỳ" → "trong tuần"** trong UI: subtitle của `GrowthCard`
+(`app/(app)/dashboard-widgets.tsx`) — 7 chỗ "trong kỳ" khác trong code (KPI cycle finalize/tooltip
+views) **cố tình giữ nguyên**, vì chúng nói về chu kỳ KPI (quý/tháng), không phải tuần lịch — đổi
+cứng ở đó sẽ sai nghĩa.
+
+**Kiểm chứng:** chưa chạy `npx tsc --noEmit`/`npm run lint`/`npm test`/browser thật — cần làm trước
+khi commit (xem "Việc tiếp theo" #2 ở CLAUDE.md).
+
 ## Import nhầm kênh — hỏng dữ liệu thật 2 lần, đã dọn + đã có chặn (05/09/2026)
 
 **Phát hiện.** Người dùng upload bộ zip Studio, thấy bảng "Lệch >10%" báo 8 ngày lệch tới +35.112%,

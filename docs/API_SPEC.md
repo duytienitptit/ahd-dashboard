@@ -414,6 +414,17 @@ nhất trong các "studio_import mới nhất" của từng kênh, **không** ph
 (sửa 28/08/2026: lấy max khiến 1 kênh import tốt nói thay cho cả 9). `null` khi còn kênh chưa đối
 chiếu lần nào, và số kênh đó nằm ở `channelsNeverReconciled` — chúng chưa chốt sổ KPI được.
 
+`weekStats` (thêm 04/09/2026, theo yêu cầu) — tổng team trong **tuần lịch cố định** (thứ Hai giờ VN
+→ hôm nay), **không đổi theo `?from=`/`?to=`** đang chọn. Lý do: kỳ mặc định của Tổng quan là "Toàn
+bộ thời gian" (`from=2020-01-01`); nếu tăng trưởng tính "so với kỳ trước" theo đúng độ dài kỳ đó, kỳ
+so sánh bị đẩy lùi hàng nghìn ngày về trước khi kênh tồn tại → luôn ra `null` bị coerce thành "+0"
+giả (bug đã sửa). `weekStats.views` cùng luật `null` = "chưa đo được ngày nào" như `teamStats.views`
+(vd sáng thứ Hai, trước khi cron đêm chạy). `weekStats.likes` là tổng thô cột `data_snapshot.likes`
+(chỉ `studio_import` ghi, không gate theo độ phủ) — số sẽ thấp giữa tuần, tới khi Manager upload file
+Studio thứ Tư mới đủ, đây là đánh đổi có chủ đích (không chặn bằng "chưa đủ dữ liệu" vì like chỉ có
+1 nguồn cập nhật 1 lần/tuần, gate sẽ luôn treo). `growth` (bên dưới) cũng đổi sang lấy từ tuần cố
+định này thay vì `period` — xem lib/dashboard.ts `thisWeekRangeVn()`.
+
 `trend` trả **cả 2 mức chia** `week` (8 tuần gần nhất) và `month` (6 tháng gần nhất, thêm 21/08/2026
 — docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client chuyển đổi không cần gọi lại API, giống hệt
 cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm `{label, value}` có
@@ -434,6 +445,7 @@ vấn đề #7, 21/08/2026).
     "viewsPerVideo":  { "value": 21784, "deltaPct": -3 },
     "totalLikes":     { "value": 88400 }
   },
+  "weekStats": { "views": 512000, "followers": 340, "videos": 9, "likes": 6100 },
   "dataFreshness": { "latestDate": "2026-08-16", "source": "studio_import",
                      "label": "đã đối chiếu", "reconciledThrough": "2026-08-16",
                      "channelsNeverReconciled": 0 },
@@ -457,7 +469,7 @@ vấn đề #7, 21/08/2026).
 }
 ```
 
-**5 chỗ lệch so với bản đặc tả gốc:**
+**6 chỗ lệch so với bản đặc tả gốc:**
 
 1. **`channelCount`** (M4, 21/08/2026) — không có trong bản gốc. `growth`/`viewShare`/`efficiency`
    đều là top-5/6, không dùng được để suy ra tổng số kênh đang hoạt động cho dòng tiêu đề "N kênh" —
@@ -474,7 +486,10 @@ vấn đề #7, 21/08/2026).
    vì `kpi_cycle` chưa có row nào. `onTrack`/`atRisk`/`behind` đếm theo `health.value` của mọi cycle
    **đang chạy** (`activeOnly`) trong tập kênh này; `attention` liệt kê **toàn bộ** cycle `red`, không
    cắt top-N (theo đúng quyết định 24/08/2026 đã áp cho `growth`/`viewShare`/`efficiency`).
-5. **Tại sao 2 lệnh gọi, không phải 1**: `getDashboard()` (`lib/dashboard.ts`) không tự tính
+5. **`weekStats`** (04/09/2026, theo yêu cầu) — không có trong bản gốc. Tổng team trong tuần lịch
+   cố định (thứ Hai giờ VN → hôm nay), độc lập với `?from=`/`?to=` — xem đoạn giải thích phía trên.
+   `growth`'s `gain`/`ratePct` cũng đổi sang lấy từ cùng cửa sổ này thay vì `period`.
+6. **Tại sao 2 lệnh gọi, không phải 1**: `getDashboard()` (`lib/dashboard.ts`) không tự tính
    `kpiSummary`/`myChannels`' phần KPI — `lib/kpi.ts` đã import runtime từ `lib/dashboard.ts` (dùng
    lại `fetchDailyRows`/`groupByChannel`/... cho `attachProgress`), nên chiều ngược lại sẽ tạo vòng
    lặp import. Route/trang gọi `getDashboard()` trước, rồi `buildDashboardKpiSummary(supabase,
@@ -485,7 +500,7 @@ Khác biệt theo `role`:
 
 | Trường | `manager` | `creator` |
 | :--- | :--- | :--- |
-| `teamStats`, `trend`, `growth`, `viewShare`, `efficiency`, `channelCount`, `channels` | Có | Có (giống hệt) |
+| `teamStats`, `weekStats`, `trend`, `growth`, `viewShare`, `efficiency`, `channelCount`, `channels` | Có | Có (giống hệt) |
 | `kpiSummary` | Tổng hợp toàn team + danh sách cần chú ý | Có (giống hệt) — **sửa 25/08/2026 (M5)**, xem dưới |
 | `myChannels` | `null` | Mảng kênh đang phụ trách, kèm `progress` từng chỉ số và `hint` gợi ý hành động |
 
