@@ -12,6 +12,7 @@ import { parseViewersCsv } from "./viewers";
 import { parseFollowerActivityCsv } from "./follower-activity";
 import { parseFollowerGenderCsv, parseFollowerTerritoriesCsv } from "./audience";
 import { parseContentCsv } from "./content";
+import { detectChannelMismatch, mismatchMessage } from "./channel-guard";
 import { planStudioImport, type Discrepancy } from "./plan-import";
 import type { MergedDailyMetrics } from "./merge";
 
@@ -44,6 +45,34 @@ async function fetchLockedDates(supabase: SupabaseServerClient, channelId: strin
     }
   }
   return locked;
+}
+
+/**
+ * Chặn import nhầm kênh trước khi bất cứ dòng nào được ghi — xem lib/import/channel-guard.ts để
+ * biết bẫy này đã hỏng dữ liệu thật ra sao. Chạy cả ở `dryRun`, nên người import thấy lỗi ngay ở
+ * bước "3. Xem trước kết quả đọc file", không phải sau khi đã bấm "Lưu dữ liệu".
+ */
+async function assertChannelMatchesFiles(
+  supabase: SupabaseServerClient,
+  channelId: string,
+  filenames: string[],
+  videoLinks: string[],
+): Promise<void> {
+  const { data: channels, error } = await supabase.from("channel").select("id, name, tiktok_handle");
+  if (error) throw error;
+
+  const selected = (channels ?? []).find((c) => c.id === channelId);
+  if (!selected) throw new ValidationError("Không tìm thấy kênh đã chọn.");
+
+  const mismatch = detectChannelMismatch({
+    selectedHandle: selected.tiktok_handle,
+    filenames,
+    videoLinks,
+    knownChannels: (channels ?? []).map((c) => ({ name: c.name, tiktokHandle: c.tiktok_handle })),
+  });
+  if (mismatch) {
+    throw new ValidationError(mismatchMessage(mismatch, selected.name, selected.tiktok_handle));
+  }
 }
 
 function toDataSnapshotRow(channelId: string, date: string, m: MergedDailyMetrics, batchId: string) {
@@ -83,6 +112,16 @@ export async function runStudioImport(input: {
   if (missing.length > 0) {
     throw new ValidationError(`Thiếu file bắt buộc trong zip đã tải lên: ${missing.join(", ")}.`);
   }
+
+  // Content.csv được đọc sớm hơn chỗ nó được dùng (bên dưới) vì `video_link` trong đó là bằng chứng
+  // mạnh nhất để bắt import nhầm kênh — phải chặn trước khi parse/ghi bất cứ thứ gì khác.
+  const contentRows = entries.has("Content.csv") ? parseContentCsv(entries.get("Content.csv")!, exportDate) : [];
+  await assertChannelMatchesFiles(
+    supabase,
+    channelId,
+    input.files.map((f) => f.filename),
+    contentRows.map((r) => r.videoLink),
+  );
 
   const overviewRows = parseOverviewCsv(entries.get("Overview.csv")!, exportDate);
   const followerRows = parseFollowerHistoryCsv(entries.get("FollowerHistory.csv")!, exportDate);
@@ -146,7 +185,6 @@ export async function runStudioImport(input: {
   const territoryDistribution = entries.has("FollowerTopTerritories.csv")
     ? parseFollowerTerritoriesCsv(entries.get("FollowerTopTerritories.csv")!)
     : null;
-  const contentRows = entries.has("Content.csv") ? parseContentCsv(entries.get("Content.csv")!, exportDate) : [];
 
   if (!dryRun) {
     // One batch id stamped on every data_snapshot row this import writes (raw_file_ref), so a

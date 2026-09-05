@@ -327,6 +327,14 @@ xem [DATABASE_ERD.md](../docs/DATABASE_ERD.md) mục "Storage: bucket studio-imp
 [DATABASE_ERD.md](DATABASE_ERD.md) lý do: `FollowerActivity.csv` chỉ giữ 7 ngày/lần, cửa sổ không
 chồng giữa các tuần nên lọc sẽ mất dữ liệu vĩnh viễn).
 
+**Chặn import nhầm kênh — `400`, kiểm TRƯỚC mọi thứ khác (05/09/2026):** nếu chứng minh được bộ file
+thuộc về kênh khác `:id`, trả `400` và không ghi gì. Chạy cả khi `dryRun=true` nên bước "xem trước"
+đã báo lỗi. Bằng chứng: `@handle` trong `video_link` của `Content.csv`, hoặc handle nhúng trong tên
+file zip. Không đọc ra handle nào (file bị rename, không có `Content.csv`) thì **cho qua** — chỉ chặn
+khi chứng minh được. Chi tiết + lý do (đã hỏng dữ liệu thật 2 lần):
+[lib/import/channel-guard.ts](../lib/import/channel-guard.ts), [PROGRESS.md](PROGRESS.md) mục "Import
+nhầm kênh".
+
 **Chặn riêng, kiểm trước cả cửa sổ chốt (26/08/2026):** ngày nào đã nằm trong 1 `kpi_cycle`
 `status = final` thì **luôn** bị bỏ qua, bất kể cửa sổ chốt cho phép hay không — `data_snapshot`
 của ngày đó coi như bất biến kể từ lúc chốt (CLAUDE.md "status = final → khoá số liệu"). Vào

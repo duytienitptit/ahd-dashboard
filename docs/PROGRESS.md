@@ -1454,6 +1454,86 @@ parse ra key thì lộ ngay. Dùng `printf '\nX=y\n' >>` hoặc sửa file thay 
 **Quy trình resubmit + nội dung "Apply Reason"**: [docs/DISPLAY_API.md](DISPLAY_API.md) mục "Nộp duyệt
 Production — bị từ chối lần 1 vì Website URL".
 
+## Import nhầm kênh — hỏng dữ liệu thật 2 lần, đã dọn + đã có chặn (05/09/2026)
+
+**Phát hiện.** Người dùng upload bộ zip Studio, thấy bảng "Lệch >10%" báo 8 ngày lệch tới +35.112%,
+hỏi "có ổn không". Vòng 1 tôi kết luận nhầm là "bình thường, do sự cố cron 26–27/08" — sai, vì mới
+chỉ nhìn số chứ chưa đối chiếu chủ sở hữu dữ liệu. Vòng 2 người dùng nói "tôi vừa upload nhầm kênh":
+dropdown "1. Chọn kênh" đang ở **Bé Na**, còn file kéo thả tên `*_lam.nong.thong.thai.zip`.
+
+**Xác nhận bằng DB, không bằng suy đoán.** So từng dòng `data_snapshot` của 2 kênh: 60 dòng
+`studio_import` của Bé Na (06/07 → 03/09) **trùng khít 100%** với số thật của Làm Nông Thông Thái
+(follower 6.665 → 12.051, trong khi Bé Na thật chỉ ~840–1.400 theo `display_api`). Hai `created_at`
+khác nhau lộ ra việc này đã xảy ra **2 lần**: batch `2026-08-25T07:20` và batch `2026-09-05T03:11`.
+→ Bé Na **chưa từng có `studio_import` thật của chính nó**; mọi lần "đã đối chiếu" trước giờ đều là
+số của kênh khác. `dataFreshness`/`reconciledThrough` của Bé Na vì thế đã sai suốt từ 25/08.
+
+**Lan rộng hơn `data_snapshot`: 15 video bị ĐỔI CHỦ.** `run-import.ts` upsert `content_video` với
+`onConflict: "tiktok_video_id"` — video đã tồn tại thì bị UPDATE, và `channel_id` trong payload là
+kênh đang chọn → 15 video của Làm Nông Thông Thái bị kéo sang Bé Na (số video 2 kênh hoán đổi
+72↔57). Cách bắt: `video_link` chứa `@handle` thật, so với `channel.tiktok_handle` → đúng 15 dòng
+lệch, các kênh khác sạch.
+
+**Đã dọn** (script tạm + `--confirm`, có backup JSON ra `/tmp` trước khi chạy): xoá 60 dòng
+`studio_import` của Bé Na, trả 15 video về Làm Nông Thông Thái. Kiểm lại: 0 video gán sai, Bé Na
+không còn `studio_import` chồng lên `display_api`. Không mất gì vĩnh viễn vì `Đã khoá (đã chốt) = 0`
+— chưa chu kỳ KPI nào final trên vùng ngày đó.
+
+**Loại trừ được một nghi vấn cũ:** 7 video lệch của Bé Na (mục "Việc tiếp theo" #5 ở CLAUDE.md)
+KHÔNG phải do import nhầm — cả 57 video còn lại của Bé Na đều có `video_link` mang đúng
+`@c.ba.nng.sn2`. Câu hỏi "team có chủ ý xoá không" vẫn còn nguyên.
+
+**Cơ chế chặn** — `lib/import/channel-guard.ts` (hàm thuần, 13 test ở `channel-guard.test.ts`), gọi
+từ `runStudioImport` **trước mọi thao tác ghi và chạy cả khi `dryRun`**, nên lỗi hiện ngay ở bước
+"3. Xem trước kết quả đọc file". Hai bằng chứng, xếp theo độ tin cậy:
+
+1. `@handle` trong `video_link` của `Content.csv` — là nội dung file, rename không qua mặt được.
+2. Handle nhúng trong tên file zip Studio (`Overview_2026-07-06_1788400185_lam.nong.thong.thai.zip`)
+   — dùng khi không có `Content.csv` (file này không bắt buộc). So khớp handle **dài nhất trước** để
+   không nuốt nhầm handle lồng nhau.
+
+**Nguyên tắc: fail-closed khi chứng minh được lệch, fail-open khi không đọc ra handle nào** (file bị
+rename và không có Content.csv). Chặn nhầm một lần import thật thì người dùng đọc thông báo rồi sửa;
+cho lọt một lần thì hỏng dữ liệu âm thầm hàng tuần liền — đúng thứ vừa xảy ra. Riêng bằng chứng (1)
+chặn cả khi handle lạ chưa có trong hệ thống; nếu kênh vừa đổi `@handle` trên TikTok thì phải cập
+nhật handle trong hệ thống trước — thông báo lỗi nói rõ điều đó.
+
+**Kiểm chứng:** `npx tsc --noEmit` sạch, `npm run lint` sạch, `npm test` 218/218 (thêm 13 case). Chạy
+đầu-cuối qua đúng `runStudioImport` với zip thật dựng bằng JSZip + supabase giả, 4 kịch bản: có
+Content.csv → chặn (căn cứ link video); không Content.csv → chặn (căn cứ tên file); file rename +
+không Content.csv → cho qua; chọn đúng kênh → cho qua.
+
+**Việc còn lại cho vận hành:** import lại bộ file đó với dropdown đúng (**Làm Nông Thông Thái**), và
+export riêng file Studio **của chính Bé Na** rồi import — Bé Na hiện không có `studio_import` nào.
+
+### Audit mở rộng 05/09 — `follower_activity`/`audience_snapshot` cũng dính, đã dọn
+
+Sau khi người dùng đẩy lại đúng dữ liệu Làm Nông Thông Thái, audit toàn hệ thống (`diagnose-data.mjs`,
+`diagnose-oauth.mjs`, kiểm `video_snapshot`, kiểm `kpi_cycle` final có giao ngày nhiều nguồn — tất cả
+sạch) + xem bằng browser thật phát hiện thêm: mục **"Giờ vàng đăng bài"** ở `/channels/[id]` của Bé Na
+hiện "6.450 follower hoạt động" — vô lý với kênh 1,4k follower. `runStudioImport` ghi CÙNG lúc 4 bảng
+theo `channelId` đang chọn (`data_snapshot`, `content_video`, `follower_activity`, `audience_snapshot`)
+— đợt dọn trước chỉ xử lý 2 bảng đầu, bỏ sót 2 bảng sau.
+
+Xác nhận bằng cách so khớp với Làm Nông Thông Thái (cùng kỹ thuật đã dùng cho `data_snapshot`):
+- `follower_activity`: 168 dòng của Bé Na (2026-08-29 → 2026-09-04, đủ 24 giờ/ngày) trùng khít 100%
+  với Làm Nông Thông Thái theo `(date, hour, active_followers)`. Ngày 2026-08-24 có 7/24 giờ trùng
+  nhưng kiểm từng giờ riêng cho thấy chỉ là trùng ngẫu nhiên (cả 2 kênh đều `0` lúc nửa đêm, các giờ
+  ban ngày lệch hẳn) — **không xoá ngày này**, giữ làm dữ liệu thật của Bé Na.
+- `audience_snapshot`: cả 2 dòng hiện có của Bé Na (`captured_on` 2026-08-25 và 2026-09-05, đúng
+  ngày của 2 batch lỗi) trùng khít Làm Nông Thông Thái — Bé Na **chưa từng có** audience_snapshot
+  thật của chính nó.
+
+Đã xoá đúng 168 + 2 = 170 dòng (backup JSON ở `/tmp` trước khi xoá), kiểm lại bằng browser thật:
+"Giờ vàng đăng bài" của Bé Na chỉ còn 7 ngày thật (18/08–24/08, 13-85 follower hoạt động — đúng quy
+mô kênh). `video_snapshot` sạch (0 mồ côi, 0 lệch kênh — soát bằng truy vấn có phân trang, lần đầu
+quên phân trang bị Supabase cắt ở 1000 dòng, tưởng nhầm có 6 video lỗi). `kpi_cycle`: chỉ 1 cycle,
+đang `draft`, không có gì bị khoá nhầm bởi dữ liệu sai.
+
+**Sự cố 05/09 khép lại ở đây** — 4/4 bảng `runStudioImport` có thể ghi (`data_snapshot`,
+`content_video`, `follower_activity`, `audience_snapshot`) đã được xác nhận sạch cho cả 2 kênh liên
+quan, và guard `lib/import/channel-guard.ts` đã chặn tái diễn.
+
 ## Quy trình kiểm chứng bằng browser thật (dùng lại mỗi milestone có UI)
 
 Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách tạo **tài khoản QA tạm qua service role**
@@ -1461,3 +1541,4 @@ Từ M2 trở đi, mọi milestone có UI đều kiểm chứng bằng cách t�
 trình duyệt, click qua các màn, rồi **xoá tài khoản QA + revert mọi dữ liệu test đã tạo** trước khi
 báo xong — không để lại dấu vết trong DB thật. Khi cần đổi Creator của 1 kênh thật để kiểm chứng nhánh
 Creator, gán tạm rồi **gán lại đúng Creator cũ** sau khi xong, không chỉ gỡ về `null`.
+

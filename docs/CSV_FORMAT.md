@@ -120,6 +120,15 @@ Time, "Video title", "Video link", "Post time", "Total likes", "Total comments",
    `Content.csv` (snapshot ngay lúc export, đáng tin hơn tên file). Nếu vẫn cần đoạn số trong tên file
    Overview zip để tham khảo, phải **decode như Unix timestamp**, không phải chuỗi ID vô nghĩa.
 
+   ✅ **Đoạn `<kênh>` cuối tên file thì DÙNG ĐƯỢC** — đó là `@handle` thật, và
+   `lib/import/channel-guard.ts` dùng nó (cùng với `@handle` trong `video_link` của `Content.csv`) để
+   chặn import nhầm kênh. Chỉ đoạn `<ngày>` là rác, không phải cả tên file.
+
+8. **`video_link` trong `Content.csv` mang `@handle` của chủ kênh** —
+   `https://www.tiktok.com/@lam.nong.thong.thai/video/7412…`. Đây là bằng chứng mạnh nhất để biết bộ
+   file thuộc kênh nào (nội dung file, rename không qua mặt được), dùng cho guard chống import nhầm
+   kênh — xem [PROGRESS.md](PROGRESS.md) mục "Import nhầm kênh".
+
 ## ⏱ Độ trễ dữ liệu — 2 ngày
 
 Export thực hiện ngày **18/08**, nhưng dữ liệu thật chỉ có đến **16/08** trên cả 2 kênh:
