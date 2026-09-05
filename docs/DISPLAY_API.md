@@ -108,7 +108,7 @@ lỗi code/config phía app (redirect URI, client key đều bình thường). S
 tab **Sandbox** → **Target Users** → thêm tài khoản TikTok thật của kênh (chủ tài khoản cần xác nhận
 lời mời trong app TikTok), rồi mới bấm "Kết nối" lại.
 
-## Nộp duyệt Production — bị từ chối lần 1 vì Website URL (04/09/2026)
+## Nộp duyệt Production — bị từ chối lần 1 vì Website URL (TikTok đổi trạng thái 31/08/2026 19:02, phát hiện 04/09)
 
 Đơn nộp 26/08 bị trả về. Đúng **một** field bị chê: **Website URL**. Nguyên văn reviewer:
 
@@ -191,44 +191,49 @@ việc này, `channel_ownership_history` chỉ ghi lại chứ không hoàn tác
    không còn nút Kết nối/Ngắt kết nối; `/import` hiện dòng "Tài khoản demo chỉ xem".
 4. Sửa Website URL (giữ nguyên URL cũ) + dán "Apply Reason" dưới đây, resubmit.
 
-### Nội dung "Apply Reason" (dán nguyên, thay `<username>` / `<password>`)
+### Ô "Apply Reason" thực ra nằm ở đâu — và giới hạn 1000 ký tự
+
+Portal **không có** field tên "Apply Reason". Chỗ reviewer nói tới là ô ở mục **App review**:
+*"Explain how each product and scope works within your app or website. If submitting a revision,
+include the changes in this version."* — **tối đa 1000 ký tự**, và nó đang phải gánh cả phần giải
+thích scope. Đừng soạn văn bản dài rồi mới phát hiện không dán vừa.
+
+Bản đang dùng (986 ký tự, credential đặt lên đầu để reviewer đọc được ngay):
 
 ```
-AHD Dashboard is an internal analytics tool used by our company to track the
-9 TikTok accounts we own and operate. It is not a consumer product and there
-is no public sign-up, so the site is behind a login by design.
+Test account (the login form takes a USERNAME, not an email):
+https://ahd-dashboard-dusky.vercel.app/login
+username: test
+password: <mật khẩu>
+It is read-only: Connections shows status only, no authorize/revoke buttons.
 
-Test account:
-  URL:      https://ahd-dashboard-dusky.vercel.app/login
-  Username: <username>          (the form takes a USERNAME, not an email)
-  Password: <password>
+Changes in this version: added the test account above, as requested by the reviewer.
 
-The interface is in Vietnamese. After signing in the reviewer can see:
-  - Tổng quan (Overview): daily followers, video views and video counts, charted over time
-  - Kênh (Channels): all 9 channels, with per-channel detail, follower history
-    and per-video metrics
-  - KPI: internal targets computed from the same stored data
-  - Kết nối (Connections): where a channel owner authorizes our app via TikTok
-    Login and can revoke that authorization
+AHD Dashboard is an internal tool our own team uses to track performance of the 9 TikTok
+accounts we directly operate.
 
-This test account is read-only, so "Kết nối" (Connections) is empty for it and
-the authorize/revoke buttons are hidden. The authorization flow is used by the
-owners of our own channels; while the app is still in sandbox, an account that
-is not in our Sandbox Target Users cannot complete it anyway.
+Login Kit: each channel owner signs in with their own TikTok account through TikTok's OAuth
+screen to connect their channel. We never see their password.
 
-Scope usage:
-  - user.info.basic  — display name/avatar, and matching an authorized account
-                       to the correct channel record
-  - user.info.stats  — follower count and video count, stored daily to show growth
-  - video.list       — per-video view/like/comment/share counts, used to compute
-                       daily views per channel
+Scopes:
+- user.info.basic: identifies the authorized account.
+- user.info.stats: follower_count and video_count, charted over time.
+- video.list: per-video view/like/comment/share counts, to compute growth since the previous check.
 
-Data is stored only for internal reporting. It is never shared with third
-parties and never used for advertising.
-
-Privacy Policy: https://ahd-dashboard-dusky.vercel.app/privacy
-Terms of Service: https://ahd-dashboard-dusky.vercel.app/terms
+Data is stored privately and shown only to our own management team. Never public, never shared
+with third parties, never used for ads. Owners can revoke access anytime.
 ```
+
+### Bẫy quy trình trên portal
+
+- App đang ở trạng thái **Not approved** thì mọi field **read-only**. Phải bấm **Return to Draft**
+  (góc phải trên) → Confirm mới sửa được.
+- **Return to Draft chỉ có hiệu lực trong phiên đang mở.** Rời trang / reload trước khi bấm **Save**
+  là mất hết, app quay lại "Not approved". Sửa xong phải Save ngay, đừng điều hướng đi đâu.
+- Website URL đổi từ `…vercel.app/` sang **`…vercel.app/login`** — reviewer yêu cầu "update the
+  following fields", và trỏ thẳng vào trang login đỡ cho họ một cú `307` từ trang gốc.
+- Những thứ đã có sẵn, không phải làm lại: App icon, Terms/Privacy URL, Redirect URI, demo video
+  `0825.mp4`.
 
 ## Những gì Display API KHÔNG có
 
