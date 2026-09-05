@@ -1608,3 +1608,72 @@ trình duyệt, click qua các màn, rồi **xoá tài khoản QA + revert mọi
 báo xong — không để lại dấu vết trong DB thật. Khi cần đổi Creator của 1 kênh thật để kiểm chứng nhánh
 Creator, gán tạm rồi **gán lại đúng Creator cũ** sau khi xong, không chỉ gỡ về `null`.
 
+---
+
+## Badge độ phủ nguồn — phương án thay cho việc tách 2 tab Display/Studio (05/09/2026)
+
+**Bối cảnh.** Sau nhiều đợt sửa bug quanh việc trộn 2 nguồn (`"0 view"` giả ở tầng rollup, cửa sổ chốt
+`−3` → `−2` ngày, `undefined` ghi đè số thật, `studio_import` rỗng che `display_api`), câu hỏi đặt ra
+là **có nên tách hẳn 2 tab** — một tab hiện số Display API, một tab hiện số import file — để thôi phải
+hoà giải 2 nguồn.
+
+**Phép đo quyết định.** Đối chiếu cùng kênh, cùng ngày, 2 nguồn, trên dữ liệu production thật:
+
+| Ngày | Kênh | studio_import | display_api | tỷ lệ |
+| :--- | :--- | ---: | ---: | ---: |
+| 25/08 | Làm Nông Thông Thái | 511.286 | 6.735 | 75,9× |
+| 28/08 | Cùng Anh Đi Muôn Nơi | 328.909 | 32.926 | 10,0× |
+| 29/08 | Cùng Anh Đi Muôn Nơi | 3.550.424 | 2.282.168 | 1,6× |
+| 31/08 | Làm Nông Thông Thái | 306.497 | 227.471 | 1,3× |
+| 03/09 | Cùng Anh Đi Muôn Nơi | 659.092 | 547.306 | 1,2× |
+
+Hai ngày đầu lệch khủng khiếp vì `is_complete=false` (lỗ thủng cron 26–27/08). Nhưng **từ 29/08 trở đi,
+những ngày cron chạy đúng và `is_complete=true`, Display API vẫn thấp hơn Studio ổn định 1,2–1,6×.**
+Đây không phải bug: Display API cộng delta của những video nó lấy được; Studio báo tổng view thật của
+cả kênh, gồm cả video cũ vẫn đang được xem. **Hai nguồn đo hai thứ khác nhau.**
+
+Đó là lý do gốc của cả lớp bug trên: `v_channel_daily` chọn Studio cho ngày này, Display cho ngày kia,
+nên chuỗi thời gian **nhảy bậc 1,2–1,6× ngay tại ranh giới nguồn**, và mọi phép tính dựa trên nó (% so
+kỳ trước, tổng kỳ, tăng trưởng) thừa hưởng cái bậc đó. Không sửa được bằng code vì nó không phải lỗi
+code — đang cộng hai đơn vị đo vào một cột.
+
+**Quyết định: KHÔNG tách tab ở màn báo cáo.** Lý do (đã phản biện với người dùng, chốt 05/09/2026):
+
+1. Tab đẩy quyết định kỹ thuật xuống người dùng nghiệp vụ — Manager thấy 3.550.424 ở tab này và
+   2.282.168 ở tab kia, cả hai đều "đúng" theo cách đo của nó, và họ không có cơ sở để chọn. Hệ thống
+   này dùng để tính thưởng; con số phải là một.
+2. Nó đổi hình dạng lỗi chứ không xoá lỗi: từ "số nhảy bậc" thành "hai màn hai số, không biết tin cái
+   nào" — câu hỏi sau không có đáp án kỹ thuật nên không fix được.
+3. Đi ngược thiết kế gốc vốn đã đúng: CLAUDE.md định nghĩa 2 **tầng** (`tạm tính` dưới, `đã đối chiếu`
+   trên), quan hệ trên–dưới chứ không phải 2 lựa chọn ngang hàng.
+
+Thêm: gốc rễ thật là **vận hành**, không phải kiến trúc — 4/9 kênh chưa từng import lần nào, 3/9 dừng
+ở 21/08, chỉ 2/9 kênh import đều. Nếu 9/9 kênh import hàng tuần như đã thống nhất, phần trộn chỉ còn
+đúng 2 ngày cuối (độ trễ cố định của Studio). Tách tab là dựng ~2.500 dòng giải pháp kỹ thuật cho một
+vấn đề vận hành, và vẫn phải bảo trì 2 nhánh code sau khi vấn đề tự hết.
+
+**Đã làm thay thế: badge độ phủ nguồn** (`SourceCoverageBadge`, `app/(app)/source-coverage-badge.tsx`)
+trên Tổng quan, cạnh `DataFreshnessLine`. Giữ **một con số duy nhất** mọi màn, nhưng cho thấy con số
+đó dựa trên bao nhiêu phần số đã đối chiếu:
+
+- Badge: `"x% kỳ này đã đối chiếu"` — xanh ≥90%, vàng >0%, xám 0%.
+- Popover: bảng từng kênh (số ngày đối chiếu / tạm tính), kênh thiếu xếp trước, kèm dòng cảnh báo
+  `"n/9 kênh chưa có ngày nào đối chiếu — chưa chốt sổ KPI được"`.
+
+Đo trên dữ liệu thật lúc làm: "Toàn bộ thời gian" **82%** (291/356 ngày, 4/9 kênh trắng), "30 ngày qua"
+**61%**, **"7 ngày qua" chỉ 19%** (10/54 ngày, 7/9 kênh chưa đối chiếu) — chính con số Manager cần thấy
+trước khi đọc tổng view tuần này như số thật.
+
+**Bẫy thiết kế đã tránh:** không đo bằng "số kênh đã đối chiếu **đủ kỳ**". Studio trễ 2 ngày cố định
+nên ngày mới nhất của kỳ luôn là `display_api` → chỉ số đó sẽ đứng ở `0/9` vĩnh viễn, đúng về mặt kỹ
+thuật mà vô dụng. Đếm theo ô `(kênh, ngày)` thì thang đo mới nhúc nhích theo thực tế import.
+Cùng lý do, `aggregateSourceCoverage()` tính kênh **không có** entry trong `statsByChannel` là kênh
+chưa đối chiếu chứ không bỏ qua — im lặng bỏ qua sẽ làm badge đẹp lên đúng lúc dữ liệu tệ nhất.
+
+**Chưa làm (đề xuất kèm theo, chờ quyết định):**
+- Mở rộng `viewsDeltaComparable` sang chiều nguồn — ẩn `%` "so kỳ trước" khi 2 kỳ có **cơ cấu nguồn**
+  khác nhau, không chỉ khi thiếu ngày. Đây mới là chỗ cái bậc 1,2–1,6× lọt vào phép tính.
+- Badge tương tự trên `/channels`, `/channels/[id]`, Nhân sự, Team.
+- Màn "Chất lượng dữ liệu" riêng cho Manager — chỗ **duy nhất** việc so Studio vs Display cạnh nhau là
+  mục đích chứ không phải tác dụng phụ (kênh nào thiếu import, ngày nào lệch bao nhiêu, cron hụt ngày
+  nào). Tab hoá ở màn công cụ thì đúng, ở màn báo cáo thì sai.

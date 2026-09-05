@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateChannelStats,
   aggregateHashtagStats,
+  aggregateSourceCoverage,
+  computeSourceBreakdown,
   bucketMonthlyViews,
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
@@ -197,6 +199,7 @@ function channelStat(partial: Partial<ChannelPeriodStat> & { channelId: string }
     followersGain: null,
     followersRatePct: null,
     spark: [],
+    sourceBreakdown: { reconciledDays: 0, estimatedDays: 0, otherDays: 0 },
     ...partial,
   };
 }
@@ -591,5 +594,80 @@ describe("buildActivityHeatmap", () => {
     expect(heatmap.grid[3][1]).toBe(10);
     expect(heatmap.grid[0][0]).toBeNull();
     expect(heatmap.max).toBe(300);
+  });
+});
+
+describe("computeSourceBreakdown", () => {
+  it("counts each resolved day into exactly one tier — the three counts always sum to the row count", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-09-01", source: "studio_import" }),
+      row({ channelId: "a", date: "2026-09-02", source: "studio_import" }),
+      row({ channelId: "a", date: "2026-09-03", source: "display_api" }),
+      row({ channelId: "a", date: "2026-09-04", source: "manual_entry" }),
+    ];
+    expect(computeSourceBreakdown(rows)).toEqual({ reconciledDays: 2, estimatedDays: 1, otherDays: 1 });
+  });
+
+  it("counts an is_complete=false day as a source day — the badge answers 'số này lấy từ đâu', not 'ngày này có được cộng vào tổng không'", () => {
+    const rows = [row({ channelId: "a", date: "2026-08-28", source: "display_api", isComplete: false })];
+    expect(computeSourceBreakdown(rows)).toEqual({ reconciledDays: 0, estimatedDays: 1, otherDays: 0 });
+  });
+
+  it("returns all zeros for a period with no rows at all", () => {
+    expect(computeSourceBreakdown([])).toEqual({ reconciledDays: 0, estimatedDays: 0, otherDays: 0 });
+  });
+});
+
+describe("aggregateSourceCoverage", () => {
+  const channels = [
+    { id: "a", name: "Kênh A" },
+    { id: "b", name: "Kênh B" },
+  ];
+
+  it("sums cells across channels and counts a channel as fully reconciled only when EVERY measured day is studio_import", () => {
+    const stats = new Map([
+      ["a", channelStat({ channelId: "a", sourceBreakdown: { reconciledDays: 7, estimatedDays: 0, otherDays: 0 } })],
+      ["b", channelStat({ channelId: "b", sourceBreakdown: { reconciledDays: 2, estimatedDays: 5, otherDays: 0 } })],
+    ]);
+    const coverage = aggregateSourceCoverage(channels, stats);
+
+    expect(coverage.measuredCells).toBe(14);
+    expect(coverage.reconciledCells).toBe(9);
+    expect(coverage.fullyReconciledChannels).toBe(1);
+    expect(coverage.unreconciledChannels).toBe(0);
+    expect(coverage.totalChannels).toBe(2);
+  });
+
+  it("counts a channel with NO stats entry as unreconciled — a channel that never imported must not be silently dropped, which would flatter the badge exactly when the data is worst (4/9 kênh chưa từng import, 05/09/2026)", () => {
+    const stats = new Map([
+      ["a", channelStat({ channelId: "a", sourceBreakdown: { reconciledDays: 7, estimatedDays: 0, otherDays: 0 } })],
+    ]);
+    const coverage = aggregateSourceCoverage(channels, stats);
+
+    expect(coverage.unreconciledChannels).toBe(1);
+    expect(coverage.totalChannels).toBe(2);
+    expect(coverage.perChannel).toHaveLength(2);
+    expect(coverage.perChannel.find((c) => c.channelId === "b")).toEqual({
+      channelId: "b",
+      channelName: "Kênh B",
+      reconciledDays: 0,
+      estimatedDays: 0,
+      otherDays: 0,
+    });
+  });
+
+  it("does not count an empty channel as fully reconciled — 0 measured days is 'chưa có gì', not 'sạch'", () => {
+    const coverage = aggregateSourceCoverage(channels, new Map());
+    expect(coverage.fullyReconciledChannels).toBe(0);
+    expect(coverage.unreconciledChannels).toBe(2);
+    expect(coverage.measuredCells).toBe(0);
+  });
+
+  it("sorts the least-reconciled channel first, so the popover opens on the work that needs doing", () => {
+    const stats = new Map([
+      ["a", channelStat({ channelId: "a", sourceBreakdown: { reconciledDays: 7, estimatedDays: 0, otherDays: 0 } })],
+      ["b", channelStat({ channelId: "b", sourceBreakdown: { reconciledDays: 0, estimatedDays: 7, otherDays: 0 } })],
+    ]);
+    expect(aggregateSourceCoverage(channels, stats).perChannel.map((c) => c.channelId)).toEqual(["b", "a"]);
   });
 });

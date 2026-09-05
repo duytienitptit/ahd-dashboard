@@ -13,6 +13,7 @@ import type { KpiHealthValue } from "@/lib/kpi";
 import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
 import { KPI_HEALTH_LABEL } from "./kpi/kpi-widgets";
+import { SourceCoverageBadge } from "./source-coverage-badge";
 import { SourcePriorityInfo } from "./source-priority-info";
 
 const KPI_DOT: Record<KpiHealthValue, string> = { green: "bg-green", yellow: "bg-amber", red: "bg-red" };
@@ -243,9 +244,13 @@ export function TeamStatsRow({
 export function DataFreshnessLine({
   channelCount,
   freshness,
+  sourceCoverage,
 }: {
   channelCount: number;
   freshness: DashboardResponse["dataFreshness"];
+  /** Độ phủ nguồn của kỳ đang chọn. Khác `freshness`, chỉ nói về ngày mới nhất — hai câu hỏi khác
+   *  nhau ("số mới tới đâu" vs "số trong kỳ đang xem đáng tin tới đâu"), nên đứng cạnh nhau. */
+  sourceCoverage: DashboardResponse["sourceCoverage"];
 }) {
   if (!freshness.latestDate) {
     return (
@@ -285,6 +290,7 @@ export function DataFreshnessLine({
           {freshness.channelsNeverReconciled} kênh chưa đối chiếu lần nào
         </span>
       ) : null}
+      <SourceCoverageBadge coverage={sourceCoverage} />
       <SourcePriorityInfo />
     </div>
   );

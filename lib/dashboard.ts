@@ -907,6 +907,45 @@ export async function fetchActivityHeatmap(
 // derived per-channel numbers (so a caller showing one row doesn't have to redo that math).
 // ---------------------------------------------------------------------------
 
+/**
+ * How many of one channel's measured days in a period came from each source tier.
+ *
+ * Lý do tồn tại (05/09/2026, theo yêu cầu — phương án "badge độ phủ nguồn" thay cho việc tách 2 tab
+ * Display API / Studio): một kỳ trộn 2 nguồn thì tổng của nó đang CỘNG HAI ĐƠN VỊ ĐO KHÁC NHAU.
+ * Display API cộng delta của những video nó lấy được; Studio báo tổng view thật của cả kênh, gồm cả
+ * video cũ vẫn đang được xem. Đo trên dữ liệu thật 29/08→03/09 (những ngày `is_complete=true`, cron
+ * chạy đúng, không thiếu gì): Studio cao hơn Display **ổn định 1,2–1,6×**, và ở 2 ngày sync đầu còn
+ * lệch tới 10–76×. Vì `v_channel_daily` chọn Studio cho ngày này, Display cho ngày kia, chuỗi thời
+ * gian nhảy bậc ngay tại ranh giới nguồn — Manager phải nhìn thấy tỷ lệ đó trước khi tin con số.
+ *
+ * "Đã đối chiếu" đếm ĐÚNG `studio_import` — tầng duy nhất CLAUDE.md cho phép chốt sổ. Ngày không có
+ * row nào không được đếm ở đây: đó là lỗ thủng dữ liệu, không phải một nguồn (xem `SourceCoverage`).
+ */
+export type SourceBreakdown = {
+  /** Ngày lấy từ `studio_import` — số đã đối chiếu, dùng được để chốt sổ. */
+  reconciledDays: number;
+  /** Ngày lấy từ `display_api` — số tạm tính, còn đổi khi Studio import về. */
+  estimatedDays: number;
+  /** `manual_entry` và mọi nguồn khác `source_rank()` xếp ở giữa (chưa nguồn nào trong số đó được
+   *  code ghi dữ liệu hôm nay — xem `SourcePriorityInfo`). Gộp một ô để badge không phải kể tên
+   *  từng nguồn Manager chưa từng thấy. */
+  otherDays: number;
+};
+
+/** Đếm nguồn của các ngày ĐÃ RESOLVE qua `v_channel_daily` (mỗi (kênh, ngày) đúng một row, đã chọn
+ *  nguồn ưu tiên nhất) — nên tổng 3 ô luôn bằng `rows.length`, không đếm trùng. */
+export function computeSourceBreakdown(rows: DailyRow[]): SourceBreakdown {
+  let reconciledDays = 0;
+  let estimatedDays = 0;
+  let otherDays = 0;
+  for (const row of rows) {
+    if (row.source === "studio_import") reconciledDays++;
+    else if (row.source === "display_api") estimatedDays++;
+    else otherDays++;
+  }
+  return { reconciledDays, estimatedDays, otherDays };
+}
+
 export type ChannelPeriodStat = {
   channelId: string;
   /** `null` = not one synced day this period has a known, COMPLETE videoViews (a channel that just
@@ -942,7 +981,67 @@ export type ChannelPeriodStat = {
    *  input on `/channels` (24/08/2026, theo yêu cầu — trước đây là view theo ngày trong kỳ, xem
    *  `fetchRecentVideoViewsByChannel`). Independent of the selected date range/period. */
   spark: RecentVideoView[];
+  /** Nguồn của từng ngày trong kỳ HIỆN TẠI (không tính kỳ so sánh) — xem `SourceBreakdown`. Đếm mọi
+   *  ngày có row, kể cả `isComplete=false`: badge trả lời "số này lấy từ đâu", câu hỏi độc lập với
+   *  "ngày này có được tính vào tổng không" (`viewsMeasuredDays` mới trả lời câu đó). */
+  sourceBreakdown: SourceBreakdown;
 };
+
+/** Độ phủ nguồn của cả tập kênh trong một kỳ — đầu vào của badge "x/y đã đối chiếu" trên Tổng quan. */
+export type SourceCoverage = {
+  /** Số ô (kênh, ngày) CÓ dữ liệu trong kỳ. Mẫu số của badge. Không phải `số kênh × số ngày`: ngày
+   *  không sync được không tính vào đâu cả (lỗ thủng là chuyện khác, `dataFreshness` nói việc đó). */
+  measuredCells: number;
+  /** Trong `measuredCells`, bao nhiêu ô là `studio_import`. Tử số của badge. */
+  reconciledCells: number;
+  /** Kênh có ít nhất 1 ngày dữ liệu trong kỳ và MỌI ngày đó đều `studio_import` — kênh "sạch" theo
+   *  nghĩa chốt sổ được. Cùng nguyên tắc `DataFreshness.reconciledThrough`: một kênh import tốt
+   *  không được nói thay cho cả tập. */
+  fullyReconciledChannels: number;
+  /** Kênh không có ô `studio_import` nào trong kỳ — gồm cả kênh trống hẳn. Đây là con số Manager
+   *  hành động được: chính là danh sách cần đi đòi file Studio. */
+  unreconciledChannels: number;
+  totalChannels: number;
+  /** Chi tiết từng kênh cho popover, sắp xếp kênh thiếu đối chiếu lên trước (việc cần làm nằm trên). */
+  perChannel: {
+    channelId: string;
+    channelName: string;
+    reconciledDays: number;
+    estimatedDays: number;
+    otherDays: number;
+  }[];
+};
+
+/** Gộp `ChannelPeriodStat.sourceBreakdown` của cả tập kênh thành một `SourceCoverage`. Kênh không có
+ *  entry trong `statsByChannel` vẫn được tính là một kênh chưa đối chiếu — im lặng bỏ qua nó sẽ làm
+ *  badge đẹp lên đúng ở tình huống dữ liệu tệ nhất (kênh chưa từng import lần nào). */
+export function aggregateSourceCoverage(
+  channels: { id: string; name: string }[],
+  statsByChannel: Map<string, ChannelPeriodStat>,
+): SourceCoverage {
+  const perChannel = channels.map((channel) => {
+    const breakdown = statsByChannel.get(channel.id)?.sourceBreakdown ?? {
+      reconciledDays: 0,
+      estimatedDays: 0,
+      otherDays: 0,
+    };
+    return { channelId: channel.id, channelName: channel.name, ...breakdown };
+  });
+
+  const cells = (c: (typeof perChannel)[number]) => c.reconciledDays + c.estimatedDays + c.otherDays;
+
+  return {
+    measuredCells: perChannel.reduce((acc, c) => acc + cells(c), 0),
+    reconciledCells: perChannel.reduce((acc, c) => acc + c.reconciledDays, 0),
+    fullyReconciledChannels: perChannel.filter((c) => cells(c) > 0 && c.reconciledDays === cells(c)).length,
+    unreconciledChannels: perChannel.filter((c) => c.reconciledDays === 0).length,
+    totalChannels: channels.length,
+    // Kênh thiếu đối chiếu nhất lên đầu; hoà thì theo tên để thứ tự ổn định giữa các lần render.
+    perChannel: perChannel.sort(
+      (a, b) => a.reconciledDays - b.reconciledDays || a.channelName.localeCompare(b.channelName, "vi"),
+    ),
+  };
+}
 
 export type RollupStat = {
   /** `null` = not one channel in the set had a measurable view-day this period — render "—", never
@@ -1134,6 +1233,7 @@ export async function getChannelPeriodStats(
       followersRatePct:
         followersGain !== null && followersBefore ? Math.round((followersGain / followersBefore) * 1000) / 10 : null,
       spark: recentVideoViews.get(channelId) ?? [],
+      sourceBreakdown: computeSourceBreakdown(currentRows),
     });
   }
 
@@ -1197,6 +1297,9 @@ export type DashboardResponse = {
     likes: number;
   };
   dataFreshness: DataFreshness;
+  /** Độ phủ nguồn của KỲ ĐANG CHỌN (`period` ở trên) — khác `dataFreshness`, vốn chỉ nói về ngày mới
+   *  nhất. Xem `SourceBreakdown` để biết vì sao Manager cần con số này. */
+  sourceCoverage: SourceCoverage;
   /** Deviates from docs/API_SPEC.md's original `{ metric, series }` (one series at a time) — the
    *  mockups' trend chart has a Lượt xem/Follower/Video tab-switcher, so all three are computed
    *  server-side instead of adding a `?metric=` param the client would have to refetch on every
@@ -1420,6 +1523,9 @@ export async function getDashboard(
       likes: weekLikes,
     },
     dataFreshness: freshness,
+    // Từ `periodStats` (kỳ đang chọn), KHÔNG phải `weekPeriodStats` — badge phải mô tả đúng con số
+    // người dùng đang nhìn, và con số đó chạy theo bộ lọc kỳ trên trang.
+    sourceCoverage: aggregateSourceCoverage(activeChannels, periodStats),
     trend: {
       week: {
         views: bucketWeeklyViews(weekTrendRows).slice(-8),

@@ -56,7 +56,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Tổng quan dữ liệu</h1>
-            <DataFreshnessLine channelCount={channelCount} freshness={dashboard.dataFreshness} />
+            <DataFreshnessLine
+              channelCount={channelCount}
+              freshness={dashboard.dataFreshness}
+              sourceCoverage={dashboard.sourceCoverage}
+            />
           </div>
           <div className="flex items-center gap-2">
             <TeamFilterSelect teams={teams.map((t) => ({ id: t.id, name: t.name }))} selected={teamId} />

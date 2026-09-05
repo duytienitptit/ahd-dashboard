@@ -425,6 +425,23 @@ Studio thứ Tư mới đủ, đây là đánh đổi có chủ đích (không c
 1 nguồn cập nhật 1 lần/tuần, gate sẽ luôn treo). `growth` (bên dưới) cũng đổi sang lấy từ tuần cố
 định này thay vì `period` — xem lib/dashboard.ts `thisWeekRangeVn()`.
 
+`sourceCoverage` (thêm 05/09/2026, theo yêu cầu) — độ phủ nguồn của **kỳ đang chọn**, khác
+`dataFreshness` vốn chỉ nói về ngày mới nhất. Đếm theo ô `(kênh, ngày)` **có dữ liệu**:
+`reconciledCells`/`measuredCells` là tử/mẫu của badge "x% kỳ này đã đối chiếu";
+`unreconciledChannels` là số kênh không có ngày `studio_import` nào trong kỳ (gồm cả kênh trống
+hẳn — kênh chưa entry vẫn được tính là chưa đối chiếu, im lặng bỏ qua sẽ làm badge đẹp lên đúng lúc
+dữ liệu tệ nhất). `perChannel` sắp kênh thiếu đối chiếu lên trước.
+
+Lý do tồn tại: `v_channel_daily` chọn Studio cho ngày này, Display API cho ngày kia, mà **hai nguồn
+đo hai thứ khác nhau** — Display cộng delta của những video nó lấy được, Studio báo tổng view thật cả
+kênh. Đo trên dữ liệu thật 29/08→03/09 (ngày `is_complete=true`, cron chạy đúng, không thiếu gì):
+Studio cao hơn Display **ổn định 1,2–1,6×**; ở 2 ngày sync đầu (25/08, 28/08) còn lệch 10–76×. Nên
+tổng của một kỳ trộn nguồn là tổng của hai đơn vị đo, và Manager phải thấy tỷ lệ trước khi tin nó.
+Cố tình **không** đo bằng "số kênh đã đối chiếu đủ kỳ": Studio trễ 2 ngày cố định nên ngày mới nhất
+luôn là `display_api`, chỉ số đó sẽ đứng ở 0/9 vĩnh viễn. Nguồn: `aggregateSourceCoverage()` trong
+`lib/dashboard.ts`. Quyết định chọn badge thay vì tách 2 tab Display/Studio: xem
+[PROGRESS.md](PROGRESS.md) mục "Badge độ phủ nguồn".
+
 `trend` trả **cả 2 mức chia** `week` (8 tuần gần nhất) và `month` (6 tháng gần nhất, thêm 21/08/2026
 — docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client chuyển đổi không cần gọi lại API, giống hệt
 cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm `{label, value}` có
@@ -449,6 +466,10 @@ vấn đề #7, 21/08/2026).
   "dataFreshness": { "latestDate": "2026-08-16", "source": "studio_import",
                      "label": "đã đối chiếu", "reconciledThrough": "2026-08-16",
                      "channelsNeverReconciled": 0 },
+  "sourceCoverage": { "measuredCells": 356, "reconciledCells": 291,
+                      "fullyReconciledChannels": 0, "unreconciledChannels": 4, "totalChannels": 9,
+                      "perChannel": [{ "channelId": "...", "channelName": "Bé Na",
+                                       "reconciledDays": 0, "estimatedDays": 9, "otherDays": 0 }] },
   "trend": {
     "week":  { "views": [{ "label": "T27", "value": 1820000 }],
                "followers": [{ "label": "T27", "value": 51200 }],
