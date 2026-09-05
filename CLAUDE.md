@@ -55,6 +55,14 @@ Biến môi trường: `.env.example`.
   dashboard (khớp cách `lib/kpi.ts` loại khỏi KPI). Lý do: cửa sổ tính từ hôm nay luôn hụt đuôi (hôm
   nay chưa sync + Studio trễ 2 ngày) → cộng thô "ngày có số" của kỳ mỏng chia cho kỳ đủ ra −90% giả
   (27/08/2026). `/channels` mặc định "7 ngày qua"; các trang khác vẫn "Toàn bộ thời gian".
+- **"Tăng trưởng follower" (ô Tổng quan) và `weekStats` (4 thẻ đầu Tổng quan) luôn là tuần lịch cố
+  định** (thứ Hai giờ VN → hôm nay, `lib/dashboard.ts` `thisWeekRangeVn()`), **không** phụ thuộc bộ
+  lọc `?from=`/`?to=` đang chọn trên trang (04/09/2026, theo yêu cầu). Lý do: kỳ mặc định "Toàn bộ
+  thời gian" từng đẩy kỳ so sánh lùi về trước khi kênh tồn tại → `followersGain = null` bị coerce
+  thành "+0" giả (bug đã sửa). `weekStats.likes` là tổng thô `data_snapshot.likes` (chỉ
+  `studio_import` ghi, không gate độ phủ như views) — số sẽ thấp giữa tuần tới khi Manager upload
+  file Studio thứ Tư, đánh đổi có chủ đích (theo yêu cầu, không chặn bằng "chưa đủ dữ liệu"). Chi
+  tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "weekStats — tăng trưởng theo tuần lịch cố định".
 - ⚠️ **Không dùng `Content.csv` để đếm số video** — cap cứng 15 dòng, bỏ sót video mới nhất, thứ tự
   không đoán được (đã kiểm chứng trên data thật). Số video lấy từ `video_count` của Display API.
   `Content.csv` chỉ dùng cho thư viện top video (P1).
@@ -151,39 +159,42 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: audit production — cron đã xác nhận tự chạy, đã sửa 3 lỗi hiển thị dữ liệu
-(chưa commit).** M6 (chốt sổ KPI) + `/kpi` danh sách kênh + M5 (KPI Cycle) + M4 + M3c + Đợt 1/2 +
-Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh thật + bỏ lưu zip Storage
-— tất cả đã lên `main`. Chi tiết từng milestone: [docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên
-mục). Checklist: [docs/TASKS.md](docs/TASKS.md).
+**Milestone hiện tại: audit production xong — cron ổn định, 5 commit mới đã lên `main` (chặn import
+nhầm kênh, `weekStats` theo tuần lịch cố định, badge độ phủ nguồn, cập nhật hồ sơ resubmit TikTok,
+dọn mục Trạng thái này); chưa `push`.** M6 (chốt sổ KPI) + `/kpi` danh sách kênh + M5 (KPI Cycle) +
+M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh
+thật + bỏ lưu zip Storage — tất cả đã lên `main`. Chi tiết từng milestone:
+[docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên mục). Checklist: [docs/TASKS.md](docs/TASKS.md).
 
-✅ **Cron `display_api` đã tự chạy — xác nhận 29/08/2026.** `last_sync_at` cả 9 kênh
-`2026-08-28T16:48:20Z` = 23:48 VN, trong 1,1 giây, `ok` toàn bộ (trễ 18 phút so với lịch 23:30 là
-bình thường với Vercel Cron). Gốc lỗi cũ: `proxy.ts` thiếu `/api/sync/display-api` trong
-`PUBLIC_PATHS` → Cron ăn `307 → /login`. Ngày 26–27/08 mất vĩnh viễn (API không có lịch sử theo
-ngày). Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Cron display_api chưa từng chạy" +
-[docs/DISPLAY_API.md](docs/DISPLAY_API.md) bẫy #14.
+✅ **Cron `display_api` chạy ổn định từ 29/08** — không thủng ngày nào tới 04/09.
+`is_complete=false` chỉ còn ở 25/08 và 28/08 (hệ quả một lần của khoảng thủng cron 26–27/08, đã tự
+khỏi như dự đoán — xác nhận bằng `node scripts/diagnose-data.mjs` mục A). Gốc lỗi cron cũ + chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Cron display_api chưa từng chạy".
 
-🟡 **`is_complete = false` toàn bộ — hệ quả một lần của khoảng thủng 26–27/08, tự khỏi sau cron đêm
-29/08.** 35 video đăng trong 2 ngày cron không chạy chỉ lộ ra ở lần sync 28/08 → `computeViewsDelta`
-xếp vào `lateDiscoveredVideoIds` → `isComplete` bị hạ (đúng thiết kế: đóng góp của chúng cho ngày đó
-là *không biết*, không phải *0*). Hệ quả: dữ liệu 28/08 có nhưng bị loại khỏi KPI + tổng views, nên
-"7 ngày qua" vẫn trống. Đã kiểm: **0 video đăng sau 23:48 ngày 28/08** → không còn nguồn
-late-discovered. Xác nhận sáng 30/08: `node scripts/diagnose-data.mjs` mục A, cờ `⚠ is_complete=false`
-phải biến mất.
+🎯 **Badge độ phủ nguồn thay cho tách 2 tab Display API/Studio (05/09/2026).** Cân nhắc tách hẳn màn
+báo cáo thành 2 tab để hết phải hoà giải 2 nguồn hay lệch nhau — **từ chối**: đẩy quyết định kỹ thuật
+xuống Manager (không ai có cơ sở chọn tin số nào), và đổi hình dạng lỗi chứ không xoá lỗi. Badge
+"x% kỳ này đã đối chiếu" trên Tổng quan (`lib/dashboard.ts` `aggregateSourceCoverage()`) giữ một con
+số duy nhất nhưng lộ ra nó dựa trên bao nhiêu phần đã đối chiếu. Cân nhắc đầy đủ + số liệu đo được:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Badge độ phủ nguồn". Đề xuất chưa làm: ẩn `%` "so kỳ
+trước" khi 2 kỳ lệch cơ cấu nguồn; nhân badge sang `/channels`/chi tiết kênh/Nhân sự/Team.
 
 ❌ **TikTok từ chối đơn Production (04/09/2026), sai đúng 1 field: Website URL** trỏ tới trang login
-trần. Cách chữa TikTok chỉ định là khai **tài khoản test trong ô "Apply Reason"** lúc resubmit —
-KHÔNG phải dựng landing page (reviewer nói rõ landing page cũng không tính). Đã thêm chốt read-only
-cho tài khoản demo (`DEMO_CREATOR_USERNAME`, xem `lib/auth.ts` `isDemoAccount`) — chưa commit. Quy
-trình resubmit đầy đủ: [docs/DISPLAY_API.md](docs/DISPLAY_API.md) mục "Nộp duyệt Production".
+trần. Cách chữa TikTok chỉ định là khai **tài khoản test trong ô "App review"** lúc resubmit — KHÔNG
+phải dựng landing page. Đã có chốt read-only cho tài khoản demo (`DEMO_CREATOR_USERNAME`, xem
+`lib/auth.ts` `isDemoAccount`) + Apply Reason mới soạn lại vừa giới hạn 1000 ký tự thật của portal.
+Quy trình + bẫy portal đầy đủ: [docs/DISPLAY_API.md](docs/DISPLAY_API.md) mục "Nộp duyệt Production".
 
 ⏳ **Đang mượn kênh "Làm Nông Thông Thái" cho tài khoản demo `test`** (đã gán 04/09/2026, phục vụ đợt
 duyệt app TikTok). Creator thật: **Phạm Minh Trí** — **gán lại ngay khi app được duyệt**, rồi xoá tài khoản
 `test` và biến `DEMO_CREATOR_USERNAME`.
 
-⚠️ **Bẫy vận hành, chưa có validation chặn**: import file Studio chọn nhầm kênh ở dropdown không báo
-lỗi gì, dữ liệu vẫn ghi sai `channel_id`. Nhắc người import kiểm kỹ dropdown "1. Chọn kênh".
+✅ **Import nhầm kênh đã có chặn (05/09/2026)** — `lib/import/channel-guard.ts`, chạy cả ở bước xem
+trước. Bắt bằng `@handle` trong `video_link` của `Content.csv` (mạnh nhất) và handle nhúng trong tên
+file zip Studio. Fail-closed khi chứng minh được lệch, fail-open khi không đọc ra handle nào (file bị
+rename) — chặn nhầm thì người dùng đọc thông báo sửa được, cho lọt thì hỏng dữ liệu âm thầm. Bẫy này
+đã hỏng dữ liệu thật 2 lần trước khi có chặn: xem [docs/PROGRESS.md](docs/PROGRESS.md) mục "Import
+nhầm kênh".
 
 🔑 Manager thật đăng nhập bằng username `andang`. `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không
 sinh khoá mới**, cần ở `.env.local` thì copy nguyên giá trị từ Vercel xuống.
@@ -201,20 +212,23 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **Resubmit đơn Production TikTok**: đã có Creator demo `test`; còn đặt `DEMO_CREATOR_USERNAME`
-   trên Vercel + `.env.local`, quyết định có gán 1 kênh cho nó không (3 màn "của tôi" rỗng nếu
-   không), rồi dán "Apply Reason" đã soạn sẵn ở [docs/DISPLAY_API.md](docs/DISPLAY_API.md).
-2. **Commit + push 2 nhóm thay đổi rời nhau** trong working tree (cả hai đã test/lint/tsc sạch):
-   3 fix hiển thị dữ liệu ([docs/PROGRESS.md](docs/PROGRESS.md) mục `"0 view" giả ở tầng rollup`) và
-   chốt read-only cho tài khoản demo — commit riêng, đừng gộp.
-3. **Sáng 30/08: xác nhận `is_complete` đã lên `true`** bằng `node scripts/diagnose-data.mjs` mục A.
-   Đây là điều kiện để "7 ngày qua" có số trở lại và để KPI tính được.
+1. **`git push`** — 5 commit đang chờ trên `main` local, `.claude/settings.json` chặn cứng push nên
+   người dùng tự chạy.
+2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
+   `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của
+   tôi" rỗng nếu không), rồi resubmit theo đúng quy trình portal ở
+   [docs/DISPLAY_API.md](docs/DISPLAY_API.md).
+3. **Kỳ KPI đầu tiên đủ điều kiện chốt sổ, chưa ai bấm**: Cùng Anh Đi Muôn Nơi, 24→30/08 — cả 7/7
+   ngày đã có `studio_import`, đã qua `periodEnd + 3`. `kpi_cycle.status` vẫn `draft`.
 4. **Import lại bộ zip Studio đã upload ngày 25/08** — dữ liệu 22-23/08 chỉ xuất hiện sau khi import
    lại (cửa sổ chốt cũ chỉ ghi tới 21/08, đã sửa code nhưng chưa import lại). Ngày 24/08 không nguồn
-   nào có, tự đầy ở kỳ import sau (từ 26/08). **3/9 kênh chưa từng có `studio_import` nào** (Mộc Đi
-   Rừng, Tiến Sĩ Sprout, Vườn Của Hant) → chưa chốt sổ KPI được.
+   nào có, tự đầy ở kỳ import sau (từ 26/08). **4/9 kênh chưa từng có `studio_import` nào** (Mộc Đi
+   Rừng, Tiến Sĩ Sprout, Vườn Của Hant, **Bé Na** — Bé Na vào danh sách này sau khi dọn dữ liệu import
+   nhầm 05/09, xem PROGRESS.md) → chưa chốt sổ KPI được. **Bé Na cần export lại file Studio của chính
+   nó** và Làm Nông Thông Thái cần import lại bộ file đã bị ghi nhầm sang Bé Na.
 5. **Hỏi team: Bé Na có chủ ý xoá 7 video không?** (đăng 29/07→19/08, còn thấy ở snapshot 25/08, mất
-   khỏi response 28/08). Code xử lý đúng, chỉ là chuyện vận hành cần biết.
+   khỏi response 28/08). Code xử lý đúng, chỉ là chuyện vận hành cần biết. Đã loại trừ khả năng do
+   import nhầm kênh: 57 video của Bé Na đều có `video_link` mang đúng `@c.ba.nng.sn2` (kiểm 05/09).
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó). Các
 mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
