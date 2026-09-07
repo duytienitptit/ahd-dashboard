@@ -15,7 +15,7 @@ import {
   type DailyRow,
   engagementRate,
   groupByChannel,
-  isoWeekLabel,
+  weekStartLabel,
   isoWeekStart,
   latestFollowers,
   latestViewerRatio,
@@ -27,6 +27,7 @@ import {
   sumViews,
   sumViewsOrNull,
   viewsDeltaComparable,
+  withUnfinishedMarks,
 } from "./dashboard";
 
 function row(partial: Partial<DailyRow> & { channelId: string; date: string }): DailyRow {
@@ -126,7 +127,7 @@ describe("previousPeriod", () => {
   });
 });
 
-describe("isoWeekStart / isoWeekLabel", () => {
+describe("isoWeekStart / weekStartLabel", () => {
   it("maps a Monday to itself", () => {
     expect(isoWeekStart("2026-08-17")).toBe("2026-08-17");
   });
@@ -139,10 +140,19 @@ describe("isoWeekStart / isoWeekLabel", () => {
     expect(isoWeekStart("2026-08-16")).not.toBe(monday); // Sunday — the week before
   });
 
-  it("increments the week label by one across a week boundary", () => {
-    const week = Number(isoWeekLabel("2026-08-17").slice(1));
-    const nextWeek = Number(isoWeekLabel("2026-08-24").slice(1));
-    expect(nextWeek).toBe(week + 1);
+  it("labels a week by its Monday in d/M — no year, no leading zero (07/09/2026, theo yêu cầu: 'T35' bắt người đọc tự tra tuần đó rơi vào ngày nào)", () => {
+    expect(weekStartLabel("2026-08-17")).toBe("17/8");
+    expect(weekStartLabel("2026-08-24")).toBe("24/8");
+  });
+
+  it("labels every day of a week with that week's Monday, not the day passed in", () => {
+    for (const d of ["2026-08-17", "2026-08-19", "2026-08-23"]) {
+      expect(weekStartLabel(d)).toBe("17/8");
+    }
+  });
+
+  it("crosses a month boundary using the Monday's month, not the queried day's", () => {
+    expect(weekStartLabel("2026-09-02")).toBe("31/8"); // thứ Tư 2/9 thuộc tuần bắt đầu thứ Hai 31/8
   });
 });
 
@@ -505,8 +515,8 @@ describe("bucketWeeklyVideoCounts", () => {
   it("counts posted-video dates per ISO week", () => {
     const buckets = bucketWeeklyVideoCounts(["2026-08-17", "2026-08-19", "2026-08-24"]);
     expect(buckets).toEqual([
-      { label: isoWeekLabel("2026-08-17"), value: 2 },
-      { label: isoWeekLabel("2026-08-24"), value: 1 },
+      { label: weekStartLabel("2026-08-17"), value: 2 },
+      { label: weekStartLabel("2026-08-24"), value: 1 },
     ]);
   });
 });
@@ -669,5 +679,49 @@ describe("aggregateSourceCoverage", () => {
       ["b", channelStat({ channelId: "b", sourceBreakdown: { reconciledDays: 0, estimatedDays: 7, otherDays: 0 } })],
     ]);
     expect(aggregateSourceCoverage(channels, stats).perChannel.map((c) => c.channelId)).toEqual(["b", "a"]);
+  });
+});
+
+describe("withUnfinishedMarks", () => {
+  const week = (labels: string[]) => labels.map((label) => ({ label, value: 100 }));
+
+  it("leaves a finished week alone — through = Chủ nhật là ngày chót của tuần đó", () => {
+    // 31/8/2026 là thứ Hai, nên tuần đó chạy 31/8 → 6/9.
+    const out = withUnfinishedMarks({ week: week(["24/8", "31/8"]), month: [] }, "2026-09-06");
+    expect(out.week[1].coverage).toBeUndefined();
+  });
+
+  it("marks the running week with days covered so far — ca sẽ xuất hiện từ sáng thứ Ba", () => {
+    // 8/9/2026 là thứ Ba: tuần 7/9 → 13/9 mới đi được 2 ngày.
+    const out = withUnfinishedMarks({ week: week(["31/8", "7/9"]), month: [] }, "2026-09-08");
+    expect(out.week[1].coverage).toEqual({ days: 2, totalDays: 7 });
+  });
+
+  it("marks only the LAST point — các kỳ trước nó đều đã trôi qua", () => {
+    const out = withUnfinishedMarks({ week: week(["24/8", "31/8", "7/9"]), month: [] }, "2026-09-08");
+    expect(out.week[0].coverage).toBeUndefined();
+    expect(out.week[1].coverage).toBeUndefined();
+    expect(out.week[2].coverage).toEqual({ days: 2, totalDays: 7 });
+  });
+
+  it("counts a partial month against that month's real length, not a fixed 30", () => {
+    const feb = withUnfinishedMarks({ week: [], month: week(["Th1", "Th2"]) }, "2026-02-10");
+    expect(feb.month[1].coverage).toEqual({ days: 10, totalDays: 28 }); // 2026 không nhuận
+    const sep = withUnfinishedMarks({ week: [], month: week(["Th8", "Th9"]) }, "2026-09-06");
+    expect(sep.month[1].coverage).toEqual({ days: 6, totalDays: 30 });
+  });
+
+  it("leaves a finished month alone", () => {
+    const out = withUnfinishedMarks({ week: [], month: week(["Th7", "Th8"]) }, "2026-08-31");
+    expect(out.month[1].coverage).toBeUndefined();
+  });
+
+  it("returns the series untouched when there is no data at all", () => {
+    const input = { week: week(["31/8"]), month: week(["Th9"]) };
+    expect(withUnfinishedMarks(input, null)).toBe(input);
+  });
+
+  it("handles an empty series without inventing a point", () => {
+    expect(withUnfinishedMarks({ week: [], month: [] }, "2026-09-08")).toEqual({ week: [], month: [] });
   });
 });

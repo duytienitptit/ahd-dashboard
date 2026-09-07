@@ -449,6 +449,12 @@ cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm
 đúng là 0). Client phải vẽ đứt đoạn ở điểm `null`, không được vẽ như một điểm 0 thật (CLAUDE.md,
 vấn đề #7, 21/08/2026).
 
+`trend.week[].label` là **ngày bắt đầu tuần** dạng `d/M` ("31/8", "7/9"), không có năm — đổi từ số
+thứ tự tuần ISO ("T35") ngày 07/09/2026 theo yêu cầu, lệch có chủ đích so với `design/Main.dc.html`.
+Lý do: "T35" bắt người đọc tự tra tuần đó rơi vào ngày nào mới đối chiếu được với các màn khác (vốn
+đều hiện ngày thật). Nguồn: `weekStartLabel()` trong `lib/dashboard.ts` (tên cũ `isoWeekLabel`).
+`trend.month[].label` **không đổi**, vẫn là `Th7`/`Th8` (`monthLabel`).
+
 ```json
 { "role": "manager",
   "channelCount": 8,
@@ -471,9 +477,9 @@ vấn đề #7, 21/08/2026).
                       "perChannel": [{ "channelId": "...", "channelName": "Bé Na",
                                        "reconciledDays": 0, "estimatedDays": 9, "otherDays": 0 }] },
   "trend": {
-    "week":  { "views": [{ "label": "T27", "value": 1820000 }],
-               "followers": [{ "label": "T27", "value": 51200 }],
-               "videos": [{ "label": "T27", "value": 14 }] },
+    "week":  { "views": [{ "label": "29/6", "value": 1820000 }],
+               "followers": [{ "label": "29/6", "value": 51200 }],
+               "videos": [{ "label": "29/6", "value": 14 }] },
     "month": { "views": [{ "label": "Th7", "value": 7300000 }],
                "followers": [{ "label": "Th7", "value": 48900 }],
                "videos": [{ "label": "Th7", "value": 56 }] }

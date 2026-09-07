@@ -11,6 +11,7 @@ import {
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
   bucketWeeklyViews,
+  latestDateOf,
   fetchActivityHeatmap,
   fetchChannelVideos,
   fetchDailyRows,
@@ -19,6 +20,7 @@ import {
   isoWeekStart,
   latestViewerRatio,
   previousPeriod,
+  withUnfinishedMarks,
 } from "@/lib/dashboard";
 import { formatCompact, formatFullDate, initialsFromStart } from "@/lib/format";
 import { attachProgress, listKpiCycles } from "@/lib/kpi";
@@ -82,6 +84,9 @@ export default async function ChannelDetailPage({
   // Week granularity is a subset of the 180-day fetch above (same pattern as getDashboard()) — no
   // second query for it.
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
+  // Mốc dữ liệu tới đâu — cột tuần/tháng cuối gần như luôn dở dang (cron chạy 23:30), đánh dấu để
+  // biểu đồ vẽ nét đứt thay vì đọc như một cú tụt thật. Xem lib/dashboard.ts `withUnfinishedMarks`.
+  const trendThrough = latestDateOf(historyRows);
   const trendPostedDates = postedDates.filter((d) => d >= trendFrom);
   const viewerRatio = latestViewerRatio(historyRows);
   const hashtagStats = aggregateHashtagStats(videos.map((v) => ({ hashtags: v.hashtags, views: v.latestViews })));
@@ -161,19 +166,28 @@ export default async function ChannelDetailPage({
                 {
                   key: "views",
                   label: "Lượt xem",
-                  points: { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
+                  points: withUnfinishedMarks(
+                    { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
+                    trendThrough,
+                  ),
                   format: "compact",
                 },
                 {
                   key: "followers",
                   label: "Follower",
-                  points: { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
+                  points: withUnfinishedMarks(
+                    { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
+                    trendThrough,
+                  ),
                   format: "compact",
                 },
                 {
                   key: "videos",
                   label: "Video",
-                  points: { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
+                  points: withUnfinishedMarks(
+                    { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
+                    trendThrough,
+                  ),
                   format: "count",
                 },
               ]}

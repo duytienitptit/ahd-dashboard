@@ -90,17 +90,20 @@ export function thisWeekRangeVn(now?: Date): { from: string; to: string } {
   return { from: isoWeekStart(to), to };
 }
 
-/** ISO week-number label ("T34"), matching design/Main.dc.html's trend-chart x-axis. */
-export function isoWeekLabel(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  const dayNum = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - dayNum + 3); // nearest Thursday decides the ISO week/year
-  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
-  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
-  const week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / (7 * 86400000));
-  return `T${week}`;
+/**
+ * Nhãn trục X của biểu đồ tuần: **ngày bắt đầu tuần** dạng `d/M` ("31/8", "7/9"), không có năm.
+ *
+ * Đổi từ số thứ tự tuần ISO ("T34") ngày 07/09/2026 (theo yêu cầu) — lệch có chủ đích so với
+ * `design/Main.dc.html`. Lý do: "T34" bắt người đọc tự tra tuần 34 rơi vào ngày nào mới đối chiếu
+ * được với các màn khác (vốn đều hiển thị ngày thật), trong khi nhãn ngày đọc phát hiểu ngay. Bỏ năm
+ * cho gọn — biểu đồ chỉ trải 8 tuần / 6 tháng gần nhất nên không thể lẫn năm.
+ *
+ * Vẫn nhận **bất kỳ ngày nào trong tuần** rồi tự quy về thứ Hai (`isoWeekStart`), nên gọi được với
+ * ngày đại diện của bucket giống hệt `isoWeekLabel` cũ — chỗ gọi không phải đổi.
+ */
+export function weekStartLabel(dateStr: string): string {
+  const [, month, day] = isoWeekStart(dateStr).split("-").map(Number);
+  return `${day}/${month}`;
 }
 
 export type DailyRow = {
@@ -276,7 +279,78 @@ export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): Da
 /** `value: null` = not one day this week has a known videoViews — the chart must render this as a
  *  gap, never as a plotted 0 (a flat "0 views for 5 weeks" line reads as a real crash, not as
  *  "chưa có số đo"). */
-export type TrendPoint = { label: string; value: number | null };
+export type TrendPoint = {
+  label: string;
+  value: number | null;
+  /**
+   * Chỉ có mặt khi bucket **chưa trọn vẹn** — kỳ chưa kết thúc tính tới ngày có dữ liệu mới nhất
+   * (07/09/2026, theo yêu cầu). `days`/`totalDays` = số ngày đã có thể có số / độ dài trọn vẹn của
+   * kỳ (7 với tuần, 28–31 với tháng).
+   *
+   * Lý do: `bucketViewsBy` cộng mọi ngày có trong bucket rồi vẽ, không phân biệt kỳ đủ hay kỳ dở.
+   * Sáng thứ Ba, cột "tuần này" mới có 1/7 ngày nhưng đứng cạnh 7 cột tuần đủ 7 ngày → vẽ ra một cột
+   * thấp lè tè, đọc như "lượt xem sụp đổ". Cùng loại bug với `−90%` giả mà `viewsDeltaComparable`
+   * sinh ra để chặn (27/08/2026), chỉ khác là ở tầng biểu đồ. Tháng còn nặng hơn tuần: mùng 7 mà so
+   * với tháng 31 ngày liền trước thì hụt tới 4/5.
+   *
+   * KHÔNG giấu điểm đó đi — UI vẽ nét đứt + ghi rõ "mới có N/M ngày", đúng nguyên tắc sẵn có của dự
+   * án: không giấu số, chỉ nói rõ độ tin cậy (giống nhãn *tạm tính*, badge độ phủ nguồn).
+   */
+  coverage?: { days: number; totalDays: number };
+};
+
+/** Ngày cuối của tuần chứa `mondayKey` (khoá bucket tuần luôn là thứ Hai — `isoWeekStart`). */
+function weekSpanEnd(mondayKey: string): string {
+  return addDaysToDateString(mondayKey, 6);
+}
+
+/** Ngày cuối của tháng `YYYY-MM` — `Date.UTC(y, m, 0)` cho ngày 0 của tháng kế = ngày chót tháng này. */
+function monthSpanEnd(monthKeyStr: string): string {
+  const [y, m] = monthKeyStr.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${monthKeyStr}-${String(lastDay).padStart(2, "0")}`;
+}
+
+/**
+ * Gắn `coverage` cho điểm CUỐI của cả 2 chuỗi tuần/tháng nếu kỳ đó chưa kết thúc tính tới `through`
+ * (ngày có dữ liệu mới nhất). Chỉ điểm cuối mới có thể dở dang: các bucket trước nó đều đã trôi qua.
+ *
+ * Bucket chứa `through` chính là bucket cuối được vẽ (nó mang ngày dữ liệu mới nhất), nên suy được
+ * span trực tiếp từ `through` mà không cần bucket functions trả thêm khoá.
+ *
+ * `through = null` (chưa có dữ liệu gì) → trả nguyên, không có gì để đánh dấu.
+ */
+export function withUnfinishedMarks(
+  points: { week: TrendPoint[]; month: TrendPoint[] },
+  through: string | null,
+): { week: TrendPoint[]; month: TrendPoint[] } {
+  if (!through) return points;
+
+  const mark = (series: TrendPoint[], spanStart: string, spanEnd: string): TrendPoint[] => {
+    if (series.length === 0 || through >= spanEnd) return series; // kỳ đã trọn vẹn
+    const coverage = {
+      days: daysBetweenDateStrings(spanStart, through) + 1,
+      totalDays: daysBetweenDateStrings(spanStart, spanEnd) + 1,
+    };
+    return series.map((p, i) => (i === series.length - 1 ? { ...p, coverage } : p));
+  };
+
+  const weekStart = isoWeekStart(through);
+  const monthStart = `${monthKey(through)}-01`;
+  return {
+    week: mark(points.week, weekStart, weekSpanEnd(weekStart)),
+    month: mark(points.month, monthStart, monthSpanEnd(monthKey(through))),
+  };
+}
+
+/** Ngày mới nhất có dữ liệu trong tập rows — mốc `through` của `withUnfinishedMarks`. */
+export function latestDateOf(rows: DailyRow[]): string | null {
+  let latest: string | null = null;
+  for (const row of rows) {
+    if (latest === null || row.date > latest) latest = row.date;
+  }
+  return latest;
+}
 
 /** `YYYY-MM` of a VN calendar-date string — the month bucket key. Pure string slicing, same "no
  *  timezone conversion" rule as `isoWeekStart` (the input is already a VN date string). */
@@ -311,7 +385,7 @@ function bucketViewsBy(rows: DailyRow[], keyOf: (date: string) => string, labelO
 /** Buckets rows (any number of channels, already date-filtered by the caller) into ISO-week sums
  *  of `videoViews` — the "Xu hướng toàn team" / "Diễn biến của kênh" chart series. */
 export function bucketWeeklyViews(rows: DailyRow[]): TrendPoint[] {
-  return bucketViewsBy(rows, isoWeekStart, isoWeekLabel);
+  return bucketViewsBy(rows, isoWeekStart, weekStartLabel);
 }
 
 /** Same as `bucketWeeklyViews`, bucketed by calendar month instead — so sánh tháng 7 với tháng 8. */
@@ -349,11 +423,11 @@ function bucketLastFollowersBy(rows: DailyRow[], keyOf: (date: string) => string
 }
 
 export function bucketWeeklyLastFollowers(rows: DailyRow[]): TrendPoint[] {
-  return bucketLastFollowersBy(rows, isoWeekStart, isoWeekLabel);
+  return bucketLastFollowersBy(rows, isoWeekStart, weekStartLabel);
 }
 
 /** `labelOf` receives the bucket KEY here (already `YYYY-MM` for months, or a week's Monday date for
- *  weeks) — `monthLabel`/`isoWeekLabel` both accept any date string within the bucket, so passing the
+ *  weeks) — `monthLabel`/`weekStartLabel` both accept any date string within the bucket, so passing the
  *  key itself (not an original row date) still resolves to the right label either way. */
 export function bucketMonthlyLastFollowers(rows: DailyRow[]): TrendPoint[] {
   return bucketLastFollowersBy(rows, monthKey, monthLabel);
@@ -376,7 +450,7 @@ function bucketVideoCountsBy(postedDates: string[], keyOf: (date: string) => str
 /** One point per posted video, already resolved to a VN calendar-date string
  *  (`nowVnDateString(new Date(video.posted_at))` at the call site) — counts videos per ISO week. */
 export function bucketWeeklyVideoCounts(postedDates: string[]): TrendPoint[] {
-  return bucketVideoCountsBy(postedDates, isoWeekStart, isoWeekLabel);
+  return bucketVideoCountsBy(postedDates, isoWeekStart, weekStartLabel);
 }
 
 export function bucketMonthlyVideoCounts(postedDates: string[]): TrendPoint[] {
@@ -1441,6 +1515,28 @@ export async function getDashboard(
   const weekVideos = weekStatsList.reduce((acc, s) => acc + s.videos, 0);
   const weekLikes = sumEngagementParts(weekRows).likes;
 
+  // Mốc "dữ liệu tới đâu" cho cả 3 metric — cột cuối của tuần/tháng hiện tại gần như luôn dở dang
+  // (cron chạy 23:30 nên hôm nay chưa có số), phải đánh dấu để UI không vẽ nó như một cú tụt thật.
+  const trendThrough = latestDateOf(trendRows);
+  const viewsTrend = withUnfinishedMarks(
+    { week: bucketWeeklyViews(weekTrendRows).slice(-8), month: bucketMonthlyViews(trendRows).slice(-6) },
+    trendThrough,
+  );
+  const followersTrend = withUnfinishedMarks(
+    {
+      week: bucketWeeklyLastFollowers(weekTrendRows).slice(-8),
+      month: bucketMonthlyLastFollowers(trendRows).slice(-6),
+    },
+    trendThrough,
+  );
+  const videosTrend = withUnfinishedMarks(
+    {
+      week: bucketWeeklyVideoCounts(weekTrendPostedDates).slice(-8),
+      month: bucketMonthlyVideoCounts(trendPostedDates).slice(-6),
+    },
+    trendThrough,
+  );
+
   // No `.slice()` here — every channel, not just a top-N (24/08/2026, theo yêu cầu: xem hết mọi
   // kênh, sẽ có nhiều kênh về sau). `ListCard` (dashboard-widgets.tsx) scrolls internally instead of
   // the page growing unbounded. Sourced from `weekStatsList` (fixed "tuần này"), not `stats` (the
@@ -1528,14 +1624,14 @@ export async function getDashboard(
     sourceCoverage: aggregateSourceCoverage(activeChannels, periodStats),
     trend: {
       week: {
-        views: bucketWeeklyViews(weekTrendRows).slice(-8),
-        followers: bucketWeeklyLastFollowers(weekTrendRows).slice(-8),
-        videos: bucketWeeklyVideoCounts(weekTrendPostedDates).slice(-8),
+        views: viewsTrend.week,
+        followers: followersTrend.week,
+        videos: videosTrend.week,
       },
       month: {
-        views: bucketMonthlyViews(trendRows).slice(-6),
-        followers: bucketMonthlyLastFollowers(trendRows).slice(-6),
-        videos: bucketMonthlyVideoCounts(trendPostedDates).slice(-6),
+        views: viewsTrend.month,
+        followers: followersTrend.month,
+        videos: videosTrend.month,
       },
     },
     growth,
