@@ -283,9 +283,9 @@ export type TrendPoint = {
   label: string;
   value: number | null;
   /**
-   * Chỉ có mặt khi bucket **chưa trọn vẹn** — kỳ chưa kết thúc tính tới ngày có dữ liệu mới nhất
-   * (07/09/2026, theo yêu cầu). `days`/`totalDays` = số ngày đã có thể có số / độ dài trọn vẹn của
-   * kỳ (7 với tuần, 28–31 với tháng).
+   * Chỉ có mặt ở điểm CUỐI khi kỳ đó **chưa kết thúc** tính tới `now` (07/09/2026, theo yêu cầu —
+   * xem `withUnfinishedMarks`). `days` = số ngày trong kỳ đã có thể có dữ liệu (tới `through`), `0`
+   * nếu kỳ chưa chạm ngày nào; `totalDays` = độ dài trọn của kỳ (7 tuần, 28–31 tháng).
    *
    * Lý do: `bucketViewsBy` cộng mọi ngày có trong bucket rồi vẽ, không phân biệt kỳ đủ hay kỳ dở.
    * Sáng thứ Ba, cột "tuần này" mới có 1/7 ngày nhưng đứng cạnh 7 cột tuần đủ 7 ngày → vẽ ra một cột
@@ -299,47 +299,84 @@ export type TrendPoint = {
   coverage?: { days: number; totalDays: number };
 };
 
-/** Ngày cuối của tuần chứa `mondayKey` (khoá bucket tuần luôn là thứ Hai — `isoWeekStart`). */
-function weekSpanEnd(mondayKey: string): string {
-  return addDaysToDateString(mondayKey, 6);
-}
+/** Số học kỳ (tuần / tháng) — cùng dạng khoá `keyOf` mà `bucketViewsBy` dùng: thứ Hai `YYYY-MM-DD`
+ *  cho tuần, mùng 1 `YYYY-MM-01` cho tháng. `label`/`spanEnd` nhận khoá kỳ đó. */
+type PeriodMath = {
+  startOf: (dateStr: string) => string;
+  prev: (key: string) => string;
+  label: (key: string) => string;
+  spanEnd: (key: string) => string;
+};
 
-/** Ngày cuối của tháng `YYYY-MM` — `Date.UTC(y, m, 0)` cho ngày 0 của tháng kế = ngày chót tháng này. */
-function monthSpanEnd(monthKeyStr: string): string {
-  const [y, m] = monthKeyStr.split("-").map(Number);
-  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return `${monthKeyStr}-${String(lastDay).padStart(2, "0")}`;
-}
+const WEEK_MATH: PeriodMath = {
+  startOf: isoWeekStart,
+  prev: (key) => addDaysToDateString(key, -7),
+  label: weekStartLabel,
+  spanEnd: (key) => addDaysToDateString(key, 6),
+};
+
+const MONTH_MATH: PeriodMath = {
+  startOf: (dateStr) => `${monthKey(dateStr)}-01`,
+  prev: (key) => `${monthKey(addDaysToDateString(key, -1))}-01`,
+  label: monthLabel,
+  spanEnd: (key) => {
+    const [y, m] = key.split("-").map(Number);
+    return `${key.slice(0, 7)}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+  },
+};
 
 /**
- * Gắn `coverage` cho điểm CUỐI của cả 2 chuỗi tuần/tháng nếu kỳ đó chưa kết thúc tính tới `through`
- * (ngày có dữ liệu mới nhất). Chỉ điểm cuối mới có thể dở dang: các bucket trước nó đều đã trôi qua.
+ * Hoàn thiện chuỗi tuần/tháng của biểu đồ xu hướng trước khi vẽ — 3 bước:
  *
- * Bucket chứa `through` chính là bucket cuối được vẽ (nó mang ngày dữ liệu mới nhất), nên suy được
- * span trực tiếp từ `through` mà không cần bucket functions trả thêm khoá.
+ *  1. **Kéo dài tới kỳ hiện tại.** `bucketViewsBy` chỉ emit bucket cho kỳ CÓ dữ liệu, nên khi hôm nay
+ *     chưa sync xong (cron chạy 23:30) thì cột cuối là tuần/tháng TRƯỚC — đọc như thể kỳ này chưa bắt
+ *     đầu. Chèn thêm điểm `value: null` cho từng kỳ trống từ sau bucket cuối tới kỳ chứa `now`, để
+ *     biểu đồ luôn có cột "kỳ này" (07/09/2026, theo yêu cầu). Kỳ trống chỉ hiện nhãn trục X + tooltip
+ *     "chưa có số đo", không chấm, không tô nền. Cắt đệm ở `count − 1` để dữ liệu quá cũ (> count kỳ)
+ *     vẫn còn ≥ 1 cột thật, không biến biểu đồ thành trống trơn.
+ *  2. **Cắt còn `weekCount`/`monthCount` kỳ gần nhất** (mặc định 8 tuần / 6 tháng).
+ *  3. **Đánh dấu `coverage`** cho điểm cuối (giờ luôn là kỳ chứa `now`) nếu kỳ đó chưa kết thúc tính
+ *     tới `now`. `days` = số ngày trong kỳ ĐÃ có thể có dữ liệu (từ đầu kỳ tới `through` = ngày dữ
+ *     liệu mới nhất); `0` nếu kỳ này chưa chạm ngày nào có dữ liệu. `totalDays` = độ dài trọn của kỳ.
+ *     UI vẽ nét đứt + ghi "mới có N/M ngày" — không giấu số, chỉ nói rõ độ tin cậy.
  *
- * `through = null` (chưa có dữ liệu gì) → trả nguyên, không có gì để đánh dấu.
+ * `now` = mốc phải của biểu đồ — `to` của bộ lọc trang (mặc định hôm nay, luôn ≤ hôm nay).
+ * `through` = `latestDateOf(rows)`, `null` khi chưa có dữ liệu gì. Chuỗi rỗng → trả nguyên (chưa có
+ * kênh/dữ liệu nào — không bịa cột).
  */
 export function withUnfinishedMarks(
-  points: { week: TrendPoint[]; month: TrendPoint[] },
-  through: string | null,
+  raw: { week: TrendPoint[]; month: TrendPoint[] },
+  opts: { now: string; through: string | null; weekCount?: number; monthCount?: number },
 ): { week: TrendPoint[]; month: TrendPoint[] } {
-  if (!through) return points;
+  const { now, through, weekCount = 8, monthCount = 6 } = opts;
 
-  const mark = (series: TrendPoint[], spanStart: string, spanEnd: string): TrendPoint[] => {
-    if (series.length === 0 || through >= spanEnd) return series; // kỳ đã trọn vẹn
+  const finish = (series: TrendPoint[], count: number, math: PeriodMath): TrendPoint[] => {
+    if (series.length === 0) return series;
+
+    // 1. Pad the tail up to (and including) the period containing `now`.
+    const currentKey = math.startOf(now);
+    const lastLabel = series[series.length - 1].label;
+    const tail: TrendPoint[] = [];
+    for (let key = currentKey; math.label(key) !== lastLabel && tail.length < count - 1; key = math.prev(key)) {
+      tail.unshift({ label: math.label(key), value: null });
+    }
+
+    // 2. Keep the last `count` periods.
+    const sliced = [...series, ...tail].slice(-count);
+
+    // 3. The last point is now the period containing `now` — mark it if not fully elapsed.
+    const spanEnd = math.spanEnd(currentKey);
+    if (now >= spanEnd) return sliced; // kỳ đã trọn vẹn
     const coverage = {
-      days: daysBetweenDateStrings(spanStart, through) + 1,
-      totalDays: daysBetweenDateStrings(spanStart, spanEnd) + 1,
+      days: through && through >= currentKey ? daysBetweenDateStrings(currentKey, through) + 1 : 0,
+      totalDays: daysBetweenDateStrings(currentKey, spanEnd) + 1,
     };
-    return series.map((p, i) => (i === series.length - 1 ? { ...p, coverage } : p));
+    return sliced.map((p, i) => (i === sliced.length - 1 ? { ...p, coverage } : p));
   };
 
-  const weekStart = isoWeekStart(through);
-  const monthStart = `${monthKey(through)}-01`;
   return {
-    week: mark(points.week, weekStart, weekSpanEnd(weekStart)),
-    month: mark(points.month, monthStart, monthSpanEnd(monthKey(through))),
+    week: finish(raw.week, weekCount, WEEK_MATH),
+    month: finish(raw.month, monthCount, MONTH_MATH),
   };
 }
 
@@ -1515,26 +1552,22 @@ export async function getDashboard(
   const weekVideos = weekStatsList.reduce((acc, s) => acc + s.videos, 0);
   const weekLikes = sumEngagementParts(weekRows).likes;
 
-  // Mốc "dữ liệu tới đâu" cho cả 3 metric — cột cuối của tuần/tháng hiện tại gần như luôn dở dang
-  // (cron chạy 23:30 nên hôm nay chưa có số), phải đánh dấu để UI không vẽ nó như một cú tụt thật.
+  // `withUnfinishedMarks` lo cả 3 việc: kéo dài chuỗi tới kỳ chứa `to` (luôn có cột "tuần này" dù
+  // hôm nay chưa sync), cắt còn 8 tuần / 6 tháng, và đánh dấu cột cuối dở dang để UI vẽ nét đứt thay
+  // vì đọc như một cú tụt thật. `trendThrough` = ngày dữ liệu mới nhất để tính "mới có N/M ngày".
   const trendThrough = latestDateOf(trendRows);
+  const trendOpts = { now: to, through: trendThrough };
   const viewsTrend = withUnfinishedMarks(
-    { week: bucketWeeklyViews(weekTrendRows).slice(-8), month: bucketMonthlyViews(trendRows).slice(-6) },
-    trendThrough,
+    { week: bucketWeeklyViews(weekTrendRows), month: bucketMonthlyViews(trendRows) },
+    trendOpts,
   );
   const followersTrend = withUnfinishedMarks(
-    {
-      week: bucketWeeklyLastFollowers(weekTrendRows).slice(-8),
-      month: bucketMonthlyLastFollowers(trendRows).slice(-6),
-    },
-    trendThrough,
+    { week: bucketWeeklyLastFollowers(weekTrendRows), month: bucketMonthlyLastFollowers(trendRows) },
+    trendOpts,
   );
   const videosTrend = withUnfinishedMarks(
-    {
-      week: bucketWeeklyVideoCounts(weekTrendPostedDates).slice(-8),
-      month: bucketMonthlyVideoCounts(trendPostedDates).slice(-6),
-    },
-    trendThrough,
+    { week: bucketWeeklyVideoCounts(weekTrendPostedDates), month: bucketMonthlyVideoCounts(trendPostedDates) },
+    trendOpts,
   );
 
   // No `.slice()` here — every channel, not just a top-N (24/08/2026, theo yêu cầu: xem hết mọi

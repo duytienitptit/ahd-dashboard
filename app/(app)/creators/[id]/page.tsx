@@ -86,9 +86,9 @@ export default async function CreatorDetailPage({
   // them pre-merged rows would instead take the last MERGED date's total, silently undercounting any
   // bucket where the creator's channels last synced on different days within it.
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
-  // Mốc dữ liệu tới đâu — cột tuần/tháng cuối gần như luôn dở dang (cron chạy 23:30), đánh dấu để
-  // biểu đồ vẽ nét đứt thay vì đọc như một cú tụt thật. Xem lib/dashboard.ts `withUnfinishedMarks`.
-  const trendThrough = latestDateOf(historyRows);
+  // `withUnfinishedMarks` kéo dài chuỗi tới kỳ chứa `to` (luôn có cột "tuần này"), cắt còn 8 tuần /
+  // 6 tháng, và đánh dấu cột cuối dở dang để biểu đồ vẽ nét đứt thay vì đọc như cú tụt thật.
+  const trendOpts = { now: to, through: latestDateOf(historyRows) };
   const trendPostedDates = postedDates.filter((d) => d >= trendFrom);
 
   // DailyTable is the one place that DOES want one row per date — mergeDailyRowsByDate's null-vs-0
@@ -189,7 +189,7 @@ export default async function CreatorDetailPage({
                   label: "Lượt xem",
                   points: withUnfinishedMarks(
                     { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
-                    trendThrough,
+                    trendOpts,
                   ),
                   format: "compact",
                 },
@@ -198,7 +198,7 @@ export default async function CreatorDetailPage({
                   label: "Follower",
                   points: withUnfinishedMarks(
                     { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
-                    trendThrough,
+                    trendOpts,
                   ),
                   format: "compact",
                 },
@@ -207,7 +207,7 @@ export default async function CreatorDetailPage({
                   label: "Video",
                   points: withUnfinishedMarks(
                     { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
-                    trendThrough,
+                    trendOpts,
                   ),
                   format: "count",
                 },

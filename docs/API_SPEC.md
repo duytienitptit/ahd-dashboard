@@ -455,6 +455,12 @@ Lý do: "T35" bắt người đọc tự tra tuần đó rơi vào ngày nào m�
 đều hiện ngày thật). Nguồn: `weekStartLabel()` trong `lib/dashboard.ts` (tên cũ `isoWeekLabel`).
 `trend.month[].label` **không đổi**, vẫn là `Th7`/`Th8` (`monthLabel`).
 
+`trend.week`/`trend.month` **luôn kết thúc ở kỳ hiện tại** (tuần/tháng chứa `period.to`), kể cả khi
+kỳ đó chưa có ngày nào sync (07/09/2026, theo yêu cầu — cron chạy 23:30 nên cột "tuần này" gần như
+luôn trống lúc ban ngày). Điểm chưa trọn kỳ mang thêm **`coverage: { days, totalDays }`** — `days` =
+số ngày trong kỳ đã có thể có số, `totalDays` = độ dài trọn của kỳ (7 / 28–31). Client vẽ nét đứt
+cho điểm này + ghi "mới có N/M ngày", không vẽ như một cú tụt thật. Chỉ điểm CUỐI mới có `coverage`.
+
 ```json
 { "role": "manager",
   "channelCount": 8,
@@ -477,7 +483,8 @@ Lý do: "T35" bắt người đọc tự tra tuần đó rơi vào ngày nào m�
                       "perChannel": [{ "channelId": "...", "channelName": "Bé Na",
                                        "reconciledDays": 0, "estimatedDays": 9, "otherDays": 0 }] },
   "trend": {
-    "week":  { "views": [{ "label": "29/6", "value": 1820000 }],
+    "week":  { "views": [{ "label": "29/6", "value": 1820000 },
+                         { "label": "6/7", "value": null, "coverage": { "days": 2, "totalDays": 7 } }],
                "followers": [{ "label": "29/6", "value": 51200 }],
                "videos": [{ "label": "29/6", "value": 14 }] },
     "month": { "views": [{ "label": "Th7", "value": 7300000 }],

@@ -1692,20 +1692,27 @@ với các màn khác (vốn đều hiện ngày thật). Vẫn nhận bất k�
 (`isoWeekStart`) — chỗ gọi không phải đổi. Nhãn tháng (`Th7`/`Th8`) **không đổi**. `docs/API_SPEC.md`
 đã cập nhật shape `trend.week[].label`.
 
-**2. Kỳ cuối chưa trọn vẹn vẽ nét đứt + ghi rõ độ phủ.** `bucketViewsBy` cộng mọi ngày có trong bucket
-rồi vẽ, không phân biệt kỳ đủ hay kỳ dở — sáng thứ Ba cột "tuần này" mới có 1/7 ngày nhưng đứng cạnh 7
-cột tuần đủ, đọc như "lượt xem sụp đổ". Tháng nặng hơn: mùng 7 mà so với tháng 31 ngày liền trước thì
-hụt 4/5. Cùng loại bug với `−90%` giả mà `viewsDeltaComparable` chặn (27/08), chỉ khác là ở tầng biểu
-đồ.
-- `lib/dashboard.ts` `withUnfinishedMarks(points, through)` — gắn `coverage: { days, totalDays }` cho
-  điểm CUỐI của cả 2 chuỗi tuần/tháng nếu kỳ đó chưa kết thúc tính tới `through` (ngày dữ liệu mới
-  nhất, lấy bằng `latestDateOf(rows)`). Chỉ điểm cuối mới có thể dở dang. `through = null` → trả
-  nguyên. Tháng đếm theo độ dài THẬT của tháng (`monthSpanEnd`), không phải 30 cứng.
-- `TrendPoint` thêm field optional `coverage`. `getDashboard()` + 2 page channel/creator bọc series
-  qua `withUnfinishedMarks` trước khi truyền xuống.
+**2. Luôn có cột "tuần này" + kỳ cuối chưa trọn vẹn vẽ nét đứt.** `bucketViewsBy` chỉ emit bucket cho
+kỳ CÓ dữ liệu, nên hôm nay chưa sync xong (cron 23:30) thì cột cuối là tuần TRƯỚC — đọc như thể tuần
+này chưa bắt đầu. Và ngay cả khi có, cột "tuần này" mới có 1/7 ngày đứng cạnh 7 cột tuần đủ sẽ đọc như
+"lượt xem sụp đổ" (tháng nặng hơn: mùng 7 so với tháng 31 ngày liền trước hụt 4/5). Cùng loại bug với
+`−90%` giả mà `viewsDeltaComparable` chặn (27/08), chỉ khác là ở tầng biểu đồ.
+- `lib/dashboard.ts` `withUnfinishedMarks(raw, { now, through })` — 3 việc trên chuỗi tuần VÀ tháng:
+  (1) **kéo dài tới kỳ chứa `now`** (`to` của bộ lọc, mặc định hôm nay) — chèn điểm `value: null` cho
+  từng kỳ trống, cột trống chỉ hiện nhãn trục X + tooltip "chưa có số đo", không chấm/không nền; đệm
+  tối đa `count − 1` để dữ liệu quá cũ vẫn còn ≥ 1 cột thật. (2) **cắt còn 8 tuần / 6 tháng** (`.slice`
+  chuyển từ chỗ gọi vào trong). (3) **gắn `coverage: { days, totalDays }`** cho điểm cuối nếu kỳ chưa
+  kết thúc tính tới `now`; `days` = số ngày đã có thể có số (tới `through` = `latestDateOf(rows)`),
+  `0` nếu kỳ chưa chạm ngày nào; tháng đếm theo độ dài THẬT của tháng (`MONTH_MATH.spanEnd`).
+- `PeriodMath` (`WEEK_MATH`/`MONTH_MATH`) gói `startOf`/`prev`/`label`/`spanEnd` — cùng dạng khoá kỳ
+  mà `keyOf` của bucket dùng (thứ Hai `YYYY-MM-DD` / mùng 1 `YYYY-MM-01`), để bước (2)+(3) không phải
+  viết 2 lần cho tuần và tháng.
+- `TrendPoint` thêm field optional `coverage`. `getDashboard()` + 2 page channel/creator truyền
+  `{ now: to, through: latestDateOf(rows) }`.
 - `trend-chart.tsx` `ChartSvg`: điểm cuối partial tách khỏi đường liền nét (`solidPlotted`), nối vào
-  bằng `<line strokeDasharray>` (`partialLeg`), vùng tô nền dừng ở điểm liền trước. **Không giấu số** —
-  đúng nguyên tắc dự án (nhãn *tạm tính*, badge độ phủ nguồn).
+  bằng `<line strokeDasharray>` (`partialLeg` — chỉ khi cả 2 đầu có số), vùng tô nền dừng ở điểm liền
+  trước. Cột trống (value null) chỉ còn nhãn + vùng bắt chuột. **Không giấu số** — đúng nguyên tắc dự
+  án (nhãn *tạm tính*, badge độ phủ nguồn).
 
 **3. Tooltip hover.** `ChartSvg` giữ `hover` state; mỗi điểm một `<rect fill="transparent">` trải hết
 chiều cao làm vùng bắt chuột (không phải trỏ trúng chấm 3,5px). `<ChartTooltip>` vẽ bằng chính SVG
@@ -1730,9 +1737,10 @@ nội dung, 1-2 kênh đã đẩy phần còn lại xuống dưới màn hình. 
 (seed script, xác nhận trên data thật). Mọi màn khác render `{tiktokHandle}` trần; riêng
 `kpi-card.tsx` + `finalize-panel.tsx` viết `@{header.tiktokHandle}` → ra `@@handle`. Bỏ `@` cứng.
 
-**Kiểm chứng** (browser thật, Manager `Thái Duy Tiến`, 07/09): nhãn tuần "31/8" ✅; tooltip tuần "tuần
-31/8 / 14,35M" ✅; biểu đồ tháng Th8→Th9 nét đứt, Th9 không tô nền, tooltip "kỳ chưa xong — mới có
-6/30 ngày" ✅; tuần 31/8 **không** bị đánh dấu dở dang (dữ liệu đã tới 6/9 = tuần trọn) ✅. `/kpi`:
-tạo tạm 1 chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không
-viền lồng viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest`
-(234 test, +8 cho `withUnfinishedMarks`, +3 cho `weekStartLabel`) đều xanh.
+**Kiểm chứng** (browser thật, Manager `Thái Duy Tiến`, 07/09 — hôm nay là thứ Hai, tuần này chưa có
+số): biểu đồ tuần Tổng quan + chi tiết kênh giờ có cột **"7/9"** ở mép phải, không chấm/không nền,
+hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅; nhãn tuần theo ngày đầu tuần
+✅; biểu đồ tháng Th8→Th9 nét đứt, tooltip "kỳ chưa xong — mới có 6/30 ngày" ✅. `/kpi`: tạo tạm 1
+chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không viền lồng
+viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest` (237
+test) đều xanh.

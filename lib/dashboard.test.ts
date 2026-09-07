@@ -684,44 +684,75 @@ describe("aggregateSourceCoverage", () => {
 
 describe("withUnfinishedMarks", () => {
   const week = (labels: string[]) => labels.map((label) => ({ label, value: 100 }));
+  /** `through` mặc định = `now` (dữ liệu đã kịp tới mốc phải) trừ khi test cần khoảng lệch. */
+  const at = (now: string, through: string | null = now) => ({ now, through });
 
-  it("leaves a finished week alone — through = Chủ nhật là ngày chót của tuần đó", () => {
+  it("leaves a finished week alone — now = Chủ nhật là ngày chót của tuần đó", () => {
     // 31/8/2026 là thứ Hai, nên tuần đó chạy 31/8 → 6/9.
-    const out = withUnfinishedMarks({ week: week(["24/8", "31/8"]), month: [] }, "2026-09-06");
+    const out = withUnfinishedMarks({ week: week(["24/8", "31/8"]), month: [] }, at("2026-09-06"));
+    expect(out.week).toHaveLength(2);
     expect(out.week[1].coverage).toBeUndefined();
   });
 
   it("marks the running week with days covered so far — ca sẽ xuất hiện từ sáng thứ Ba", () => {
     // 8/9/2026 là thứ Ba: tuần 7/9 → 13/9 mới đi được 2 ngày.
-    const out = withUnfinishedMarks({ week: week(["31/8", "7/9"]), month: [] }, "2026-09-08");
+    const out = withUnfinishedMarks({ week: week(["31/8", "7/9"]), month: [] }, at("2026-09-08"));
     expect(out.week[1].coverage).toEqual({ days: 2, totalDays: 7 });
   });
 
   it("marks only the LAST point — các kỳ trước nó đều đã trôi qua", () => {
-    const out = withUnfinishedMarks({ week: week(["24/8", "31/8", "7/9"]), month: [] }, "2026-09-08");
+    const out = withUnfinishedMarks({ week: week(["24/8", "31/8", "7/9"]), month: [] }, at("2026-09-08"));
     expect(out.week[0].coverage).toBeUndefined();
     expect(out.week[1].coverage).toBeUndefined();
     expect(out.week[2].coverage).toEqual({ days: 2, totalDays: 7 });
   });
 
+  it("thêm cột tuần hiện tại khi dữ liệu còn trễ — value null, không chấm, không tô nền", () => {
+    // Thứ Tư 9/9, dữ liệu mới tới hết tuần trước (7/9) → tuần 7/9→13/9 chưa có bucket.
+    const out = withUnfinishedMarks(
+      { week: week(["24/8", "31/8"]), month: [] },
+      { now: "2026-09-09", through: "2026-09-07" },
+    );
+    expect(out.week.map((p) => p.label)).toEqual(["24/8", "31/8", "7/9"]);
+    expect(out.week[2].value).toBeNull();
+    expect(out.week[2].coverage).toEqual({ days: 1, totalDays: 7 }); // chỉ ngày 7/9 đã có thể có số
+  });
+
+  it("cột tuần hiện tại khi kỳ chưa chạm ngày nào có dữ liệu → days = 0", () => {
+    // Thứ Hai 7/9 (đầu tuần), dữ liệu mới tới 6/9 (Chủ nhật tuần trước).
+    const out = withUnfinishedMarks(
+      { week: week(["24/8", "31/8"]), month: [] },
+      { now: "2026-09-07", through: "2026-09-06" },
+    );
+    expect(out.week[2].label).toBe("7/9");
+    expect(out.week[2].coverage).toEqual({ days: 0, totalDays: 7 });
+  });
+
+  it("through = null (chưa đo được ngày nào) — vẫn kéo cột kỳ hiện tại, days = 0", () => {
+    const out = withUnfinishedMarks({ week: week(["31/8"]), month: [] }, { now: "2026-09-08", through: null });
+    expect(out.week[1].label).toBe("7/9");
+    expect(out.week[1].coverage).toEqual({ days: 0, totalDays: 7 });
+  });
+
+  it("cắt còn 8 tuần gần nhất sau khi đệm", () => {
+    const labels = ["1/6", "8/6", "15/6", "22/6", "29/6", "6/7", "13/7", "20/7", "27/7", "3/8"];
+    const out = withUnfinishedMarks({ week: week(labels), month: [] }, at("2026-08-05")); // trong tuần 3/8
+    expect(out.week.map((p) => p.label)).toEqual(["15/6", "22/6", "29/6", "6/7", "13/7", "20/7", "27/7", "3/8"]);
+  });
+
   it("counts a partial month against that month's real length, not a fixed 30", () => {
-    const feb = withUnfinishedMarks({ week: [], month: week(["Th1", "Th2"]) }, "2026-02-10");
+    const feb = withUnfinishedMarks({ week: [], month: week(["Th1", "Th2"]) }, at("2026-02-10"));
     expect(feb.month[1].coverage).toEqual({ days: 10, totalDays: 28 }); // 2026 không nhuận
-    const sep = withUnfinishedMarks({ week: [], month: week(["Th8", "Th9"]) }, "2026-09-06");
+    const sep = withUnfinishedMarks({ week: [], month: week(["Th8", "Th9"]) }, at("2026-09-06"));
     expect(sep.month[1].coverage).toEqual({ days: 6, totalDays: 30 });
   });
 
   it("leaves a finished month alone", () => {
-    const out = withUnfinishedMarks({ week: [], month: week(["Th7", "Th8"]) }, "2026-08-31");
+    const out = withUnfinishedMarks({ week: [], month: week(["Th7", "Th8"]) }, at("2026-08-31"));
     expect(out.month[1].coverage).toBeUndefined();
   });
 
-  it("returns the series untouched when there is no data at all", () => {
-    const input = { week: week(["31/8"]), month: week(["Th9"]) };
-    expect(withUnfinishedMarks(input, null)).toBe(input);
-  });
-
   it("handles an empty series without inventing a point", () => {
-    expect(withUnfinishedMarks({ week: [], month: [] }, "2026-09-08")).toEqual({ week: [], month: [] });
+    expect(withUnfinishedMarks({ week: [], month: [] }, at("2026-09-08"))).toEqual({ week: [], month: [] });
   });
 });

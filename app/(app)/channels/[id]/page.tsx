@@ -84,9 +84,9 @@ export default async function ChannelDetailPage({
   // Week granularity is a subset of the 180-day fetch above (same pattern as getDashboard()) — no
   // second query for it.
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
-  // Mốc dữ liệu tới đâu — cột tuần/tháng cuối gần như luôn dở dang (cron chạy 23:30), đánh dấu để
-  // biểu đồ vẽ nét đứt thay vì đọc như một cú tụt thật. Xem lib/dashboard.ts `withUnfinishedMarks`.
-  const trendThrough = latestDateOf(historyRows);
+  // `withUnfinishedMarks` kéo dài chuỗi tới kỳ chứa `to` (luôn có cột "tuần này"), cắt còn 8 tuần /
+  // 6 tháng, và đánh dấu cột cuối dở dang để biểu đồ vẽ nét đứt thay vì đọc như cú tụt thật.
+  const trendOpts = { now: to, through: latestDateOf(historyRows) };
   const trendPostedDates = postedDates.filter((d) => d >= trendFrom);
   const viewerRatio = latestViewerRatio(historyRows);
   const hashtagStats = aggregateHashtagStats(videos.map((v) => ({ hashtags: v.hashtags, views: v.latestViews })));
@@ -168,7 +168,7 @@ export default async function ChannelDetailPage({
                   label: "Lượt xem",
                   points: withUnfinishedMarks(
                     { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
-                    trendThrough,
+                    trendOpts,
                   ),
                   format: "compact",
                 },
@@ -177,7 +177,7 @@ export default async function ChannelDetailPage({
                   label: "Follower",
                   points: withUnfinishedMarks(
                     { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
-                    trendThrough,
+                    trendOpts,
                   ),
                   format: "compact",
                 },
@@ -186,7 +186,7 @@ export default async function ChannelDetailPage({
                   label: "Video",
                   points: withUnfinishedMarks(
                     { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
-                    trendThrough,
+                    trendOpts,
                   ),
                   format: "count",
                 },
