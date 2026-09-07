@@ -159,9 +159,11 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: audit production xong — cron ổn định, 5 commit mới đã lên `main` (chặn import
-nhầm kênh, `weekStats` theo tuần lịch cố định, badge độ phủ nguồn, cập nhật hồ sơ resubmit TikTok,
-dọn mục Trạng thái này); chưa `push`.** M6 (chốt sổ KPI) + `/kpi` danh sách kênh + M5 (KPI Cycle) +
+**Milestone hiện tại: polish biểu đồ xu hướng + `/kpi` dropdown (07/09) — nhãn tuần theo ngày, kỳ
+cuối dở dang vẽ nét đứt, tooltip hover, mỗi kênh 1 dòng gập/mở; 3 commit đang chờ trên `main` local,
+chưa `push`.** Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Biểu đồ xu hướng — polish 07/09/2026". M6 (chốt sổ KPI) +
+`/kpi` danh sách kênh + M5 (KPI Cycle) +
 M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh
 thật + bỏ lưu zip Storage — tất cả đã lên `main`. Chi tiết từng milestone:
 [docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên mục). Checklist: [docs/TASKS.md](docs/TASKS.md).
@@ -212,8 +214,8 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **`git push`** — 5 commit đang chờ trên `main` local, `.claude/settings.json` chặn cứng push nên
-   người dùng tự chạy.
+1. **`git push`** — 3 commit đang chờ trên `main` local, `.claude/settings.json` chặn cứng push nên
+   người dùng tự chạy. Vercel auto-redeploy sau khi push.
 2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
    `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của
    tôi" rỗng nếu không), rồi resubmit theo đúng quy trình portal ở

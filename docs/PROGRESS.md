@@ -1677,3 +1677,62 @@ chưa đối chiếu chứ không bỏ qua — im lặng bỏ qua sẽ làm badg
 - Màn "Chất lượng dữ liệu" riêng cho Manager — chỗ **duy nhất** việc so Studio vs Display cạnh nhau là
   mục đích chứ không phải tác dụng phụ (kênh nào thiếu import, ngày nào lệch bao nhiêu, cron hụt ngày
   nào). Tab hoá ở màn công cụ thì đúng, ở màn báo cáo thì sai.
+
+---
+
+## Biểu đồ xu hướng — polish 07/09/2026 (theo yêu cầu) — có gì dùng được ngay
+
+4 thay đổi nhỏ, cùng chạm `app/(app)/trend-chart.tsx` + `lib/dashboard.ts`, áp cho cả 3 màn dùng
+`TrendChart` (Tổng quan, Chi tiết kênh, Chi tiết Creator).
+
+**1. Nhãn trục X tuần: `"T35"` → `"31/8"` (ngày bắt đầu tuần).** `isoWeekLabel()` → đổi tên thành
+`weekStartLabel()`, trả `d/M` của thứ Hai đầu tuần (không năm). Lệch có chủ đích so với
+`design/Main.dc.html`: số tuần ISO bắt người đọc tự tra tuần đó rơi vào ngày nào mới đối chiếu được
+với các màn khác (vốn đều hiện ngày thật). Vẫn nhận bất kỳ ngày nào trong tuần rồi tự quy về thứ Hai
+(`isoWeekStart`) — chỗ gọi không phải đổi. Nhãn tháng (`Th7`/`Th8`) **không đổi**. `docs/API_SPEC.md`
+đã cập nhật shape `trend.week[].label`.
+
+**2. Kỳ cuối chưa trọn vẹn vẽ nét đứt + ghi rõ độ phủ.** `bucketViewsBy` cộng mọi ngày có trong bucket
+rồi vẽ, không phân biệt kỳ đủ hay kỳ dở — sáng thứ Ba cột "tuần này" mới có 1/7 ngày nhưng đứng cạnh 7
+cột tuần đủ, đọc như "lượt xem sụp đổ". Tháng nặng hơn: mùng 7 mà so với tháng 31 ngày liền trước thì
+hụt 4/5. Cùng loại bug với `−90%` giả mà `viewsDeltaComparable` chặn (27/08), chỉ khác là ở tầng biểu
+đồ.
+- `lib/dashboard.ts` `withUnfinishedMarks(points, through)` — gắn `coverage: { days, totalDays }` cho
+  điểm CUỐI của cả 2 chuỗi tuần/tháng nếu kỳ đó chưa kết thúc tính tới `through` (ngày dữ liệu mới
+  nhất, lấy bằng `latestDateOf(rows)`). Chỉ điểm cuối mới có thể dở dang. `through = null` → trả
+  nguyên. Tháng đếm theo độ dài THẬT của tháng (`monthSpanEnd`), không phải 30 cứng.
+- `TrendPoint` thêm field optional `coverage`. `getDashboard()` + 2 page channel/creator bọc series
+  qua `withUnfinishedMarks` trước khi truyền xuống.
+- `trend-chart.tsx` `ChartSvg`: điểm cuối partial tách khỏi đường liền nét (`solidPlotted`), nối vào
+  bằng `<line strokeDasharray>` (`partialLeg`), vùng tô nền dừng ở điểm liền trước. **Không giấu số** —
+  đúng nguyên tắc dự án (nhãn *tạm tính*, badge độ phủ nguồn).
+
+**3. Tooltip hover.** `ChartSvg` giữ `hover` state; mỗi điểm một `<rect fill="transparent">` trải hết
+chiều cao làm vùng bắt chuột (không phải trỏ trúng chấm 3,5px). `<ChartTooltip>` vẽ bằng chính SVG
+(không overlay HTML) để tự co giãn theo `viewBox` khi khung bị scale. Kỳ chưa xong: thêm dòng
+`"kỳ chưa xong — mới có N/M ngày"` màu `--color-amber-dark`. Dòng đầu có tiền tố `"tuần "` cho biểu đồ
+tuần (nhãn chỉ là ngày trần), rỗng cho tháng (`Th8` đã tự mang "Th").
+
+**4. `/kpi` — mỗi kênh 1 dòng gập/mở (`KpiChannelDisclosure`).** Trước đó mỗi kênh CÓ chu kỳ bung hết
+nội dung, 1-2 kênh đã đẩy phần còn lại xuống dưới màn hình. Giờ:
+- Kênh chưa từng đặt KPI: giữ nguyên dòng gọn "Chưa có KPI + Đặt KPI" của `KpiCard` (không bọc
+  dropdown — không có gì để bung).
+- Kênh có chu kỳ: hàng thu gọn mang **badge sức khoẻ của kỳ ĐANG CHẠY** (`KpiHealthBadge`) — cố tình
+  KHÔNG mượn `%` của kỳ gần nhất đã kết thúc làm trạng thái kênh (theo phản hồi "đang bị lặp thông
+  tin" — % kỳ tuần trước không phải tình trạng hiện tại, mà lặp y nguyên badge + khoảng ngày đã nằm
+  trong "Các kỳ trước" ngay bên dưới). Không kỳ đang chạy → note `"N kỳ trước"`.
+- `KpiCard` thêm prop `bare` — bỏ khung card riêng (viền + margin) để nhúng vừa vào thân disclosure
+  (chỗ đó đã có viền + dòng nhận diện kênh riêng). Không dùng ở `/channels/[id]`.
+- Nút bấm là phần tử duy nhất toggle, KHÔNG phải cả hàng — tên kênh là `<Link>` sang `/channels/[id]`.
+  Nội dung render sẵn server, truyền xuống làm `children` — gập/mở chỉ ẩn/hiện, không tải thêm.
+
+**Sửa kèm — double-`@` ở `KpiCard`/`FinalizePanel`.** `channel.tiktok_handle` trong DB đã có sẵn `@`
+(seed script, xác nhận trên data thật). Mọi màn khác render `{tiktokHandle}` trần; riêng
+`kpi-card.tsx` + `finalize-panel.tsx` viết `@{header.tiktokHandle}` → ra `@@handle`. Bỏ `@` cứng.
+
+**Kiểm chứng** (browser thật, Manager `Thái Duy Tiến`, 07/09): nhãn tuần "31/8" ✅; tooltip tuần "tuần
+31/8 / 14,35M" ✅; biểu đồ tháng Th8→Th9 nét đứt, Th9 không tô nền, tooltip "kỳ chưa xong — mới có
+6/30 ngày" ✅; tuần 31/8 **không** bị đánh dấu dở dang (dữ liệu đã tới 6/9 = tuần trọn) ✅. `/kpi`:
+tạo tạm 1 chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không
+viền lồng viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest`
+(234 test, +8 cho `withUnfinishedMarks`, +3 cho `weekStartLabel`) đều xanh.
