@@ -164,17 +164,18 @@ function ChartSvg({
     else segments.push([{ x: p.x, y: p.y }]);
   });
 
-  // Chặng nối từ kỳ trọn vẹn cuối cùng sang kỳ ĐANG CHẠY — luôn nét đứt (07/09/2026, theo yêu cầu:
-  // "tuần đang diễn ra vẽ nét đứt"):
-  //  • kỳ đang chạy đã có số  → nối thẳng prev → tail, chấm ở tail do vòng `plotted.map` vẽ
-  //  • kỳ đang chạy chưa có số → kéo NGANG từ prev tới cột kỳ đó (giữ ở mức prev) + chấm rỗng nét đứt.
-  //    Dấu hiệu "tuần này đang diễn ra, chưa có số đo" — KHÔNG phải đường tụt về 0.
+  // Chặng nối từ kỳ trọn vẹn cuối cùng sang kỳ ĐANG CHẠY, vẽ nét đứt — nhưng CHỈ khi kỳ đang chạy đã
+  // có số đo thật ở cả 2 đầu.
+  //
+  // Đã thử kéo ngang giữ mức kỳ trước cho những kỳ chưa có số, để lúc nào cũng có nét đứt: SAI, và bị
+  // bắt ngay (07/09/2026, theo yêu cầu "giá trị nét đứt cần đúng số liệu thật"). Đầu mút của đoạn
+  // thẳng là một toạ độ Y — người đọc chiếu sang trục là ra một con số. Bịa đầu mút = bịa số, đúng
+  // loại lỗi CLAUDE.md cấm ("chưa có số đo" không được vẽ thành một giá trị). Kỳ chưa sync ngày nào
+  // thì cột đó chỉ còn nhãn trục X + tooltip "chưa có số đo"; nét đứt xuất hiện ngay khi có số thật.
   const prev = plotted[plotted.length - 2];
   const tail = plotted[plotted.length - 1];
   const partialLeg =
-    lastIsPartial && prev && tail && prev.y !== null
-      ? { x1: prev.x, y1: prev.y, x2: tail.x, y2: tail.y ?? prev.y, pending: tail.y === null }
-      : null;
+    lastIsPartial && prev && tail && prev.y !== null && tail.y !== null ? { prev, tail } : null;
 
   const gridLines = [0, 1, 2, 3].map((i) => hi - (i * (hi - lo)) / 3);
 
@@ -210,29 +211,16 @@ function ChartSvg({
         />
       ))}
       {partialLeg ? (
-        <g>
-          <line
-            x1={partialLeg.x1}
-            y1={partialLeg.y1}
-            x2={partialLeg.x2}
-            y2={partialLeg.y2}
-            stroke={lineColor}
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeDasharray="5 4"
-          />
-          {partialLeg.pending ? (
-            <circle
-              cx={partialLeg.x2}
-              cy={partialLeg.y2}
-              r={4}
-              fill="var(--color-bg)"
-              stroke={lineColor}
-              strokeWidth={2}
-              strokeDasharray="2 2"
-            />
-          ) : null}
-        </g>
+        <line
+          x1={partialLeg.prev.x}
+          y1={partialLeg.prev.y ?? 0}
+          x2={partialLeg.tail.x}
+          y2={partialLeg.tail.y ?? 0}
+          stroke={lineColor}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeDasharray="5 4"
+        />
       ) : null}
       {plotted.map((p, i) => (
         <g key={`${p.x}-${p.label}`}>

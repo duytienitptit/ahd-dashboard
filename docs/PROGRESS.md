@@ -1710,10 +1710,15 @@ này chưa bắt đầu. Và ngay cả khi có, cột "tuần này" mới có 1/
 - `TrendPoint` thêm field optional `coverage`. `getDashboard()` + 2 page channel/creator truyền
   `{ now: to, through: latestDateOf(rows) }`.
 - `trend-chart.tsx` `ChartSvg`: điểm cuối (kỳ đang chạy) tách khỏi đường liền nét (`solidPlotted`),
-  vùng tô nền dừng ở điểm liền trước, và **luôn có chặng nét đứt** (`partialLeg`, theo yêu cầu "tuần
-  đang diễn ra vẽ nét đứt"): kỳ đã có số → nối chéo `prev → tail`; kỳ chưa có số → kéo NGANG từ `prev`
-  tới cột kỳ đó (giữ ở mức `prev`) + chấm rỗng nét đứt — dấu hiệu "đang diễn ra, chưa có số đo", KHÔNG
-  phải đường tụt về 0. **Không giấu số** — đúng nguyên tắc dự án (nhãn *tạm tính*, badge độ phủ nguồn).
+  vùng tô nền dừng ở điểm liền trước, nối vào bằng chặng **nét đứt** (`partialLeg`) — nhưng CHỈ khi kỳ
+  đang chạy đã có số đo thật ở cả 2 đầu. **Không giấu số** — đúng nguyên tắc dự án (nhãn *tạm tính*,
+  badge độ phủ nguồn).
+
+  ⚠️ **Đã thử và bị bác:** kéo ngang giữ mức kỳ trước cho kỳ chưa có số, để lúc nào cũng có nét đứt.
+  Sai — đầu mút đoạn thẳng là một toạ độ Y, người đọc chiếu sang trục là ra một con số; bịa đầu mút =
+  bịa số ("giá trị nét đứt cần đúng số liệu thật", 07/09/2026). Cùng loại lỗi CLAUDE.md cấm ở tầng
+  `value: null`. Kỳ chưa sync ngày nào → cột chỉ còn nhãn trục X + tooltip "chưa có số đo"; nét đứt
+  tự xuất hiện ngay lần cron đầu tiên của kỳ. Đừng dựng lại phương án kéo ngang.
 
 **3. Tooltip hover.** `ChartSvg` giữ `hover` state; mỗi điểm một `<rect fill="transparent">` trải hết
 chiều cao làm vùng bắt chuột (không phải trỏ trúng chấm 3,5px). `<ChartTooltip>` vẽ bằng chính SVG
@@ -1739,10 +1744,12 @@ nội dung, 1-2 kênh đã đẩy phần còn lại xuống dưới màn hình. 
 `kpi-card.tsx` + `finalize-panel.tsx` viết `@{header.tiktokHandle}` → ra `@@handle`. Bỏ `@` cứng.
 
 **Kiểm chứng** (browser thật, Manager `Thái Duy Tiến`, 07/09 — hôm nay là thứ Hai, tuần này chưa có
-số): biểu đồ tuần Tổng quan + chi tiết kênh giờ có cột **"7/9"** ở mép phải với **chặng nét đứt ngang
-+ chấm rỗng** nối từ 31/8, hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅;
-nhãn tuần theo ngày đầu tuần ✅; biểu đồ tháng Th8→Th9 nét đứt chéo (Th9 đã có số một phần), tooltip
-"kỳ chưa xong — mới có 6/30 ngày" ✅. `/kpi`: tạo tạm 1
+số — kiểm bằng query `v_channel_daily`: từ 07/09 **không có hàng nào**, ngày cuối có số là 06/09):
+biểu đồ tuần Tổng quan + chi tiết kênh có cột **"7/9"** ở mép phải, **không nét đứt vì chưa có số
+thật để nối tới**, hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅; nhãn tuần
+theo ngày đầu tuần ✅; biểu đồ tháng Th8→Th9 **nét đứt chéo tới đúng giá trị thật** (Th9 đã có số một
+phần: 10,67M), tooltip "kỳ chưa xong — mới có 6/30 ngày" ✅ — đây là bằng chứng cơ chế nét đứt chạy
+đúng, chỉ riêng tuần 7/9 hôm nay chưa có gì để vẽ. `/kpi`: tạo tạm 1
 chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không viền lồng
 viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest` (237
 test) đều xanh.
