@@ -1709,10 +1709,11 @@ này chưa bắt đầu. Và ngay cả khi có, cột "tuần này" mới có 1/
   viết 2 lần cho tuần và tháng.
 - `TrendPoint` thêm field optional `coverage`. `getDashboard()` + 2 page channel/creator truyền
   `{ now: to, through: latestDateOf(rows) }`.
-- `trend-chart.tsx` `ChartSvg`: điểm cuối partial tách khỏi đường liền nét (`solidPlotted`), nối vào
-  bằng `<line strokeDasharray>` (`partialLeg` — chỉ khi cả 2 đầu có số), vùng tô nền dừng ở điểm liền
-  trước. Cột trống (value null) chỉ còn nhãn + vùng bắt chuột. **Không giấu số** — đúng nguyên tắc dự
-  án (nhãn *tạm tính*, badge độ phủ nguồn).
+- `trend-chart.tsx` `ChartSvg`: điểm cuối (kỳ đang chạy) tách khỏi đường liền nét (`solidPlotted`),
+  vùng tô nền dừng ở điểm liền trước, và **luôn có chặng nét đứt** (`partialLeg`, theo yêu cầu "tuần
+  đang diễn ra vẽ nét đứt"): kỳ đã có số → nối chéo `prev → tail`; kỳ chưa có số → kéo NGANG từ `prev`
+  tới cột kỳ đó (giữ ở mức `prev`) + chấm rỗng nét đứt — dấu hiệu "đang diễn ra, chưa có số đo", KHÔNG
+  phải đường tụt về 0. **Không giấu số** — đúng nguyên tắc dự án (nhãn *tạm tính*, badge độ phủ nguồn).
 
 **3. Tooltip hover.** `ChartSvg` giữ `hover` state; mỗi điểm một `<rect fill="transparent">` trải hết
 chiều cao làm vùng bắt chuột (không phải trỏ trúng chấm 3,5px). `<ChartTooltip>` vẽ bằng chính SVG
@@ -1738,9 +1739,10 @@ nội dung, 1-2 kênh đã đẩy phần còn lại xuống dưới màn hình. 
 `kpi-card.tsx` + `finalize-panel.tsx` viết `@{header.tiktokHandle}` → ra `@@handle`. Bỏ `@` cứng.
 
 **Kiểm chứng** (browser thật, Manager `Thái Duy Tiến`, 07/09 — hôm nay là thứ Hai, tuần này chưa có
-số): biểu đồ tuần Tổng quan + chi tiết kênh giờ có cột **"7/9"** ở mép phải, không chấm/không nền,
-hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅; nhãn tuần theo ngày đầu tuần
-✅; biểu đồ tháng Th8→Th9 nét đứt, tooltip "kỳ chưa xong — mới có 6/30 ngày" ✅. `/kpi`: tạo tạm 1
+số): biểu đồ tuần Tổng quan + chi tiết kênh giờ có cột **"7/9"** ở mép phải với **chặng nét đứt ngang
++ chấm rỗng** nối từ 31/8, hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅;
+nhãn tuần theo ngày đầu tuần ✅; biểu đồ tháng Th8→Th9 nét đứt chéo (Th9 đã có số một phần), tooltip
+"kỳ chưa xong — mới có 6/30 ngày" ✅. `/kpi`: tạo tạm 1
 chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không viền lồng
 viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest` (237
 test) đều xanh.
