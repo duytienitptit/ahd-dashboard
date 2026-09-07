@@ -449,6 +449,13 @@ cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm
 đúng là 0). Client phải vẽ đứt đoạn ở điểm `null`, không được vẽ như một điểm 0 thật (CLAUDE.md,
 vấn đề #7, 21/08/2026).
 
+**Ngoại lệ duy nhất** (07/09/2026, theo yêu cầu): điểm CUỐI của chuỗi, khi kỳ đó chưa kết thúc (có
+`coverage`) và chưa đo được ngày nào (`value: null`), với chỉ số **cộng dồn trong kỳ** — `views`,
+`videos`, `likes` — thì client vẽ mốc 0 để nét đứt cắm xuống, vì kỳ mới bắt đầu thì thật sự chưa cộng
+được gì. `followers` **không** áp ngoại lệ này (số tồn kho — 0 đọc ra "mất sạch follower"), giữ ô
+trống. Bảng phân loại: `ACCUMULATES` trong `app/(app)/trend-chart.tsx`. Tooltip vẫn ghi "chưa có số
+đo", không ghi "0" — đường kẻ nói "kỳ này bắt đầu từ đây", chữ nói "chưa đo được ngày nào".
+
 `trend.week[].label` là **ngày bắt đầu tuần** dạng `d/M` ("31/8", "7/9"), không có năm — đổi từ số
 thứ tự tuần ISO ("T35") ngày 07/09/2026 theo yêu cầu, lệch có chủ đích so với `design/Main.dc.html`.
 Lý do: "T35" bắt người đọc tự tra tuần đó rơi vào ngày nào mới đối chiếu được với các màn khác (vốn

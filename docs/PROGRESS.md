@@ -1714,11 +1714,24 @@ này chưa bắt đầu. Và ngay cả khi có, cột "tuần này" mới có 1/
   đang chạy đã có số đo thật ở cả 2 đầu. **Không giấu số** — đúng nguyên tắc dự án (nhãn *tạm tính*,
   badge độ phủ nguồn).
 
-  ⚠️ **Đã thử và bị bác:** kéo ngang giữ mức kỳ trước cho kỳ chưa có số, để lúc nào cũng có nét đứt.
-  Sai — đầu mút đoạn thẳng là một toạ độ Y, người đọc chiếu sang trục là ra một con số; bịa đầu mút =
-  bịa số ("giá trị nét đứt cần đúng số liệu thật", 07/09/2026). Cùng loại lỗi CLAUDE.md cấm ở tầng
-  `value: null`. Kỳ chưa sync ngày nào → cột chỉ còn nhãn trục X + tooltip "chưa có số đo"; nét đứt
-  tự xuất hiện ngay lần cron đầu tiên của kỳ. Đừng dựng lại phương án kéo ngang.
+- **Kỳ đang chạy chưa đo được ngày nào** — 3 vòng mới chốt, ghi lại cả 2 vòng sai để khỏi lặp:
+  1. ❌ *Không vẽ gì* (chỉ nhãn trục X). Bị bác: "thống nhất tuần đang diễn ra vẽ nét đứt".
+  2. ❌ *Kéo NGANG giữ mức kỳ trước.* Bị bác: "giá trị nét đứt cần đúng số liệu thật" — đầu mút đoạn
+     thẳng là một toạ độ Y, người đọc chiếu sang trục là ra một con số, nên bịa đầu mút = bịa số.
+     Kiểm chứng: `v_channel_daily` không có hàng nào từ 07/09 mà đường kẻ vẫn nằm ngang ở ~14,35M.
+  3. ✅ **Neo về 0 — nhưng chỉ với chỉ số CỘNG DỒN trong kỳ.** `ACCUMULATES` (`trend-chart.tsx`):
+     `views`/`videos`/`likes` = `true` (bucket là tổng các ngày → kỳ mới bắt đầu thì mốc thật là 0,
+     nét đứt cắm xuống 0 rồi leo dần); `followers` = `false` (số tồn kho → 0 đọc ra "team mất sạch
+     follower", sai nặng hơn hẳn việc để trống một cột, nên tab Follower giữ ô trống).
+
+  Đây là **ngoại lệ có chủ đích** của luật "null không bao giờ vẽ thành 0" (CLAUDE.md vấn đề #7),
+  giới hạn đúng 1 điểm: điểm cuối + kỳ chưa kết thúc + chỉ số cộng dồn. Mọi `null` khác — kể cả lỗ
+  thủng giữa chuỗi — vẫn vẽ đứt đoạn. Tooltip **vẫn ghi "chưa có số đo"**, không ghi "0": đường kẻ
+  nói "kỳ này bắt đầu từ đây", chữ nói "chưa đo được ngày nào". `zeroBaseTail` cũng nhét `0` vào tập
+  giá trị tính thang đo, nếu không chấm rơi khỏi khung khi `lo` > 0.
+
+  Trạng thái này chỉ sống từ 00:00 tới ~23:30 **thứ Hai** (lần cron đầu của tuần); từ sáng thứ Ba kỳ
+  luôn có số thật và nét đứt nối tới đúng giá trị đó.
 
 **3. Tooltip hover.** `ChartSvg` giữ `hover` state; mỗi điểm một `<rect fill="transparent">` trải hết
 chiều cao làm vùng bắt chuột (không phải trỏ trúng chấm 3,5px). `<ChartTooltip>` vẽ bằng chính SVG
@@ -1745,11 +1758,11 @@ nội dung, 1-2 kênh đã đẩy phần còn lại xuống dưới màn hình. 
 
 **Kiểm chứng** (browser thật, Manager `Thái Duy Tiến`, 07/09 — hôm nay là thứ Hai, tuần này chưa có
 số — kiểm bằng query `v_channel_daily`: từ 07/09 **không có hàng nào**, ngày cuối có số là 06/09):
-biểu đồ tuần Tổng quan + chi tiết kênh có cột **"7/9"** ở mép phải, **không nét đứt vì chưa có số
-thật để nối tới**, hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅; nhãn tuần
-theo ngày đầu tuần ✅; biểu đồ tháng Th8→Th9 **nét đứt chéo tới đúng giá trị thật** (Th9 đã có số một
-phần: 10,67M), tooltip "kỳ chưa xong — mới có 6/30 ngày" ✅ — đây là bằng chứng cơ chế nét đứt chạy
-đúng, chỉ riêng tuần 7/9 hôm nay chưa có gì để vẽ. `/kpi`: tạo tạm 1
+biểu đồ tuần Tổng quan + chi tiết kênh có cột **"7/9"** ở mép phải; tab **Lượt xem** và **Video** nét
+đứt cắm xuống 0 ✅, tab **Follower** giữ ô trống không cắm ✅ (đúng phân loại `ACCUMULATES`); cả 3
+tab hover ra "tuần 7/9 / chưa có số đo / kỳ chưa xong — mới có 0/7 ngày" ✅; nhãn tuần theo ngày đầu
+tuần ✅; biểu đồ tháng Th8→Th9 **nét đứt chéo tới đúng giá trị thật** (Th9 đã có số một phần: 10,67M),
+tooltip "kỳ chưa xong — mới có 6/30 ngày" ✅. `/kpi`: tạo tạm 1
 chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không viền lồng
 viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest` (237
 test) đều xanh.

@@ -161,7 +161,7 @@ Biến môi trường: `.env.example`.
 
 **Milestone hiện tại: polish biểu đồ xu hướng + `/kpi` dropdown (07/09) — nhãn tuần theo ngày, kỳ
 cuối dở dang vẽ nét đứt, biểu đồ tuần LUÔN có cột "tuần này", tooltip hover, mỗi kênh 1 dòng gập/mở.
-3 commit đầu đã `push` lên `main`; còn 2 commit ("cột tuần này" + "tuần đang diễn ra vẽ nét đứt")
+3 commit đầu đã `push` lên `main`; còn 4 commit (cột "tuần này" + cách vẽ kỳ đang chạy)
 đang chờ push.** Chi tiết:
 [docs/PROGRESS.md](docs/PROGRESS.md) mục "Biểu đồ xu hướng — polish 07/09/2026". M6 (chốt sổ KPI) +
 `/kpi` danh sách kênh + M5 (KPI Cycle) +
@@ -215,7 +215,7 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **`git push`** — 2 commit đang chờ trên `main` local (biểu đồ tuần: cột "tuần này" + nét đứt tuần
+1. **`git push`** — 4 commit đang chờ trên `main` local (biểu đồ tuần: cột "tuần này" + nét đứt kỳ
    đang diễn ra), `.claude/settings.json` chặn cứng push nên người dùng tự chạy. Vercel auto-redeploy.
 2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
    `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của

@@ -31,6 +31,27 @@ type Granularity = keyof typeof GRANULARITY_LABEL;
  *  `weekStartLabel`); tháng thì bỏ trống, nhãn tháng đã tự mang "Th" nên thêm vào sẽ ra "tháng Th8". */
 const TOOLTIP_PREFIX: Record<Granularity, string> = { week: "tuần ", month: "" };
 
+/**
+ * Chỉ số **cộng dồn trong kỳ** (bucket = tổng các ngày) hay **tồn kho** (bucket = mức tại cuối kỳ)?
+ *
+ * Chỉ dùng cho đúng một quyết định: vẽ cột kỳ ĐANG CHẠY khi kỳ đó chưa đo được ngày nào.
+ *  • cộng dồn (views/videos/likes) → mốc khởi điểm thật của kỳ là 0, nên nét đứt cắm xuống 0
+ *    (07/09/2026, theo yêu cầu — kỳ mới bắt đầu thì chưa cộng được gì, rồi leo dần lên).
+ *  • tồn kho (followers) → **KHÔNG**. 0 follower đọc ra "team mất sạch follower", sai nặng hơn nhiều
+ *    so với để trống một cột; cột đó giữ nguyên cách vẽ đứt đoạn như mọi điểm `null` khác.
+ *
+ * Đây là **ngoại lệ có chủ đích** của luật "null không bao giờ vẽ thành 0" (CLAUDE.md vấn đề #7,
+ * 21/08/2026), giới hạn đúng 1 điểm: điểm cuối + kỳ chưa kết thúc + chỉ số cộng dồn. Mọi `null` khác
+ * — kể cả lỗ thủng giữa chuỗi — vẫn vẽ đứt đoạn. Tooltip vẫn ghi "chưa có số đo", không ghi "0":
+ * đường kẻ nói "kỳ này bắt đầu từ đây", chữ nói "chưa đo được ngày nào".
+ */
+const ACCUMULATES: Record<keyof typeof METRIC_TONE, boolean> = {
+  views: true,
+  videos: true,
+  likes: true,
+  followers: false,
+};
+
 const WIDTH = 750;
 const HEIGHT = 212;
 const X0 = 50;
@@ -112,6 +133,7 @@ export function TrendChart({ title, subtitlePrefix, tabs }: { title: string; sub
           formatValue={FORMATTERS[tab.format]}
           tone={tone ?? "blue"}
           pointPrefix={TOOLTIP_PREFIX[granularity]}
+          accumulates={ACCUMULATES[tab.key]}
         />
       )}
     </div>
@@ -123,34 +145,45 @@ function ChartSvg({
   formatValue,
   tone,
   pointPrefix,
+  accumulates,
 }: {
   points: TrendPoint[];
   formatValue: (n: number) => string;
   tone: MetricTone;
   /** "tuần " cho biểu đồ tuần, rỗng cho biểu đồ tháng — xem `TOOLTIP_PREFIX`. */
   pointPrefix: string;
+  /** Chỉ số cộng dồn trong kỳ hay tồn kho — xem `ACCUMULATES`. */
+  accumulates: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const lineColor = METRIC_CSS_VAR[tone];
   const fillColor = METRIC_BG_CSS_VAR[tone];
+
+  // Kỳ cuối chưa kết thúc (`coverage`, xem lib/dashboard.ts `withUnfinishedMarks`) thì tách khỏi
+  // đường liền nét: nó chỉ mới cộng được vài ngày nên đứng ngang hàng với các kỳ đủ ngày sẽ đọc như
+  // một cú tụt thật. Vẫn vẽ, chỉ là bằng nét đứt (07/09/2026, theo yêu cầu — không giấu số).
+  const tailPoint = points[points.length - 1];
+  const lastIsPartial = tailPoint?.coverage != null;
+  // Kỳ đang chạy chưa đo được ngày nào: chỉ số cộng dồn thì neo về 0 để nét đứt cắm xuống, tồn kho
+  // thì để trống. Xem `ACCUMULATES` cho lý do đầy đủ.
+  const zeroBaseTail = accumulates && lastIsPartial && tailPoint?.value === null;
+
   const known = points.map((p) => p.value).filter((v): v is number => v !== null);
+  // Mốc 0 phải nằm trong thang đo, nếu không chấm rơi khỏi khung vẽ khi `lo` > 0.
+  const scaleValues = zeroBaseTail ? [...known, 0] : known;
   // Every point is a gap (e.g. a brand-new channel before its first sync resolves) — nothing to
   // scale the y-axis against. Labels below still render.
-  const { lo, hi } = known.length > 0 ? niceRange(known) : { lo: 0, hi: 1 };
+  const { lo, hi } = scaleValues.length > 0 ? niceRange(scaleValues) : { lo: 0, hi: 1 };
   const yOf = (v: number) => TOP + (1 - (v - lo) / (hi - lo)) * PLOT;
   const xOf = (i: number) => (points.length === 1 ? (X0 + X1) / 2 : X0 + (i * (X1 - X0)) / (points.length - 1));
 
   const plotted = points.map((p, i) => ({
     x: xOf(i),
-    y: p.value === null ? null : yOf(p.value),
+    y: p.value !== null ? yOf(p.value) : zeroBaseTail && i === points.length - 1 ? yOf(0) : null,
     label: p.label,
     isLast: i === points.length - 1,
   }));
 
-  // Kỳ cuối chưa kết thúc (`coverage`, xem lib/dashboard.ts `withUnfinishedMarks`) thì tách khỏi
-  // đường liền nét: nó chỉ mới cộng được vài ngày nên đứng ngang hàng với các kỳ đủ ngày sẽ đọc như
-  // một cú tụt thật. Vẫn vẽ, chỉ là bằng nét đứt (07/09/2026, theo yêu cầu — không giấu số).
-  const lastIsPartial = points[points.length - 1]?.coverage != null;
   const solidPlotted = lastIsPartial ? plotted.slice(0, -1) : plotted;
 
   // A null point breaks the line into a separate segment — plotting it as 0 would draw "the metric
