@@ -29,6 +29,7 @@ export function KpiCard({
   activeCycle,
   pastCycles,
   header,
+  bare = false,
 }: {
   channelId: string;
   /** Only needed for the delete-confirm's "type this exact name" text (`cycleEntityName`) — kept
@@ -45,6 +46,10 @@ export function KpiCard({
    *  that lists multiple channels (`/kpi`, 26/08/2026). `undefined` on `/channels/[id]` (unchanged
    *  from before that page), where the page itself already names the channel everywhere else. */
   header?: { tiktokHandle: string; avatarIndex: number };
+  /** Bỏ khung card riêng (viền + margin) để nhúng vừa vào phần thân của `KpiChannelDisclosure` trên
+   *  `/kpi` — chỗ đó đã có viền và dòng nhận diện kênh riêng, giữ nguyên sẽ thành viền lồng viền.
+   *  Không dùng ở `/channels/[id]`, nơi card này tự đứng một mình. */
+  bare?: boolean;
 }) {
   const headerRow = header ? (
     <div className="mb-3.5 flex items-center gap-3">
@@ -58,7 +63,7 @@ export function KpiCard({
         <Link href={`/channels/${channelId}`} className="text-sm font-bold hover:underline">
           {channelName}
         </Link>
-        <div className="text-[11.5px] text-ink-3">@{header.tiktokHandle}</div>
+        <div className="text-[11.5px] text-ink-3">{header.tiktokHandle}</div>
       </div>
     </div>
   ) : null;
@@ -82,7 +87,7 @@ export function KpiCard({
               <Link href={`/channels/${channelId}`} className="text-sm font-bold hover:underline">
                 {channelName}
               </Link>
-              <div className="text-[11.5px] text-ink-3">@{header.tiktokHandle}</div>
+              <div className="text-[11.5px] text-ink-3">{header.tiktokHandle}</div>
             </div>
           </div>
           <div className="flex items-center gap-2.5 text-[12.5px]">
@@ -115,7 +120,7 @@ export function KpiCard({
   }
 
   return (
-    <div className="mb-3.5 rounded-card border border-line px-5 py-[18px]">
+    <div className={bare ? "px-5 pb-[18px] pt-4" : "mb-3.5 rounded-card border border-line px-5 py-[18px]"}>
       {headerRow}
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
         <div className="text-[15px] font-bold">KPI kỳ này</div>

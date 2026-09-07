@@ -97,7 +97,7 @@ export function FinalizePanel({
           <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Chốt sổ chu kỳ</h1>
           <div className="mt-1.5 flex items-center gap-2 text-[13px] text-ink-3">
             <span>
-              {channel.name} · @{channel.tiktokHandle}
+              {channel.name} · {channel.tiktokHandle}
             </span>
             <span className="h-[3px] w-[3px] rounded-pill bg-line" />
             <span>

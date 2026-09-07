@@ -7,6 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { nowVnDateString } from "@/lib/time";
 
 import { KpiCard } from "../channels/[id]/kpi-card";
+import { KpiChannelDisclosure } from "./kpi-channel-disclosure";
+import { KpiHealthBadge } from "./kpi-widgets";
 
 /**
  * Channel-first (26/08/2026, theo yêu cầu — trước đó là danh sách CHU KỲ nhóm theo Đang chạy/Sắp
@@ -76,16 +78,50 @@ export default async function KpiPage() {
           const activeCycle = channelCycles.find((c) => c.periodStart <= today && today <= c.periodEnd) ?? null;
           const pastCycles = channelCycles.filter((c) => c.id !== activeCycle?.id).slice(0, 3);
 
+          // Kênh chưa từng đặt KPI: giữ nguyên dòng gọn "Chưa có KPI + Đặt KPI" của `KpiCard` —
+          // không có gì để bung nên bọc dropdown vào chỉ tổ thêm một nút bấm ra nội dung rỗng.
+          if (!activeCycle && pastCycles.length === 0) {
+            return (
+              <KpiCard
+                key={channel.id}
+                channelId={channel.id}
+                channelName={channel.name}
+                isManager={isManager}
+                activeCycle={null}
+                pastCycles={[]}
+                header={{ tiktokHandle: channel.tiktokHandle, avatarIndex: i }}
+              />
+            );
+          }
+
+          // Hàng thu gọn chỉ mang thứ phần bung ra KHÔNG nói lại: badge sức khoẻ của kỳ ĐANG CHẠY.
+          // Không có kỳ đang chạy thì chỉ đếm số kỳ cũ — cố tình KHÔNG mượn % của kỳ gần nhất làm
+          // trạng thái kênh (07/09/2026, theo phản hồi "đang bị lặp thông tin"): % của một kỳ đã kết
+          // thúc tuần trước không phải tình trạng hiện tại, mà lặp y nguyên badge + khoảng ngày đã
+          // nằm sẵn trong mục "Các kỳ trước" ngay bên dưới.
+          // Không có kỳ đang chạy → mọi cycle của kênh đều là kỳ cũ; đếm cả tập, không phải
+          // `pastCycles` (đã bị `.slice(0, 3)` cho phần hiển thị bên dưới).
+          const note = activeCycle ? undefined : `${channelCycles.length} kỳ trước`;
+
           return (
-            <KpiCard
+            <KpiChannelDisclosure
               key={channel.id}
               channelId={channel.id}
               channelName={channel.name}
-              isManager={isManager}
-              activeCycle={activeCycle}
-              pastCycles={pastCycles}
-              header={{ tiktokHandle: channel.tiktokHandle, avatarIndex: i }}
-            />
+              tiktokHandle={channel.tiktokHandle}
+              avatarIndex={i}
+              badge={activeCycle ? <KpiHealthBadge health={activeCycle.health} /> : undefined}
+              note={note}
+            >
+              <KpiCard
+                channelId={channel.id}
+                channelName={channel.name}
+                isManager={isManager}
+                activeCycle={activeCycle}
+                pastCycles={pastCycles}
+                bare
+              />
+            </KpiChannelDisclosure>
           );
         })
       )}
