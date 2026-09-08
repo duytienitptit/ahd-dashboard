@@ -159,11 +159,13 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: chi tiết kênh 08/09 — `TrendChart` thêm mốc "ngày" (14 ngày, cả 3 trang), bỏ
-bảng "Số liệu đã lưu theo ngày" + "Video gần đây" khỏi `/channels/[id]`, thêm `AudienceCard` (nhân
-khẩu học khán giả — `audience_snapshot` lần đầu có đường đọc), sửa bug `elapsedPct` đếm hôm nay 2
-lần. Đã commit, chờ `git push`.** Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Chi tiết kênh — mốc ngày ... (08/09/2026)".
+**Milestone hiện tại: điều chỉnh giao diện 08/09 (đợt 2) — `/creators` accordion → kanban cột
+(`team-board.tsx`), thẻ "Tình hình KPI" liệt kê cả kênh vàng, nút "TikTok ↗" có nhãn thay icon trần,
+thẻ "Người xem: mới vs quay lại" (thêm `returning_viewers` + `profile_views` — 2 cột lần đầu có đường
+đọc). Trước đó cùng ngày: mốc "ngày" cho `TrendChart`, bỏ bảng ngày + video khỏi `/channels/[id]`,
+`AudienceCard`, sửa `elapsedPct`. Đợt 1 đã commit + push (`fd82207`); đợt 2 chưa commit.** Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Điều chỉnh giao diện đợt 08/09/2026" + "Chi tiết kênh — mốc
+ngày ... (08/09/2026)".
 Polish biểu đồ xu hướng 07/09 + M6 (chốt sổ KPI) +
 `/kpi` danh sách kênh + M5 (KPI Cycle) +
 M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh
@@ -216,8 +218,8 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **`git push`** — commit "chi tiết kênh 08/09" đã tạo, chờ push (`.claude/settings.json` chặn cứng
-   push nên người dùng tự chạy). Vercel auto-redeploy.
+1. **`git push`** — đợt 1 (`fd82207` chi tiết kênh) đã push. Đợt 2 (điều chỉnh giao diện) chưa
+   commit. `.claude/settings.json` chặn cứng push nên người dùng tự chạy. Vercel auto-redeploy.
 2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
    `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của
    tôi" rỗng nếu không), rồi resubmit theo đúng quy trình portal ở

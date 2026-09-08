@@ -1864,3 +1864,63 @@ Nam 59%/Nữ 41%, Việt Nam 87,9%/Khác 9,1%/Đài Loan.../Hàn Quốc... (ISO-
 (Mộc Đi Rừng): empty state đúng, nêu tên file cần. Bảng "Hiệu quả theo hashtag" vẫn có số (chứng minh
 `fetchChannelVideos` chưa bị xoá nhầm). Trang Nhân sự: "Số liệu đã lưu theo ngày" vẫn còn nguyên.
 `vitest` 262 test / `eslint` / `next build` đều xanh.
+
+## Điều chỉnh giao diện đợt 08/09/2026 (theo yêu cầu) — có gì dùng được ngay
+
+Bốn điều chỉnh nhỏ sau khi xem bản deploy chi tiết kênh.
+
+### 1. Thẻ "Tình hình KPI" (Dashboard) — liệt kê cả kênh vàng
+
+`buildDashboardKpiSummary` (`lib/kpi.ts`): `attention` giờ gồm **mọi cycle KHÔNG đạt tiến độ** — `red`
+(tụt lại) trước, rồi `yellow` (cần chú ý) — mỗi mục kèm `health` để `KpiSummaryCard` tô chấm màu.
+Trước đó chỉ `red`; 0 kênh red thì thẻ trống trơn dù 8–9 kênh yellow đáng nhìn. `DashboardResponse
+.kpiSummary.attention` (type inline ở `lib/dashboard.ts`) đồng bộ shape. Không cắt top-N.
+
+### 2. `/creators` — accordion → kanban cột (`team-board.tsx`, đổi tên từ `team-accordion.tsx`)
+
+Mỗi team một cột (`TeamBoard`), mọi nhân sự hiện sẵn — không phải bấm mở từng team. Cột cuộn ngang
+khi nhiều team; "Chưa gán team" là một cột. Mỗi creator = thẻ gọn: avatar + tên (Link) + username,
+3 mini-stat (view/follower/video), badge trạng thái + rank, nút Sửa. `?team=<id>` cuộn cột đó vào
+tầm nhìn + viền cyan. `loading.tsx` cập nhật theo skeleton cột. `CREATOR_ROW_COLUMNS` /
+`RollupStatChip` / `ChevronIcon` cũ bỏ.
+
+Nút "Sửa" mở **`Modal`** (`app/(app)/modal.tsx`, mới) — hộp thoại giữa màn hình + scrim, đóng bằng
+X / bấm ra ngoài / Esc, khoá cuộn body. Không dùng inline (form cao làm thẻ phình, tràn bố cục cột
+hẹp — theo yêu cầu). `CreatorEditForm` + `ResetPasswordForm` thêm prop `bare` để bỏ khung card riêng
+khi nằm trong Modal (Modal đã có viền + padding). `edit-toggle.tsx` ở `/creators/[id]` vẫn dùng
+inline (full width, không cần Modal).
+
+### 3. Nút "TikTok ↗" có nhãn thay icon ↗ trần
+
+`/channels` (`channel-form.tsx` `ChannelRow`): cột thao tác cuối `40px → 96px`, chứa chip "TikTok ↗"
+(bo tròn, viền nhạt, 10.5px) xếp trên nút "Sửa". Icon ↗ trần cạnh @handle đã bỏ — người dùng không
+đoán được nó dẫn đi đâu. `/creators/[id]` (`creator-channels-table.tsx`): cùng chip "TikTok ↗" ngay
+cạnh @handle (bảng đó không có cột thao tác). `CHANNEL_TABLE_COLUMNS` là nguồn duy nhất → header +
+`loading.tsx` tự khớp.
+
+### 4. Thẻ "Người xem: mới vs quay lại" (đổi tên từ "Tỷ lệ khán giả mới")
+
+`data_snapshot.returning_viewers` + `profile_views` **lần đầu có đường đọc** — đã ghi mỗi lần import
+Studio từ M3a nhưng chưa query bao giờ. Thêm vào `DAILY_SELECT` / `DailyRow` / `toDailyRow` /
+`mergeDailyRowsByDate` / `ViewerRatio` / `latestViewerRatio` (`lib/dashboard.ts`). `NewViewerRatioCard`
+(`detail-widgets.tsx`) giờ hiện: % người xem mới (như cũ) + danh sách "Người xem mới / quay lại / tổng
+/ Lượt xem trang cá nhân" + ngày. `returningViewers`/`profileViews` lấy từ **cùng row** Viewers.csv/
+Overview.csv — `null` nếu ngày đó file kia chưa phủ (cửa sổ chốt 2 file có thể lệch). Subtitle viết
+lại bằng tiếng Việt thường thay cho "newViewers / totalViewers".
+
+**Về "còn insight gì nữa" (trả lời câu hỏi):**
+- **Không lấy được** từ pipeline hiện tại: nhân khẩu học tuổi, watch time / thời lượng xem trung
+  bình, tỷ lệ xem hết video, nguồn traffic (For You / Search / Profile / Following) — **không có
+  trong bất kỳ file Studio export nào** và Display API cũng không trả. Cần Business API (đã flag ở
+  `docs/TASKS.md` M7 là đánh giá sau).
+- **TikTok Shop / hoa hồng / GMV / đơn hàng**: nằm ở **TikTok Shop Partner API** hoàn toàn riêng
+  (auth riêng, sản phẩm riêng), không phải Studio Analytics. Không có trong dữ liệu app đang nhận.
+  Muốn có phải tích hợp Shop API — một dự án tách.
+- Studio CSV đã parse hết 7 file, mọi cột (trừ `Difference in followers` cố ý bỏ). Không còn cột
+  nào chưa dùng.
+
+### Kiểm chứng (browser thật, Manager Đặng An, 08/09)
+`/creators` kanban: 3 cột, 7/7 creator hiện sẵn không cần bấm. Dashboard "Tình hình KPI": 9 mục
+vàng kèm chấm amber + lý do, cuộn trong khung. `/channels`: chip "TikTok ↗" + "Sửa" ở cột cuối.
+`/creators/[id]`: chip "TikTok" cạnh handle. `/channels/[id]` thẻ "Người xem": 564k mới + 398k quay
+lại = 962k tổng, 6,2k lượt xem trang, ngày 03/09. `vitest` 263 / `eslint` / `next build` xanh.

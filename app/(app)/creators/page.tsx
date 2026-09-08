@@ -10,7 +10,7 @@ import { resolvePeriodParamsAllTime } from "@/lib/time";
 import { CreateCreatorForm, TeamManager } from "./creator-form";
 import { DateRangePicker } from "../date-range-picker";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../filter-transition";
-import { TeamAccordion, type TeamGroupData } from "./team-accordion";
+import { TeamBoard, type TeamGroupData } from "./team-board";
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
 
@@ -127,7 +127,7 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
               Chưa có Creator nào.
             </div>
           ) : (
-            <TeamAccordion groups={groups} teams={teamOptions} />
+            <TeamBoard groups={groups} teams={teamOptions} />
           )}
         </FilterPendingOverlay>
       </FilterTransitionProvider>

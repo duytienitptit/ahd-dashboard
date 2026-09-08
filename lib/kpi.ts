@@ -727,7 +727,10 @@ export type DashboardKpiSummary = {
   onTrack: number;
   atRisk: number;
   behind: number;
-  attention: { channelId: string; channelName: string; reason: string }[];
+  /** Mọi kênh KHÔNG đạt tiến độ — `red` (tụt lại) trước, rồi `yellow` (cần chú ý). `health` để UI tô
+   *  chấm màu, `reason` là `health.explanation` ("Đã qua X% chu kỳ, hoàn thành Y%"). Đổi 08/09/2026
+   *  từ "chỉ red" — 0 kênh red thì thẻ trống trơn dù có 8 kênh yellow cần nhìn. */
+  attention: { channelId: string; channelName: string; reason: string; health: "red" | "yellow" }[];
 };
 
 export type DashboardMyChannelKpi = {
@@ -740,9 +743,10 @@ export type DashboardMyChannelKpi = {
  * `kpiSummary` + each channel's KPI fields for `myChannels[]`, scoped to exactly the channel set
  * `getDashboard()` already resolved (respecting role/creatorId/teamId) — pass its `channels` field
  * straight through, no second filter query. `onTrack`/`atRisk`/`behind` count this channel set's
- * currently-ACTIVE cycles by `health.value`; `attention` lists every `red` one (no top-N cap,
- * matching the 24/08/2026 "no artificial top-N" decision already applied to growth/viewShare/
- * efficiency — CLAUDE.md, docs/TASKS.md M4 notes).
+ * currently-ACTIVE cycles by `health.value`; `attention` lists every cycle that is NOT on track —
+ * `red` (tụt lại) first, then `yellow` (cần chú ý) — no top-N cap, matching the 24/08/2026 "no
+ * artificial top-N" decision already applied to growth/viewShare/efficiency (CLAUDE.md, docs/TASKS.md
+ * M4 notes). Đổi 08/09/2026 từ "chỉ red".
  */
 export async function buildDashboardKpiSummary(
   supabase: SupabaseServerClient,
@@ -758,7 +762,7 @@ export async function buildDashboardKpiSummary(
   let onTrack = 0;
   let atRisk = 0;
   let behind = 0;
-  const attention: { channelId: string; channelName: string; reason: string }[] = [];
+  const attention: DashboardKpiSummary["attention"] = [];
   const byChannel = new Map<string, DashboardMyChannelKpi>();
 
   for (const cycle of withProgress) {
@@ -766,11 +770,12 @@ export async function buildDashboardKpiSummary(
     else if (cycle.health.value === "yellow") atRisk += 1;
     else behind += 1;
 
-    if (cycle.health.value === "red") {
+    if (cycle.health.value === "red" || cycle.health.value === "yellow") {
       attention.push({
         channelId: cycle.channelId,
         channelName: nameById.get(cycle.channelId) ?? "",
         reason: cycle.health.explanation,
+        health: cycle.health.value,
       });
     }
 
@@ -802,6 +807,10 @@ export async function buildDashboardKpiSummary(
 
     byChannel.set(cycle.channelId, { overallStatus: cycle.health.value, hasActiveKpi: true, metrics });
   }
+
+  // `red` trước `yellow`; trong mỗi nhóm giữ nguyên thứ tự `listKpiCycles` trả về (kết thúc gần nhất
+  // trước). Không cắt top-N — cùng quyết định 24/08 đã áp cho growth/viewShare/efficiency.
+  attention.sort((a, b) => (a.health === b.health ? 0 : a.health === "red" ? -1 : 1));
 
   return { kpiSummary: { onTrack, atRisk, behind, attention }, byChannel };
 }

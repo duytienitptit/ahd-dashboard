@@ -46,6 +46,8 @@ function row(partial: Partial<DailyRow> & { channelId: string; date: string }): 
     shares: null,
     totalViewers: null,
     newViewers: null,
+    returningViewers: null,
+    profileViews: null,
     source: "studio_import",
     isComplete: true,
     ...partial,
@@ -411,13 +413,33 @@ describe("latestFollowers", () => {
 });
 
 describe("latestViewerRatio", () => {
-  it("picks the most recent row with both totalViewers and newViewers", () => {
+  it("picks the most recent row with both totalViewers and newViewers, carrying returning + profile", () => {
     const rows = [
-      row({ channelId: "a", date: "2026-08-14", totalViewers: 1000, newViewers: 400 }),
+      row({
+        channelId: "a",
+        date: "2026-08-14",
+        totalViewers: 1000,
+        newViewers: 400,
+        returningViewers: 600,
+        profileViews: 120,
+      }),
       row({ channelId: "a", date: "2026-08-15", totalViewers: null, newViewers: null }), // display_api gap
     ];
     const result = latestViewerRatio(rows);
-    expect(result).toEqual({ date: "2026-08-14", totalViewers: 1000, newViewers: 400, ratio: 0.4 });
+    expect(result).toEqual({
+      date: "2026-08-14",
+      totalViewers: 1000,
+      newViewers: 400,
+      returningViewers: 600,
+      profileViews: 120,
+      ratio: 0.4,
+    });
+  });
+
+  it("returning/profile stay null when the viewers row lacks them", () => {
+    const result = latestViewerRatio([row({ channelId: "a", date: "2026-08-14", totalViewers: 1000, newViewers: 400 })]);
+    expect(result?.returningViewers).toBeNull();
+    expect(result?.profileViews).toBeNull();
   });
 
   it("returns null when nothing has viewer data", () => {

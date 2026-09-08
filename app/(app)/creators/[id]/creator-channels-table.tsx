@@ -52,19 +52,17 @@ export function CreatorChannelsTable({ channels }: { channels: CreatorPerformanc
                   <Link href={`/channels/${channel.id}`} className="block truncate text-sm font-bold tracking-[-0.2px] hover:underline">
                     {channel.name}
                   </Link>
-                  <div className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] text-ink-3">
                     <span className="truncate">{channel.tiktokHandle}</span>
                     <a
                       href={`https://www.tiktok.com/${channel.tiktokHandle}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title="Xem kênh trên TikTok"
-                      className="shrink-0 text-ink-3 hover:text-ink"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-pill border border-line-soft px-2 py-0.5 text-[10.5px] font-semibold text-ink-3 hover:border-line hover:text-ink"
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        <path d="M15 3h6v6" />
-                        <path d="M10 14 21 3" />
+                      TikTok
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M7 17 17 7M8 7h9v9" />
                       </svg>
                     </a>
                   </div>

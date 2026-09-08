@@ -391,14 +391,22 @@ export function CreateCreatorForm({ teams }: { teams: { id: string; name: string
 }
 
 /** Reveals a just-set temp password exactly once, same pattern as `CreatedNotice` above. */
-function ResetPasswordForm({ creatorId, onDone }: { creatorId: string; onDone: () => void }) {
+function ResetPasswordForm({
+  creatorId,
+  onDone,
+  bare = false,
+}: {
+  creatorId: string;
+  onDone: () => void;
+  bare?: boolean;
+}) {
   const boundAction = resetCreatorPasswordAction.bind(null, creatorId);
   const [state, formAction, pending] = useActionState(boundAction, passwordInitialState);
   const [showPassword, setShowPassword] = useState(false);
 
   if (state.newPassword) {
     return (
-      <div className="rounded-card border border-line bg-cyan-bg p-4">
+      <div className={bare ? "rounded-input bg-cyan-bg p-4" : "rounded-card border border-line bg-cyan-bg p-4"}>
         <div className="text-[13px] font-bold text-cyan-ink">Đã đặt mật khẩu mới</div>
         <div className="mt-2 flex items-center gap-2">
           <span className="text-[12.5px] text-cyan-ink-2">Mật khẩu mới:</span>
@@ -419,7 +427,7 @@ function ResetPasswordForm({ creatorId, onDone }: { creatorId: string; onDone: (
   }
 
   return (
-    <form action={formAction} className="rounded-card border border-line p-4">
+    <form action={formAction} className={bare ? "" : "rounded-card border border-line p-4"}>
       <label className="block">
         <span className="mb-1.5 block text-[12.5px] font-bold">Mật khẩu mới</span>
         <div className="relative">
@@ -484,10 +492,13 @@ export function CreatorEditForm({
   creator,
   teams,
   onClose,
+  /** `true` khi form nằm trong `Modal` — bỏ khung card riêng (viền + padding), Modal đã có sẵn. */
+  bare = false,
 }: {
   creator: { id: string; name: string; isActive: boolean; team: { id: string; name: string } | null };
   teams: { id: string; name: string }[];
   onClose: () => void;
+  bare?: boolean;
 }) {
   const [panel, setPanel] = useState<EditPanel>("edit");
   const boundAction = updateCreatorAction.bind(null, creator.id);
@@ -503,7 +514,7 @@ export function CreatorEditForm({
   }, [pending, state.error]);
 
   if (panel === "password") {
-    return <ResetPasswordForm creatorId={creator.id} onDone={() => setPanel("edit")} />;
+    return <ResetPasswordForm creatorId={creator.id} onDone={() => setPanel("edit")} bare={bare} />;
   }
 
   if (panel === "delete") {
@@ -519,7 +530,7 @@ export function CreatorEditForm({
   }
 
   return (
-    <form action={formAction} className="rounded-card border border-line p-4">
+    <form action={formAction} className={bare ? "" : "rounded-card border border-line p-4"}>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1.5 block text-[12.5px] font-bold">Tên</span>

@@ -98,7 +98,7 @@ erDiagram
         date date "ngày lịch VN của số liệu"
         text source "display_api | studio_import | manual_entry | business_api | vendor_scraping"
         bigint video_views "view phát sinh trong ngày"
-        bigint profile_views "chỉ studio_import"
+        bigint profile_views "chỉ studio_import — hiện ở thẻ Người xem của /channels/[id]"
         bigint likes
         bigint comments
         bigint shares
@@ -106,7 +106,7 @@ erDiagram
         int video_count "tổng video luỹ kế"
         bigint total_viewers "chỉ studio_import"
         bigint new_viewers "chỉ studio_import"
-        bigint returning_viewers "chỉ studio_import"
+        bigint returning_viewers "chỉ studio_import — hiện ở thẻ Người xem của /channels/[id]"
         boolean is_complete "false = API trả thiếu, không dùng tính KPI"
         text raw_file_ref "null trừ studio_import"
         timestamptz created_at

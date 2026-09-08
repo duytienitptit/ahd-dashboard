@@ -133,6 +133,8 @@ export type DailyRow = {
   shares: number | null;
   totalViewers: number | null;
   newViewers: number | null;
+  returningViewers: number | null;
+  profileViews: number | null;
   source: string;
   isComplete: boolean;
 };
@@ -172,15 +174,33 @@ export function latestFollowers(rows: DailyRow[]): number | null {
   return null;
 }
 
-export type ViewerRatio = { date: string; totalViewers: number; newViewers: number; ratio: number };
+export type ViewerRatio = {
+  date: string;
+  totalViewers: number;
+  newViewers: number;
+  /** Từ cùng row Viewers.csv — `null` nếu ngày đó chỉ có `Total`/`New` (hiếm, nhưng CSV cho phép). */
+  returningViewers: number | null;
+  /** Overview.csv, ghi chung row `studio_import` với các số trên — `null` nếu ngày đó Overview chưa
+   *  phủ (cửa sổ chốt của 2 file có thể lệch nhau). */
+  profileViews: number | null;
+  ratio: number;
+};
 
 /** `newViewers/totalViewers` — Viewers.csv-only fields, so only `studio_import` rows ever carry
- *  them. Picks the most recent row (expects ascending-by-date input) that actually has both. */
+ *  them. Picks the most recent row (expects ascending-by-date input) that actually has both; carries
+ *  `returningViewers` + `profileViews` from that same row (both written together on a Studio import). */
 export function latestViewerRatio(rows: DailyRow[]): ViewerRatio | null {
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     const row = rows[i];
     if (row.totalViewers !== null && row.totalViewers > 0 && row.newViewers !== null) {
-      return { date: row.date, totalViewers: row.totalViewers, newViewers: row.newViewers, ratio: row.newViewers / row.totalViewers };
+      return {
+        date: row.date,
+        totalViewers: row.totalViewers,
+        newViewers: row.newViewers,
+        returningViewers: row.returningViewers,
+        profileViews: row.profileViews,
+        ratio: row.newViewers / row.totalViewers,
+      };
     }
   }
   return null;
@@ -235,6 +255,8 @@ export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): Da
     shares: number | null;
     totalViewers: number | null;
     newViewers: number | null;
+    returningViewers: number | null;
+    profileViews: number | null;
     weakestSource: string;
     isComplete: boolean;
   };
@@ -255,6 +277,8 @@ export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): Da
       shares: null,
       totalViewers: null,
       newViewers: null,
+      returningViewers: null,
+      profileViews: null,
       weakestSource: row.source,
       isComplete: true,
     };
@@ -268,6 +292,8 @@ export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): Da
     acc.shares = addNullable(acc.shares, row.shares);
     acc.totalViewers = addNullable(acc.totalViewers, row.totalViewers);
     acc.newViewers = addNullable(acc.newViewers, row.newViewers);
+    acc.returningViewers = addNullable(acc.returningViewers, row.returningViewers);
+    acc.profileViews = addNullable(acc.profileViews, row.profileViews);
     if (sourceRank(row.source) > sourceRank(acc.weakestSource)) acc.weakestSource = row.source;
     acc.isComplete = acc.isComplete && row.isComplete;
 
@@ -287,6 +313,8 @@ export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): Da
       shares: acc.shares,
       totalViewers: acc.totalViewers,
       newViewers: acc.newViewers,
+      returningViewers: acc.returningViewers,
+      profileViews: acc.profileViews,
       source: acc.weakestSource,
       isComplete: acc.isComplete && acc.channelsPresent === channelCount,
     }));
@@ -713,7 +741,7 @@ export function buildActivityHeatmap(
 // ---------------------------------------------------------------------------
 
 const DAILY_SELECT =
-  "channel_id, date, video_views, video_count, followers, likes, comments, shares, total_viewers, new_viewers, source, is_complete";
+  "channel_id, date, video_views, video_count, followers, likes, comments, shares, total_viewers, new_viewers, returning_viewers, profile_views, source, is_complete";
 
 function toDailyRow(row: {
   channel_id: string;
@@ -726,6 +754,8 @@ function toDailyRow(row: {
   shares: number | string | null;
   total_viewers: number | string | null;
   new_viewers: number | string | null;
+  returning_viewers: number | string | null;
+  profile_views: number | string | null;
   source: string;
   is_complete: boolean;
 }): DailyRow {
@@ -741,6 +771,8 @@ function toDailyRow(row: {
     shares: num(row.shares),
     totalViewers: num(row.total_viewers),
     newViewers: num(row.new_viewers),
+    returningViewers: num(row.returning_viewers),
+    profileViews: num(row.profile_views),
     source: row.source,
     isComplete: row.is_complete,
   };
@@ -1601,14 +1633,15 @@ export type DashboardResponse = {
   growth: { channelId: string; channelName: string; followers: number; gain: number; ratePct: number | null }[];
   viewShare: { channelId: string; channelName: string; views: number; sharePct: number }[];
   efficiency: { channelId: string; channelName: string; videos: number; viewsPerVideo: number }[];
-  /** Always zero right now — M5 hasn't created any `kpi_cycle` row yet (docs/TASKS.md). The health
-   *  math (progress vs. elapsedPct → green/yellow/red) is itself M5 scope; wiring it up here too
-   *  would be building against a table nothing has written to. */
+  /** `getDashboard()` trả `{0,0,0,[]}`; số thật do `spliceDashboardKpi()` (lib/kpi.ts) ghép vào sau
+   *  — xem API_SPEC "Tại sao 2 lệnh gọi". Shape phải khớp `DashboardKpiSummary` ở lib/kpi.ts (không
+   *  import chéo được vì kpi.ts đã import runtime từ đây). `attention` = mọi kênh KHÔNG đạt tiến độ,
+   *  `red` trước `yellow`. */
   kpiSummary: {
     onTrack: number;
     atRisk: number;
     behind: number;
-    attention: { channelId: string; channelName: string; reason: string }[];
+    attention: { channelId: string; channelName: string; reason: string; health: "red" | "yellow" }[];
   };
   /** Non-null only for `role: "creator"`. `hasActiveKpi` is a documented M4 addition (see
    *  docs/API_SPEC.md) — the original shape assumed a cycle always exists; today none do. */

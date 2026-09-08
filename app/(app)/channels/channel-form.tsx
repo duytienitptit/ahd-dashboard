@@ -155,7 +155,7 @@ export function CreateChannelForm({ creators }: { creators: CreatorOption[] }) {
 /** Real CSS grid-template-columns (not a Tailwind class) so the header in page.tsx, this row, and
  *  loading.tsx's skeleton all reference the exact same layout — one source of truth per
  *  docs/DESIGN_SYSTEM.md "khối skeleton phải khớp kích thước thật". */
-export const CHANNEL_TABLE_COLUMNS = "2fr 0.95fr 1.05fr 0.6fr 0.85fr 0.8fr 1.1fr 40px";
+export const CHANNEL_TABLE_COLUMNS = "2fr 0.95fr 1.05fr 0.6fr 0.85fr 0.8fr 1.1fr 96px";
 
 export function ChannelRow({
   channel,
@@ -342,19 +342,6 @@ export function ChannelRow({
           </Link>
           <div className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
             <span className="truncate">{channel.tiktokHandle}</span>
-            <a
-              href={`https://www.tiktok.com/${channel.tiktokHandle}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Xem kênh trên TikTok"
-              className="shrink-0 text-ink-3 hover:text-ink"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <path d="M15 3h6v6" />
-                <path d="M10 14 21 3" />
-              </svg>
-            </a>
             <span className="shrink-0">· {channel.currentCreator ? channel.currentCreator.name : "chưa gán"}</span>
           </div>
         </div>
@@ -422,17 +409,30 @@ export function ChannelRow({
         )}
       </div>
 
-      {canEditName ? (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="justify-self-end text-[12.5px] font-semibold text-red hover:opacity-80"
+      <div className="flex flex-col items-end gap-1.5">
+        {/* Link RA NGOÀI hệ thống (tiktok.com) → mở tab mới, `<a>` thường + rel noopener
+            (CLAUDE.md quy ước link). Có nhãn chữ thay cho icon ↗ trần để người dùng biết nó dẫn đi đâu. */}
+        <a
+          href={`https://www.tiktok.com/${channel.tiktokHandle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded-pill border border-line-soft px-2 py-0.5 text-[10.5px] font-semibold text-ink-3 hover:border-line hover:text-ink"
         >
-          Sửa
-        </button>
-      ) : (
-        <span />
-      )}
+          TikTok
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M7 17 17 7M8 7h9v9" />
+          </svg>
+        </a>
+        {canEditName ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-[12.5px] font-semibold text-red hover:opacity-80"
+          >
+            Sửa
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

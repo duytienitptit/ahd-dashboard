@@ -519,7 +519,7 @@ cho điểm này + ghi "mới có N/M ngày", không vẽ như một cú tụt t
   "efficiency": [{ "channelId": "...", "channelName": "…", "videos": 18, "viewsPerVideo": 26111 }],
 
   "kpiSummary": { "onTrack": 3, "atRisk": 1, "behind": 1,
-                  "attention": [{ "channelId": "...", "channelName": "…",
+                  "attention": [{ "channelId": "...", "channelName": "…", "health": "red",
                                    "reason": "Đã qua 80% chu kỳ, hoàn thành 40% chỉ tiêu." }] },
 
   "myChannels": null
@@ -542,8 +542,10 @@ cho điểm này + ghi "mới có N/M ngày", không vẽ như một cú tụt t
    xem ghi chú "Tại sao 2 lệnh gọi, không phải 1" bên dưới.
 4. **`kpiSummary` giờ có số thật** (M5) — trước đó luôn `{onTrack:0,atRisk:0,behind:0,attention:[]}`
    vì `kpi_cycle` chưa có row nào. `onTrack`/`atRisk`/`behind` đếm theo `health.value` của mọi cycle
-   **đang chạy** (`activeOnly`) trong tập kênh này; `attention` liệt kê **toàn bộ** cycle `red`, không
-   cắt top-N (theo đúng quyết định 24/08/2026 đã áp cho `growth`/`viewShare`/`efficiency`).
+   **đang chạy** (`activeOnly`) trong tập kênh này; `attention` liệt kê **mọi cycle KHÔNG đạt tiến
+   độ** — `health: "red"` (tụt lại) trước, rồi `"yellow"` (cần chú ý) — không cắt top-N (theo đúng
+   quyết định 24/08/2026 đã áp cho `growth`/`viewShare`/`efficiency`). Đổi 08/09/2026 từ "chỉ red":
+   0 kênh red thì thẻ "Tình hình KPI" trống trơn dù có nhiều kênh yellow đáng nhìn.
 5. **`weekStats`** (04/09/2026, theo yêu cầu) — không có trong bản gốc. Tổng team trong tuần lịch
    cố định (thứ Hai giờ VN → hôm nay), độc lập với `?from=`/`?to=` — xem đoạn giải thích phía trên.
    `growth`'s `gain`/`ratePct` cũng đổi sang lấy từ cùng cửa sổ này thay vì `period`.

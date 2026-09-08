@@ -327,14 +327,19 @@ export function KpiSummaryCard({ kpiSummary }: { kpiSummary: DashboardResponse["
             </span>
           </div>
           {kpiSummary.attention.length > 0 ? (
-            <div className="scroll-thin flex max-h-[140px] flex-col gap-2 overflow-y-auto border-t border-line-soft pt-3">
+            <div className="scroll-thin flex max-h-[180px] flex-col gap-2 overflow-y-auto border-t border-line-soft pt-3">
               {kpiSummary.attention.map((a) => (
                 <Link
                   key={a.channelId}
                   href={`/channels/${a.channelId}`}
-                  className="block text-[11.5px] text-ink-2 hover:underline"
+                  className="flex items-start gap-1.5 text-[11.5px] text-ink-2 hover:underline"
                 >
-                  <span className="font-semibold">{a.channelName}</span> — {a.reason}
+                  <span
+                    className={`mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-pill ${a.health === "red" ? "bg-red" : "bg-amber"}`}
+                  />
+                  <span>
+                    <span className="font-semibold">{a.channelName}</span> — {a.reason}
+                  </span>
                 </Link>
               ))}
             </div>

@@ -17,24 +17,48 @@ function Empty({ text }: { text: string }) {
   return <p className="py-6 text-center text-[12.5px] text-ink-3">{text}</p>;
 }
 
+/** Người xem trong NGÀY (không phải follower): bao nhiêu người xem video kênh hôm đó là người mới
+ *  (chưa từng xem kênh này) vs quay lại. Chỉ `studio_import` (Viewers.csv) có — `display_api` không.
+ *  "Lượt xem trang cá nhân" (Overview.csv) ghi chung row nên hiện cùng chỗ nếu ngày đó có. */
 export function NewViewerRatioCard({ ratio }: { ratio: ViewerRatio | null }) {
   return (
-    <Card title="Tỷ lệ khán giả mới" subtitle="newViewers / totalViewers, chỉ có ở nguồn đã đối chiếu">
+    <Card
+      title="Người xem: mới vs quay lại"
+      subtitle="Trong ngày, bao nhiêu người xem video kênh là người mới (chưa từng xem) — chỉ có ở dữ liệu Studio đã đối chiếu"
+    >
       {ratio === null ? (
         <Empty text="Chưa có dữ liệu Viewers.csv được import." />
       ) : (
         <>
           <div className="mb-1.5 flex items-baseline gap-2">
             <div className="text-[30px] font-extrabold leading-none tracking-[-1.1px]">{formatRatePct(ratio.ratio, 1)}</div>
-            <div className="text-xs text-ink-3">khán giả mới</div>
+            <div className="text-xs text-ink-3">là người xem mới</div>
           </div>
           <div className="mb-3 flex h-[7px] overflow-hidden rounded-pill bg-line-soft">
             <div className="h-[7px] rounded-pill bg-cyan" style={{ width: `${Math.min(100, ratio.ratio * 100)}%` }} />
           </div>
-          <div className="flex items-center justify-between text-[12px] text-ink-3">
-            <span>{formatCompact(ratio.newViewers)} người xem mới</span>
-            <span>{formatCompact(ratio.totalViewers)} tổng người xem</span>
-          </div>
+          <dl className="flex flex-col gap-1 text-[12px] text-ink-3">
+            <div className="flex items-center justify-between">
+              <dt>Người xem mới</dt>
+              <dd className="font-semibold text-ink-2">{formatCompact(ratio.newViewers)}</dd>
+            </div>
+            {ratio.returningViewers !== null ? (
+              <div className="flex items-center justify-between">
+                <dt>Người xem quay lại</dt>
+                <dd className="font-semibold text-ink-2">{formatCompact(ratio.returningViewers)}</dd>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between">
+              <dt>Tổng người xem</dt>
+              <dd className="font-semibold text-ink-2">{formatCompact(ratio.totalViewers)}</dd>
+            </div>
+            {ratio.profileViews !== null ? (
+              <div className="flex items-center justify-between border-t border-line-soft pt-1.5">
+                <dt>Lượt xem trang cá nhân</dt>
+                <dd className="font-semibold text-ink-2">{formatCompact(ratio.profileViews)}</dd>
+              </div>
+            ) : null}
+          </dl>
           <div className="mt-2 text-[11px] text-ink-3">Số liệu ngày {formatFullDate(ratio.date)}</div>
         </>
       )}
