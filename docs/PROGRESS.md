@@ -1766,3 +1766,101 @@ tooltip "kỳ chưa xong — mới có 6/30 ngày" ✅. `/kpi`: tạo tạm 1
 chu kỳ để test disclosure (hàng gập có badge + nút "Xem KPI", bung ra `bare` card không viền lồng
 viền, toggle chevron), **đã xoá chu kỳ test** — DB về nguyên trạng. `tsc`/`eslint`/`vitest` (237
 test) đều xanh.
+
+## Chi tiết kênh — mốc "ngày" cho biểu đồ + dọn 2 khối + nhân khẩu học khán giả (08/09/2026, theo yêu cầu) — có gì dùng được ngay
+
+Ba việc + một bug KPI phát hiện lúc làm.
+
+### 1. `TrendChart` có mốc "ngày" (14 ngày) — cả 3 trang
+
+`app/(app)/trend-chart.tsx`: `GRANULARITY_LABEL = { day, week, month }`, `Tab.points` đổi thành
+`Record<Granularity, TrendPoint[]>`. Mặc định vẫn `"week"`. Áp cho cả `/`, `/channels/[id]`,
+`/creators/[id]` (dùng chung component; để lệch nhau khó hiểu khi chuyển trang).
+
+**Vì sao chuỗi ngày phải DÀY, không tái dùng `bucketViewsBy`/`bucketLastFollowersBy`/`bucketVideoCountsBy`:**
+mấy core đó chỉ emit bucket cho key CÓ row. Ở mốc tuần thì tuần nào cũng có row nên không lộ; ở mốc
+ngày, **một ngày thủng biến mất khỏi trục X** → 12 cột vẽ ra như 14 ngày liên tục, lỗ đọc thành liền
+mạch (cron đã thủng thật 26–27/08). `withUnfinishedMarks` chỉ đệm ĐUÔI, không vá lỗ giữa. → 3 hàm
+mới `bucketDailyViews` / `bucketDailyLastFollowers` / `bucketDailyVideoCounts` (`lib/dashboard.ts`),
+dựng dày kín `[from, to]` bằng `dateRangeInclusive` (mới, `lib/time.ts`). `DayWindow` truyền 1 lần
+cho cả 3.
+
+Luật điền mỗi chỉ số khác nhau:
+- **views** — ngày không row → `null` (lỗ trống). Cộng mọi kênh, KHÔNG gán cổng độ phủ (dòng chảy,
+  thiếu 1 kênh 1 ngày là sai số nhỏ).
+- **followers** — **kéo ngang giá trị mới-nhất-mỗi-kênh trong cửa sổ** (tồn kho: 12.300 hôm 5, không
+  sync hôm 6 thì hôm 6 vẫn 12.300 — follower không bốc hơi; và chính kéo ngang chặn "vách đá giả" —
+  kênh hụt 1 ngày giữ nguyên mức, không tụt 0). Kênh chưa từng có mốc thì không đóng góp (không phải
+  0). Ngày không kênh nào có số → `null`.
+  - **Đã thử + loại**: cổng "đủ N kênh mới hiện số". Chuỗi tuần cũng không có cổng đó; ở mốc ngày cổng
+    làm biểu đồ team **trắng trơn suốt** vì cron follower chưa phủ đều mọi kênh mọi ngày (kiểm browser
+    thật 08/09: chỉ 1/14 cột hiện số). Bản giao cuối bỏ cổng, chỉ null khi 0 kênh có số.
+  - **Đã thử + loại**: chỉ tính kênh có row ĐÚNG ngày đó (không kéo ngang). Ra `null` gần hết cửa sổ
+    vì display_api không ghi follower đều mỗi kênh mỗi ngày.
+- **videos** — ngày yên ắng → `0` (số thật). **Trừ** ngày `> through` (`latestDateOf`) và mọi ngày
+  khi `through === null` → `null`: `postedDates` từ `content_video`, cron ghi video hôm nay ~23:30,
+  `0` trần sẽ nói sai "hôm nay chưa đăng gì".
+
+**`withUnfinishedMarks` không bao giờ đóng dấu `coverage` lên chuỗi ngày** — `DAY_MATH.spanEnd` là
+hàm đồng nhất nên `now >= spanEnd(startOf(now))` luôn đúng. Hôm nay chưa sync = một điểm `null` bình
+thường (lỗ trống), KHÔNG phải nét đứt cắm xuống 0. Không đụng bảng `ACCUMULATES`.
+
+Chuỗi 14 ngày là **filter trong bộ nhớ** từ cửa sổ 180 ngày cả 3 trang đã fetch — **không query thêm**.
+
+Nhãn ngày = `dayLabel()` dạng `d/M`, trùng hình dạng nhãn tuần là có chủ đích (chỉ 1 mốc render 1
+lúc; subtitle "14 ngày" vs "8 tuần" + tooltip prefix "ngày 7/9" vs "tuần 7/9" đủ phân biệt).
+`weekStartLabel` refactor thành `dayLabel(isoWeekStart(d))` — hành vi y hệt, test cũ không đổi.
+
+### 2. Bỏ "Số liệu đã lưu theo ngày" + "Video gần đây" khỏi `/channels/[id]`
+
+Bảng ngày → biểu đồ ngày thay. **`DailyTable` component GIỮ NGUYÊN** — trang `/creators/[id]` vẫn
+dùng (ở đó nó gộp nhiều kênh). Nút Xuất CSV mất ở trang kênh — **chấp nhận** (theo yêu cầu; Tổng quan
+vẫn có nút xuất riêng, Nhân sự vẫn giữ bảng).
+
+`VideoList` xoá hẳn (export + render). **`fetchChannelVideos()` PHẢI Ở LẠI** — mảng `videos` còn nuôi
+`aggregateHashtagStats()` → `HashtagTable` trên chính trang đó. Có comment ngay chỗ gọi. **Đây là
+fact dễ vỡ lại nhất**: người đọc sau thấy `VideoList` biến mất dễ tưởng `fetchChannelVideos` là code
+chết → xoá → bảng hashtag trắng.
+
+`AudienceCard` chiếm chỗ full-width `VideoList` để lại.
+
+### 3. `AudienceCard` — nhân khẩu học khán giả (`audience_snapshot`, lần đầu có đường đọc)
+
+`audience_snapshot` (gender + territory jsonb) đã lưu từ M3a nhưng **chưa màn nào đọc** (grep: chỉ
+migration + `run-import.ts` + comment). Nay: `fetchAudienceSnapshot()` + `normalizeDistribution()` +
+type `AudienceSnapshot` (`lib/dashboard.ts`), `AudienceCard` (`detail-widgets.tsx`), nhãn VN
+`lib/audience-labels.ts`.
+
+- **Một thẻ, không hai** — cùng 1 bản chụp/1 nguồn; 4/9 kênh chưa từng có `studio_import` nên empty
+  state là thường gặp, tách hai thẻ nhân đôi nó.
+- Chỉ trang chi tiết kênh, không gộp qua kênh của Creator (cần follower-weighting — ngoài phạm vi).
+- **Giá trị key đã kiểm trên 2 file mẫu thật** (`data/Followers_*.zip`): kênh export tiếng Việt VẪN
+  trả `"Male"/"Female"/"Other"` + mã ISO-2 (`VN/KH/LA/TH/ID/TW/AU/JP`) + bucket `"Others"`. Bẫy song
+  ngữ của cột NGÀY **không** lặp lại ở đây — nhưng vẫn map cả 2 ngôn ngữ phòng Studio đổi UI.
+- Fallback: key lạ → trả nguyên (viết hoa nếu là mã 2 chữ). Không bao giờ bỏ dòng / render
+  `undefined`.
+- Bề rộng thanh = tỷ lệ tuyệt đối (không chuẩn hoá theo max) — VN ~88% phải áp đảo thị giác.
+- Không scale lại cho tổng = 100% (bucket `Others` của TikTok đã bù; scale lại là bịa số).
+
+### 4. Bug KPI: `elapsedPct` đếm hôm nay HAI LẦN (`lib/kpi.ts`)
+
+Ảnh chụp thẻ KPI kỳ 07/09→13/09, hôm nay 08/09: "Cần 139k view/ngày trong **6 ngày còn lại**" cạnh
+"Đã qua **29%** chu kỳ" (= 2/7). `2 + 6 = 8` cho kỳ 7 ngày. `elapsedPct` cộng `+1` cho hôm nay,
+`remainingPerDay.daysLeft` cũng đếm hôm nay → so tử số thiếu-hôm-nay với mẫu số thừa-hôm-nay trong
+`resolveStatus` → **đỏ giả có hệ thống** (cả 3 thanh đỏ ở ngày thứ 2).
+
+**Sửa `elapsedPct`, không sửa `daysLeft`**: docstring `remainingPerDay` đã lập luận đúng — hôm nay
+vẫn hành động được nên thuộc vế "còn lại". Bỏ `+1` (đếm ngày ĐÃ XONG), thêm guard `today > periodEnd
+→ 100` (nếu chỉ kẹp `cappedToday` thì kỳ đã hết ra `6/7 = 86%`). Bất biến mới:
+`elapsedDays + daysLeft === totalDays` — có test bảo vệ. Hệ quả dây chuyền đều đúng hướng: đèn 🟢🟡🔴
+nới ở đầu kỳ (chữa đỏ giả), `forecastOverallPct` (cổng `>= 50`) lùi đúng 1 ngày. Kiểm browser 08/09:
+"Đã qua 14% chu kỳ, hoàn thành 14%" + "6 ngày còn lại" → `1+6=7` ✅, đèn hết đỏ toàn bộ.
+
+### Kiểm chứng (browser thật, Manager `Đặng An`, 08/09)
+
+Cả 3 trang: toggle ngày/tuần/tháng × 3 tab chỉ số OK; mốc ngày đúng 14 cột (26/8→8/9), nhãn không
+chồng, tooltip "ngày 8/9 / 32,8k". Kênh có studio_import (Cùng Anh Đi Muôn Nơi): `AudienceCard` hiện
+Nam 59%/Nữ 41%, Việt Nam 87,9%/Khác 9,1%/Đài Loan.../Hàn Quốc... (ISO-2 → tên VN). Kênh chưa import
+(Mộc Đi Rừng): empty state đúng, nêu tên file cần. Bảng "Hiệu quả theo hashtag" vẫn có số (chứng minh
+`fetchChannelVideos` chưa bị xoá nhầm). Trang Nhân sự: "Số liệu đã lưu theo ngày" vẫn còn nguyên.
+`vitest` 262 test / `eslint` / `next build` đều xanh.

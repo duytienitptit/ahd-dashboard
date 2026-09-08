@@ -159,11 +159,12 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: polish biểu đồ xu hướng + `/kpi` dropdown (07/09) — nhãn tuần theo ngày, kỳ
-cuối dở dang vẽ nét đứt, biểu đồ tuần LUÔN có cột "tuần này", tooltip hover, mỗi kênh 1 dòng gập/mở.
-3 commit đầu đã `push` lên `main`; còn 4 commit (cột "tuần này" + cách vẽ kỳ đang chạy)
-đang chờ push.** Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Biểu đồ xu hướng — polish 07/09/2026". M6 (chốt sổ KPI) +
+**Milestone hiện tại: chi tiết kênh 08/09 — `TrendChart` thêm mốc "ngày" (14 ngày, cả 3 trang), bỏ
+bảng "Số liệu đã lưu theo ngày" + "Video gần đây" khỏi `/channels/[id]`, thêm `AudienceCard` (nhân
+khẩu học khán giả — `audience_snapshot` lần đầu có đường đọc), sửa bug `elapsedPct` đếm hôm nay 2
+lần. Đã commit, chờ `git push`.** Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Chi tiết kênh — mốc ngày ... (08/09/2026)".
+Polish biểu đồ xu hướng 07/09 + M6 (chốt sổ KPI) +
 `/kpi` danh sách kênh + M5 (KPI Cycle) +
 M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh
 thật + bỏ lưu zip Storage — tất cả đã lên `main`. Chi tiết từng milestone:
@@ -215,8 +216,8 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **`git push`** — 4 commit đang chờ trên `main` local (biểu đồ tuần: cột "tuần này" + nét đứt kỳ
-   đang diễn ra), `.claude/settings.json` chặn cứng push nên người dùng tự chạy. Vercel auto-redeploy.
+1. **`git push`** — commit "chi tiết kênh 08/09" đã tạo, chờ push (`.claude/settings.json` chặn cứng
+   push nên người dùng tự chạy). Vercel auto-redeploy.
 2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
    `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của
    tôi" rỗng nếu không), rồi resubmit theo đúng quy trình portal ở

@@ -1,5 +1,12 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ALL_TIME_FROM, addDaysToDateString, daysBetweenDateStrings, nowVnDateString, vnMidnightIso } from "@/lib/time";
+import {
+  ALL_TIME_FROM,
+  addDaysToDateString,
+  dateRangeInclusive,
+  daysBetweenDateStrings,
+  nowVnDateString,
+  vnMidnightIso,
+} from "@/lib/time";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -102,7 +109,16 @@ export function thisWeekRangeVn(now?: Date): { from: string; to: string } {
  * ngày đại diện của bucket giống hệt `isoWeekLabel` cũ — chỗ gọi không phải đổi.
  */
 export function weekStartLabel(dateStr: string): string {
-  const [, month, day] = isoWeekStart(dateStr).split("-").map(Number);
+  return dayLabel(isoWeekStart(dateStr));
+}
+
+/** Nhãn trục X của biểu đồ NGÀY (mốc "ngày", 14 ngày gần nhất): `d/M` ("7/9", "13/9"), không zero-pad,
+ *  không có năm, KHÔNG quy về thứ Hai. Cùng hình dạng với `weekStartLabel` một cách có chủ đích —
+ *  chỉ một mốc render tại một thời điểm, và subtitle ("14 ngày gần nhất" vs "8 tuần gần nhất") cùng
+ *  `TOOLTIP_PREFIX` ("ngày 7/9" vs "tuần 7/9") đã đủ phân biệt. `formatShortDate` KHÔNG dùng được ở
+ *  đây vì nó zero-pad ("07/09") → lệch nhìn với trục tuần. */
+export function dayLabel(dateStr: string): string {
+  const [, month, day] = dateStr.split("-").map(Number);
   return `${day}/${month}`;
 }
 
@@ -325,6 +341,103 @@ const MONTH_MATH: PeriodMath = {
   },
 };
 
+/** Mốc "ngày": kỳ = đúng 1 ngày, nên `startOf`/`spanEnd` là hàm đồng nhất. Hệ quả cố ý:
+ *  `now >= spanEnd(startOf(now))` LUÔN đúng → `withUnfinishedMarks` không bao giờ đóng dấu `coverage`
+ *  lên chuỗi ngày → hôm nay chưa sync vẽ thành lỗ trống trung thực, không phải nét đứt cắm xuống 0. */
+const DAY_MATH: PeriodMath = {
+  startOf: (dateStr) => dateStr,
+  prev: (key) => addDaysToDateString(key, -1),
+  label: dayLabel,
+  spanEnd: (key) => key,
+};
+
+/**
+ * Cửa sổ của biểu đồ NGÀY (14 ngày gần nhất). Truyền một lần cho cả 3 hàm `bucketDaily*`; mỗi hàm
+ * đọc đúng phần nó cần (docstring từng hàm nói rõ). Chuỗi ngày phải **dày kín cửa sổ** — một ngày
+ * thủng vẫn phải chiếm một cột (dạng lỗ trống), không được biến mất khỏi trục X.
+ */
+export type DayWindow = {
+  /** `addDaysToDateString(to, -13)`. */
+  from: string;
+  /** `to` của bộ lọc trang (mặc định hôm nay). */
+  to: string;
+  /** `latestDateOf(rows)` — chỉ `bucketDailyVideoCounts` đọc, để không khẳng định "hôm nay chưa đăng
+   *  video nào" khi cron chưa chạy (video hôm nay ghi lúc ~23:30). */
+  through: string | null;
+};
+
+/** Chuỗi views theo NGÀY, dày kín `[w.from, w.to]`. Ngày không có row nào biết `videoViews` → `null`
+ *  (lỗ trống, không phải 0). Cộng mọi kênh trong ngày — views là dòng chảy, thiếu 1 kênh 1 ngày là
+ *  sai số nhỏ, KHÔNG gán cổng độ phủ như followers (xem `bucketDailyLastFollowers`). */
+export function bucketDailyViews(rows: DailyRow[], w: DayWindow): TrendPoint[] {
+  const sumByDate = new Map<string, number>();
+  const seenByDate = new Set<string>();
+  for (const row of rows) {
+    if (row.date < w.from || row.date > w.to || row.videoViews === null) continue;
+    sumByDate.set(row.date, (sumByDate.get(row.date) ?? 0) + row.videoViews);
+    seenByDate.add(row.date);
+  }
+  return dateRangeInclusive(w.from, w.to).map((date) => ({
+    label: dayLabel(date),
+    value: seenByDate.has(date) ? (sumByDate.get(date) ?? 0) : null,
+  }));
+}
+
+/**
+ * Chuỗi followers theo NGÀY, dày kín cửa sổ. Followers là **tồn kho**: điểm mỗi ngày = tổng, qua các
+ * kênh, **giá trị mới nhất mỗi kênh biết được TÍNH ĐẾN ngày đó** (kéo ngang trong cửa sổ — cùng cách
+ * `bucketLastFollowersBy` xử lý mốc tuần: 12.300 follower hôm 5, không sync hôm 6 thì hôm 6 vẫn là
+ * 12.300, follower không bốc hơi). Đây KHÔNG phải cái "bịa toạ độ Y" mà quyết định 07/09 cấm — cái
+ * đó nói về chặng nối nét đứt tới kỳ dở dang, không phải lỗ giữa chuỗi tồn kho. Kéo ngang cũng chính
+ * là thứ chặn "vách đá giả": một kênh hụt một ngày thì giữ nguyên mức, không tụt về 0.
+ *
+ * Kênh chưa có mốc follower nào tính đến ngày đó thì **không đóng góp** (không phải 0) — giống mốc
+ * tuần. Ngày mà KHÔNG kênh nào có số → `null` (lỗ trống). Không có cổng "đủ N kênh": chuỗi tuần cũng
+ * không có, và ở mốc ngày cổng đó làm biểu đồ team trắng trơn suốt vì cron follower chưa phủ đều mọi
+ * kênh mọi ngày.
+ */
+export function bucketDailyLastFollowers(rows: DailyRow[], w: DayWindow): TrendPoint[] {
+  const dates = dateRangeInclusive(w.from, w.to);
+  const sumByDate = new Map<string, number>(dates.map((d) => [d, 0]));
+  const contributorsByDate = new Map<string, number>(dates.map((d) => [d, 0]));
+
+  for (const channelRows of groupByChannel(rows).values()) {
+    const known = channelRows
+      .filter((r) => r.followers !== null && r.date <= w.to)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    if (known.length === 0) continue;
+    let i = 0;
+    let carried: number | null = null;
+    for (const date of dates) {
+      while (i < known.length && known[i].date <= date) carried = known[i++].followers;
+      if (carried === null) continue; // ngày này còn trước mốc follower đầu tiên của kênh
+      sumByDate.set(date, sumByDate.get(date)! + carried);
+      contributorsByDate.set(date, contributorsByDate.get(date)! + 1);
+    }
+  }
+
+  return dates.map((date) => ({
+    label: dayLabel(date),
+    value: contributorsByDate.get(date)! > 0 ? sumByDate.get(date)! : null,
+  }));
+}
+
+/** Chuỗi số video đăng theo NGÀY, dày kín cửa sổ. Ngày yên ắng → `0` (số 0 thật, có biết). **Trừ**
+ *  ngày `> w.through` và mọi ngày khi `w.through === null` → `null`: `postedDates` đến từ
+ *  `content_video` (bảng khác `data_snapshot`), cron ghi video hôm nay lúc ~23:30, nên `0` trần sẽ
+ *  khẳng định sai "hôm nay chưa đăng video nào". */
+export function bucketDailyVideoCounts(postedDates: string[], w: DayWindow): TrendPoint[] {
+  const countByDate = new Map<string, number>();
+  for (const date of postedDates) {
+    if (date < w.from || date > w.to) continue;
+    countByDate.set(date, (countByDate.get(date) ?? 0) + 1);
+  }
+  return dateRangeInclusive(w.from, w.to).map((date) => ({
+    label: dayLabel(date),
+    value: w.through !== null && date <= w.through ? (countByDate.get(date) ?? 0) : null,
+  }));
+}
+
 /**
  * Hoàn thiện chuỗi tuần/tháng của biểu đồ xu hướng trước khi vẽ — 3 bước:
  *
@@ -343,12 +456,16 @@ const MONTH_MATH: PeriodMath = {
  * `now` = mốc phải của biểu đồ — `to` của bộ lọc trang (mặc định hôm nay, luôn ≤ hôm nay).
  * `through` = `latestDateOf(rows)`, `null` khi chưa có dữ liệu gì. Chuỗi rỗng → trả nguyên (chưa có
  * kênh/dữ liệu nào — không bịa cột).
+ *
+ * Nhận cả 3 mốc `day`/`week`/`month`. Chuỗi `day` (14 ngày) đã được `bucketDaily*` dựng dày kín tới
+ * `now`, nên bước 1 không đệm gì; và `DAY_MATH.spanEnd` là hàm đồng nhất nên bước 3 không bao giờ
+ * đóng dấu `coverage` — mốc ngày không có khái niệm "kỳ dở dang".
  */
 export function withUnfinishedMarks(
-  raw: { week: TrendPoint[]; month: TrendPoint[] },
-  opts: { now: string; through: string | null; weekCount?: number; monthCount?: number },
-): { week: TrendPoint[]; month: TrendPoint[] } {
-  const { now, through, weekCount = 8, monthCount = 6 } = opts;
+  raw: { day: TrendPoint[]; week: TrendPoint[]; month: TrendPoint[] },
+  opts: { now: string; through: string | null; dayCount?: number; weekCount?: number; monthCount?: number },
+): { day: TrendPoint[]; week: TrendPoint[]; month: TrendPoint[] } {
+  const { now, through, dayCount = 14, weekCount = 8, monthCount = 6 } = opts;
 
   const finish = (series: TrendPoint[], count: number, math: PeriodMath): TrendPoint[] => {
     if (series.length === 0) return series;
@@ -375,6 +492,10 @@ export function withUnfinishedMarks(
   };
 
   return {
+    // Với chuỗi ngày `finish` gần như là no-op (nhãn cuối đã bằng `label(now)`, và `DAY_MATH` khiến
+    // `now >= spanEnd` luôn đúng nên không stamp `coverage`). Vẫn cho chạy để cả 3 mốc đi chung một
+    // đường ống — và nó có việc thật với chuỗi videos, vốn dừng dày ở `through` chứ không tới `now`.
+    day: finish(raw.day, dayCount, DAY_MATH),
     week: finish(raw.week, weekCount, WEEK_MATH),
     month: finish(raw.month, monthCount, MONTH_MATH),
   };
@@ -1011,6 +1132,57 @@ export async function fetchActivityHeatmap(
   );
 }
 
+export type AudienceShare = { key: string; ratio: number };
+export type AudienceSnapshot = { capturedOn: string; gender: AudienceShare[]; territories: AudienceShare[] };
+
+/**
+ * `audience_snapshot.gender_distribution` / `territory_distribution` là `jsonb` dạng
+ * `Record<string, number>`, tỷ lệ thập phân ("0.55" = 55%). Hàm thuần, export để test.
+ *
+ * - Bỏ giá trị không hữu hạn và bỏ đúng `0` (cả 2 file mẫu đều có dòng `"Other","0"` — nhiễu).
+ * - Ép chuỗi số ("0.55") về number — parser CSV đã ghi number nhưng jsonb round-trip có thể ra chuỗi.
+ * - Sắp giảm dần theo `ratio`, hoà thì theo `key` tăng dần (đầu ra ổn định cho snapshot test).
+ */
+export function normalizeDistribution(raw: unknown): AudienceShare[] {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const out: AudienceShare[] = [];
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const ratio = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+    if (!Number.isFinite(ratio) || ratio === 0) continue;
+    out.push({ key, ratio });
+  }
+  return out.sort((a, b) => b.ratio - a.ratio || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+}
+
+/**
+ * Bản chụp nhân khẩu học khán giả MỚI NHẤT của một kênh — chỉ `studio_import` ghi bảng này, và nó là
+ * ảnh chụp tại thời điểm export, không có lịch sử (docs/CSV_FORMAT.md). Trả `null` khi không có row
+ * nào hoặc cả 2 phân bố đều rỗng sau khi normalize → trang chỉ phải kiểm một điều kiện.
+ *
+ * `createSupabaseServerClient()` là đúng — RLS `audience_snapshot_select_authenticated` cho mọi role
+ * đã đăng nhập select; không cần admin client, không cần `requireManager()`.
+ */
+export async function fetchAudienceSnapshot(
+  supabase: SupabaseServerClient,
+  channelId: string,
+): Promise<AudienceSnapshot | null> {
+  const { data, error } = await supabase
+    .from("audience_snapshot")
+    .select("captured_on, gender_distribution, territory_distribution")
+    .eq("channel_id", channelId)
+    .order("captured_on", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const gender = normalizeDistribution(data.gender_distribution);
+  const territories = normalizeDistribution(data.territory_distribution);
+  if (gender.length === 0 && territories.length === 0) return null;
+
+  return { capturedOn: data.captured_on, gender, territories };
+}
+
 // ---------------------------------------------------------------------------
 // Per-channel period stats — the one query shared by Tổng quan (team rollup), Kênh (table rows +
 // sparkline), Chi tiết kênh (single channel), and Creator (grouped by creator). Carries both the raw
@@ -1415,10 +1587,12 @@ export type DashboardResponse = {
    *  mockups' trend chart has a Lượt xem/Follower/Video tab-switcher, so all three are computed
    *  server-side instead of adding a `?metric=` param the client would have to refetch on every
    *  tab click. docs/API_SPEC.md updated to match (M4). */
-  /** Both granularities computed server-side, same reasoning as bundling all 3 metrics below — the
-   *  mockups' tuần/tháng toggle (docs/TASKS.md Đợt 2 #2, "so tháng 7 với tháng 8") switches client-
-   *  side with no refetch, exactly like the Lượt xem/Follower/Video metric tabs already do. */
+  /** Cả 3 mốc ngày/tuần/tháng computed server-side, same reasoning as bundling all 3 metrics below —
+   *  the mockups' ngày/tuần/tháng toggle (docs/TASKS.md Đợt 2 #2, "so tháng 7 với tháng 8") switches
+   *  client-side with no refetch, exactly like the Lượt xem/Follower/Video metric tabs already do.
+   *  `day` = 14 ngày gần nhất, dày kín cửa sổ; điểm ngày không bao giờ mang `coverage`. */
   trend: {
+    day: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
     week: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
     month: { views: TrendPoint[]; followers: TrendPoint[]; videos: TrendPoint[] };
   };
@@ -1469,10 +1643,11 @@ export async function getDashboard(
   const { comparedFrom, comparedTo } = previousPeriod(from, to);
   const { from: weekFrom, to: weekTo } = thisWeekRangeVn();
   const { comparedFrom: weekComparedFrom, comparedTo: weekComparedTo } = previousPeriod(weekFrom, weekTo);
+  const dayTrendFrom = addDaysToDateString(to, -13); // 14 ngày gần nhất cho mốc "ngày"
   const weekTrendFrom = isoWeekStart(addDaysToDateString(to, -55)); // ~8 full ISO weeks, snapped to Monday
   // ~6 months back — enough to compare "tháng 7 với tháng 8" (docs/TASKS.md Đợt 2 #2), same 180-day
   // window channels/[id]/page.tsx's DailyTable already uses (HISTORY_DAYS), so this superset covers
-  // the week window above too — one fetch serves both granularities, not two.
+  // the week + day windows above too — one fetch serves all three granularities, not three.
   const monthTrendFrom = addDaysToDateString(to, -179);
 
   let channelsQuery = supabase
@@ -1517,10 +1692,12 @@ export async function getDashboard(
       }),
       fetchDailyRows(supabase, channelIds, weekFrom, weekTo),
     ]);
-  // Week granularity is a subset of the 180-day fetch above — filtering in memory instead of a
-  // second, near-duplicate query.
+  // Week + day granularities are subsets of the 180-day fetch above — filtering in memory instead of
+  // second/third near-duplicate queries.
   const weekTrendRows = trendRows.filter((r) => r.date >= weekTrendFrom);
   const weekTrendPostedDates = trendPostedDates.filter((d) => d >= weekTrendFrom);
+  const dayTrendRows = trendRows.filter((r) => r.date >= dayTrendFrom);
+  const dayTrendPostedDates = trendPostedDates.filter((d) => d >= dayTrendFrom);
 
   const stats = [...periodStats.values()];
   // A channel with no measurement this period (views: null) contributes nothing to the team total —
@@ -1557,16 +1734,29 @@ export async function getDashboard(
   // vì đọc như một cú tụt thật. `trendThrough` = ngày dữ liệu mới nhất để tính "mới có N/M ngày".
   const trendThrough = latestDateOf(trendRows);
   const trendOpts = { now: to, through: trendThrough };
+  const dayWindow: DayWindow = { from: dayTrendFrom, to, through: trendThrough };
   const viewsTrend = withUnfinishedMarks(
-    { week: bucketWeeklyViews(weekTrendRows), month: bucketMonthlyViews(trendRows) },
+    {
+      day: bucketDailyViews(dayTrendRows, dayWindow),
+      week: bucketWeeklyViews(weekTrendRows),
+      month: bucketMonthlyViews(trendRows),
+    },
     trendOpts,
   );
   const followersTrend = withUnfinishedMarks(
-    { week: bucketWeeklyLastFollowers(weekTrendRows), month: bucketMonthlyLastFollowers(trendRows) },
+    {
+      day: bucketDailyLastFollowers(dayTrendRows, dayWindow),
+      week: bucketWeeklyLastFollowers(weekTrendRows),
+      month: bucketMonthlyLastFollowers(trendRows),
+    },
     trendOpts,
   );
   const videosTrend = withUnfinishedMarks(
-    { week: bucketWeeklyVideoCounts(weekTrendPostedDates), month: bucketMonthlyVideoCounts(trendPostedDates) },
+    {
+      day: bucketDailyVideoCounts(dayTrendPostedDates, dayWindow),
+      week: bucketWeeklyVideoCounts(weekTrendPostedDates),
+      month: bucketMonthlyVideoCounts(trendPostedDates),
+    },
     trendOpts,
   );
 
@@ -1656,6 +1846,11 @@ export async function getDashboard(
     // người dùng đang nhìn, và con số đó chạy theo bộ lọc kỳ trên trang.
     sourceCoverage: aggregateSourceCoverage(activeChannels, periodStats),
     trend: {
+      day: {
+        views: viewsTrend.day,
+        followers: followersTrend.day,
+        videos: videosTrend.day,
+      },
       week: {
         views: viewsTrend.week,
         followers: followersTrend.week,

@@ -54,6 +54,16 @@ export function daysBetweenDateStrings(a: string, b: string): number {
   return Math.round(diffMs / 86_400_000);
 }
 
+/** Every calendar date from `from` to `to` inclusive, ascending, as "YYYY-MM-DD" strings. Returns
+ *  `[]` when `to < from`. Used to build a DENSE day series for the trend chart's "ngày" granularity
+ *  — a missing day must still occupy a column (as a gap), not vanish and let the line read as
+ *  continuous. */
+export function dateRangeInclusive(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let d = from; d <= to; d = addDaysToDateString(d, 1)) out.push(d);
+  return out;
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Stand-in for "since the beginning" in a `from` field — fixed, not relative, so it doesn't drift

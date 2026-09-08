@@ -690,6 +690,19 @@ Chỉ làm nếu M0 cho thấy Display API không khả thi.
 
 ---
 
+## Chi tiết kênh — mốc "ngày" + dọn khối + nhân khẩu học khán giả (08/09/2026, theo yêu cầu)
+
+- [x] `TrendChart` thêm mốc **"ngày"** (14 ngày gần nhất) cạnh tuần/tháng — cả 3 trang (`/`,
+      `/channels/[id]`, `/creators/[id]`). Chuỗi dày kín cửa sổ (`bucketDaily*` mới, `dateRangeInclusive`),
+      không tái dùng bucket core (ngày thủng sẽ biến mất khỏi trục X). Không thêm query.
+- [x] Bỏ bảng "Số liệu đã lưu theo ngày" + "Video gần đây" khỏi `/channels/[id]` (biểu đồ ngày thay
+      bảng; `DailyTable` GIỮ cho `/creators/[id]`; `fetchChannelVideos` GIỮ — nuôi `HashtagTable`).
+      Nút Xuất CSV mất ở trang kênh — chấp nhận.
+- [x] `AudienceCard` — nhân khẩu học khán giả (`audience_snapshot`, lần đầu có đường đọc):
+      `fetchAudienceSnapshot` + `normalizeDistribution` + `lib/audience-labels.ts`. Chỉ trang chi tiết kênh.
+- [x] Bug KPI: `elapsedPct` đếm hôm nay 2 lần (cạnh `daysLeft`) → bỏ `+1`, guard `today > periodEnd`.
+      Bất biến `elapsedDays + daysLeft === totalDays`. Chi tiết: [PROGRESS.md](PROGRESS.md).
+
 ## Sau MVP
 
 - [ ] P1 — Leaderboard & Badge

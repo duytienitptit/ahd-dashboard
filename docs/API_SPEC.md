@@ -183,8 +183,8 @@ không phải 2×N — xem `lib/kpi.ts` `attachProgress`).
    "actuals": { "views": 226000, "videos": 12, "followersNow": 5800 },
    "progress": { "viewsPct": 45.2, "videosPct": 60.0, "followersPct": 20.0,
                  "overallPct": 41.7, "targetCount": 3 },
-   "health": { "value": "yellow", "overallPct": 42, "elapsedPct": 57,
-               "explanation": "Đã qua 57% chu kỳ, hoàn thành 42% chỉ tiêu." },
+   "health": { "value": "yellow", "overallPct": 42, "elapsedPct": 43,
+               "explanation": "Đã qua 43% chu kỳ, hoàn thành 42% chỉ tiêu." },
    "remaining": {
      "views": { "remaining": 274000, "perDay": 91333 },
      "videos": { "remaining": 8, "perDay": 3 },
@@ -442,12 +442,21 @@ luôn là `display_api`, chỉ số đó sẽ đứng ở 0/9 vĩnh viễn. Ngu�
 `lib/dashboard.ts`. Quyết định chọn badge thay vì tách 2 tab Display/Studio: xem
 [PROGRESS.md](PROGRESS.md) mục "Badge độ phủ nguồn".
 
-`trend` trả **cả 2 mức chia** `week` (8 tuần gần nhất) và `month` (6 tháng gần nhất, thêm 21/08/2026
-— docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client chuyển đổi không cần gọi lại API, giống hệt
-cách 3 metric (views/followers/videos) đã bundle sẵn từ M4. Mỗi điểm `{label, value}` có
-**`value: null`** khi không một ngày nào trong khoảng đó có số đo thật (khác `0` — số đo được và
-đúng là 0). Client phải vẽ đứt đoạn ở điểm `null`, không được vẽ như một điểm 0 thật (CLAUDE.md,
-vấn đề #7, 21/08/2026).
+`trend` trả **cả 3 mức chia** `day` (14 ngày gần nhất, thêm 08/09/2026), `week` (8 tuần gần nhất) và
+`month` (6 tháng gần nhất, thêm 21/08/2026 — docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client
+chuyển đổi không cần gọi lại API, giống hệt cách 3 metric (views/followers/videos) đã bundle sẵn từ
+M4. Mỗi điểm `{label, value}` có **`value: null`** khi không một ngày nào trong khoảng đó có số đo
+thật (khác `0` — số đo được và đúng là 0). Client phải vẽ đứt đoạn ở điểm `null`, không được vẽ như
+một điểm 0 thật (CLAUDE.md, vấn đề #7, 21/08/2026).
+
+**Mức `day`** dày kín cửa sổ 14 ngày — một ngày thủng vẫn chiếm một cột (điểm `null`), không biến
+mất khỏi trục X. Luật điền theo chỉ số: `views` = tổng mọi kênh ngày đó, ngày không kênh nào có số →
+`null`; `followers` = tổng giá trị mới-nhất-mỗi-kênh **kéo ngang trong cửa sổ** (tồn kho — kênh hụt
+một ngày thì giữ mức, không tụt 0), ngày không kênh nào từng có số → `null`; `videos` = số video
+đăng ngày đó (`0` là số thật), nhưng ngày `> ` ngày dữ liệu mới nhất → `null` (cron ghi video hôm
+nay lúc ~23:30, `0` trần sẽ nói sai "hôm nay chưa đăng gì"). Điểm mức `day` **không bao giờ** mang
+`coverage` — một ngày kết thúc ngay trong ngày đó, không có khái niệm "kỳ dở dang"; hôm nay chưa
+sync chỉ là một điểm `null` bình thường.
 
 **Ngoại lệ duy nhất** (07/09/2026, theo yêu cầu): điểm CUỐI của chuỗi, khi kỳ đó chưa kết thúc (có
 `coverage`) và chưa đo được ngày nào (`value: null`), với chỉ số **cộng dồn trong kỳ** — `views`,
@@ -460,7 +469,10 @@ trống. Bảng phân loại: `ACCUMULATES` trong `app/(app)/trend-chart.tsx`. T
 thứ tự tuần ISO ("T35") ngày 07/09/2026 theo yêu cầu, lệch có chủ đích so với `design/Main.dc.html`.
 Lý do: "T35" bắt người đọc tự tra tuần đó rơi vào ngày nào mới đối chiếu được với các màn khác (vốn
 đều hiện ngày thật). Nguồn: `weekStartLabel()` trong `lib/dashboard.ts` (tên cũ `isoWeekLabel`).
-`trend.month[].label` **không đổi**, vẫn là `Th7`/`Th8` (`monthLabel`).
+`trend.day[].label` cùng dạng `d/M` (`dayLabel()`) — trùng hình dạng với nhãn tuần là có chủ đích:
+chỉ một mức render tại một thời điểm, và tooltip prefix ("ngày 7/9" vs "tuần 7/9") + subtitle
+("14 ngày" vs "8 tuần") đã đủ phân biệt. `trend.month[].label` **không đổi**, vẫn là `Th7`/`Th8`
+(`monthLabel`).
 
 `trend.week`/`trend.month` **luôn kết thúc ở kỳ hiện tại** (tuần/tháng chứa `period.to`), kể cả khi
 kỳ đó chưa có ngày nào sync (07/09/2026, theo yêu cầu — cron chạy 23:30 nên cột "tuần này" gần như
@@ -490,6 +502,10 @@ cho điểm này + ghi "mới có N/M ngày", không vẽ như một cú tụt t
                       "perChannel": [{ "channelId": "...", "channelName": "Bé Na",
                                        "reconciledDays": 0, "estimatedDays": 9, "otherDays": 0 }] },
   "trend": {
+    "day":   { "views": [{ "label": "26/8", "value": 240000 },
+                         { "label": "27/8", "value": null }],
+               "followers": [{ "label": "26/8", "value": 82100 }],
+               "videos": [{ "label": "26/8", "value": 2 }] },
     "week":  { "views": [{ "label": "29/6", "value": 1820000 },
                          { "label": "6/7", "value": null, "coverage": { "days": 2, "totalDays": 7 } }],
                "followers": [{ "label": "29/6", "value": 51200 }],
@@ -519,6 +535,7 @@ cho điểm này + ghi "mới có N/M ngày", không vẽ như một cú tụt t
    sang `{ granularity, views, followers, videos }` (cả 3 chuỗi luôn). Mockup có tab chuyển Lượt
    xem/Follower/Video ngay trên client (`app/(app)/trend-chart.tsx`) — nếu giữ 1 `series`, mỗi lần
    bấm tab phải gọi lại API với `?metric=`. Tính sẵn cả 3 rẻ hơn (cùng 1-2 query) và tab bấm tức thì.
+   Mức chia `day` thêm 08/09/2026 (cùng 1 query — lọc trong bộ nhớ từ cửa sổ 180 ngày đã fetch).
 3. **`channels`** (M5, 25/08/2026) — id+name của mọi kênh tính trong `channelCount`, không có trong
    bản gốc lẫn bản M4. `lib/kpi.ts`'s `buildDashboardKpiSummary()` cần đúng tập kênh này để tính
    `kpiSummary`/`myChannels`' phần KPI mà không phải tự lọc lại role/`creatorId`/`teamId` lần 2 —
@@ -599,21 +616,27 @@ kẹp) — chỉ thanh tiến độ ở UI mới kẹp về 0.
 Đổi tên từ `status` (bản gốc) thành **`health`** — `kpi_cycle.status` đã dùng cho `draft`/`final`.
 
 ```
-elapsedPct = % số ngày đã qua trong kỳ, tính cả ngày bắt đầu và hôm nay (kẹp [0, 100])
+elapsedPct = % số ngày ĐÃ XONG trong kỳ (KHÔNG tính hôm nay — hôm nay thuộc "N ngày còn lại"
+             của remainingPerDay; tính cả hai vế là đếm hôm nay hai lần). Kẹp [0, 100];
+             kỳ đã kết thúc → 100 (guard riêng `today > periodEnd`).
 
 green  : overallPct >= elapsedPct + 10
 red    : overallPct <= elapsedPct − 10
 yellow : còn lại — kể cả khi overallPct là null (chưa đủ dữ liệu, không đoán màu)
 ```
 
-Ví dụ: chu kỳ 7 ngày (17/08–23/08), đang ở ngày thứ 4 (20/08) → `elapsedPct = round(4/7*100) = 57`.
-Đạt ≥67% là 🟢 · dưới 47% là 🔴 · 47-67% là 🟡 (áp dụng ±10 quanh elapsedPct=57 của ví dụ này — không
-phải một mốc cố định 50/60/40).
+Bất biến: `elapsedDays + daysLeft === totalDays` ở mọi ngày trong kỳ (sửa 08/09/2026 — trước đó
+`elapsedPct` cộng thêm `+1` cho hôm nay, ra `2/7` cạnh `6 ngày còn lại` = 8 ngày cho kỳ 7 ngày, và
+`resolveStatus` so tử số thiếu-hôm-nay với mẫu số thừa-hôm-nay → đỏ giả có hệ thống).
+
+Ví dụ: chu kỳ 7 ngày (17/08–23/08), đang ở ngày thứ 4 (20/08) → 3 ngày đã xong →
+`elapsedPct = round(3/7*100) = 43`. Đạt ≥53% là 🟢 · dưới 33% là 🔴 · 33-53% là 🟡 (±10 quanh
+elapsedPct=43 của ví dụ này — không phải một mốc cố định 50/60/40).
 
 Trả kèm `explanation` để UI hiển thị tooltip — Creator phải hiểu con số này ở đâu ra:
 ```json
-"health": { "value": "yellow", "overallPct": 52, "elapsedPct": 57,
-            "explanation": "Đã qua 57% chu kỳ, hoàn thành 52% chỉ tiêu." }
+"health": { "value": "yellow", "overallPct": 42, "elapsedPct": 43,
+            "explanation": "Đã qua 43% chu kỳ, hoàn thành 42% chỉ tiêu." }
 ```
 
 ### Số cần làm mỗi ngày — chỉ số chính hiển thị cho Creator

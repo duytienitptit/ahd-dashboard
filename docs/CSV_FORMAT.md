@@ -53,6 +53,13 @@ Gender, Distribution            |  "Top territories", Distribution
 Tỷ lệ dạng thập phân (`"0.55"` = 55%). Ảnh chụp tại thời điểm export, **không có lịch sử** — muốn
 theo dõi dịch chuyển khán giả thì phải tự lưu mỗi tuần một bản.
 
+Giá trị cột `Gender` / `Top territories` đã kiểm trên 2 file mẫu thật (08/09/2026): `"Male"` /
+`"Female"` / `"Other"` cho gender; **mã ISO-3166 alpha-2** (`VN`, `KH`, `LA`, `TH`, `ID`, `TW`, `AU`,
+`JP`…) + một bucket `"Others"` cho territories. **Kênh export bằng tiếng Việt VẪN trả key tiếng Anh**
+— bẫy song ngữ ở cột ngày (mục bên dưới) không lặp lại ở đây. `lib/audience-labels.ts` map cả 2 ngôn
+ngữ phòng Studio đổi UI, key lạ trả nguyên (không bỏ, không `undefined`). Cả 2 file có dòng
+`"Other","0"` / `"Others","0"` — `normalizeDistribution` (`lib/dashboard.ts`) lọc `0` khi hiển thị.
+
 **Content.csv**
 ```
 Time, "Video title", "Video link", "Post time", "Total likes", "Total comments", "Total shares", "Total views"

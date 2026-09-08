@@ -5,14 +5,20 @@ import {
   aggregateHashtagStats,
   aggregateSourceCoverage,
   computeSourceBreakdown,
+  bucketDailyLastFollowers,
+  bucketDailyVideoCounts,
+  bucketDailyViews,
   bucketMonthlyViews,
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
   bucketWeeklyViews,
   buildActivityHeatmap,
   buildCreatorPerformance,
+  normalizeDistribution,
   type ChannelPeriodStat,
+  type DayWindow,
   type DailyRow,
+  dayLabel,
   engagementRate,
   groupByChannel,
   weekStartLabel,
@@ -684,24 +690,30 @@ describe("aggregateSourceCoverage", () => {
 
 describe("withUnfinishedMarks", () => {
   const week = (labels: string[]) => labels.map((label) => ({ label, value: 100 }));
+  /** Cả 3 mốc giờ bắt buộc — helper điền `[]` cho mốc test không quan tâm. */
+  const raw = (parts: { day?: { label: string; value: number | null }[]; week?: ReturnType<typeof week>; month?: ReturnType<typeof week> }) => ({
+    day: parts.day ?? [],
+    week: parts.week ?? [],
+    month: parts.month ?? [],
+  });
   /** `through` mặc định = `now` (dữ liệu đã kịp tới mốc phải) trừ khi test cần khoảng lệch. */
   const at = (now: string, through: string | null = now) => ({ now, through });
 
   it("leaves a finished week alone — now = Chủ nhật là ngày chót của tuần đó", () => {
     // 31/8/2026 là thứ Hai, nên tuần đó chạy 31/8 → 6/9.
-    const out = withUnfinishedMarks({ week: week(["24/8", "31/8"]), month: [] }, at("2026-09-06"));
+    const out = withUnfinishedMarks(raw({ week: week(["24/8", "31/8"]) }), at("2026-09-06"));
     expect(out.week).toHaveLength(2);
     expect(out.week[1].coverage).toBeUndefined();
   });
 
   it("marks the running week with days covered so far — ca sẽ xuất hiện từ sáng thứ Ba", () => {
     // 8/9/2026 là thứ Ba: tuần 7/9 → 13/9 mới đi được 2 ngày.
-    const out = withUnfinishedMarks({ week: week(["31/8", "7/9"]), month: [] }, at("2026-09-08"));
+    const out = withUnfinishedMarks(raw({ week: week(["31/8", "7/9"]) }), at("2026-09-08"));
     expect(out.week[1].coverage).toEqual({ days: 2, totalDays: 7 });
   });
 
   it("marks only the LAST point — các kỳ trước nó đều đã trôi qua", () => {
-    const out = withUnfinishedMarks({ week: week(["24/8", "31/8", "7/9"]), month: [] }, at("2026-09-08"));
+    const out = withUnfinishedMarks(raw({ week: week(["24/8", "31/8", "7/9"]) }), at("2026-09-08"));
     expect(out.week[0].coverage).toBeUndefined();
     expect(out.week[1].coverage).toBeUndefined();
     expect(out.week[2].coverage).toEqual({ days: 2, totalDays: 7 });
@@ -709,10 +721,7 @@ describe("withUnfinishedMarks", () => {
 
   it("thêm cột tuần hiện tại khi dữ liệu còn trễ — value null, không chấm, không tô nền", () => {
     // Thứ Tư 9/9, dữ liệu mới tới hết tuần trước (7/9) → tuần 7/9→13/9 chưa có bucket.
-    const out = withUnfinishedMarks(
-      { week: week(["24/8", "31/8"]), month: [] },
-      { now: "2026-09-09", through: "2026-09-07" },
-    );
+    const out = withUnfinishedMarks(raw({ week: week(["24/8", "31/8"]) }), { now: "2026-09-09", through: "2026-09-07" });
     expect(out.week.map((p) => p.label)).toEqual(["24/8", "31/8", "7/9"]);
     expect(out.week[2].value).toBeNull();
     expect(out.week[2].coverage).toEqual({ days: 1, totalDays: 7 }); // chỉ ngày 7/9 đã có thể có số
@@ -720,39 +729,165 @@ describe("withUnfinishedMarks", () => {
 
   it("cột tuần hiện tại khi kỳ chưa chạm ngày nào có dữ liệu → days = 0", () => {
     // Thứ Hai 7/9 (đầu tuần), dữ liệu mới tới 6/9 (Chủ nhật tuần trước).
-    const out = withUnfinishedMarks(
-      { week: week(["24/8", "31/8"]), month: [] },
-      { now: "2026-09-07", through: "2026-09-06" },
-    );
+    const out = withUnfinishedMarks(raw({ week: week(["24/8", "31/8"]) }), { now: "2026-09-07", through: "2026-09-06" });
     expect(out.week[2].label).toBe("7/9");
     expect(out.week[2].coverage).toEqual({ days: 0, totalDays: 7 });
   });
 
   it("through = null (chưa đo được ngày nào) — vẫn kéo cột kỳ hiện tại, days = 0", () => {
-    const out = withUnfinishedMarks({ week: week(["31/8"]), month: [] }, { now: "2026-09-08", through: null });
+    const out = withUnfinishedMarks(raw({ week: week(["31/8"]) }), { now: "2026-09-08", through: null });
     expect(out.week[1].label).toBe("7/9");
     expect(out.week[1].coverage).toEqual({ days: 0, totalDays: 7 });
   });
 
   it("cắt còn 8 tuần gần nhất sau khi đệm", () => {
     const labels = ["1/6", "8/6", "15/6", "22/6", "29/6", "6/7", "13/7", "20/7", "27/7", "3/8"];
-    const out = withUnfinishedMarks({ week: week(labels), month: [] }, at("2026-08-05")); // trong tuần 3/8
+    const out = withUnfinishedMarks(raw({ week: week(labels) }), at("2026-08-05")); // trong tuần 3/8
     expect(out.week.map((p) => p.label)).toEqual(["15/6", "22/6", "29/6", "6/7", "13/7", "20/7", "27/7", "3/8"]);
   });
 
   it("counts a partial month against that month's real length, not a fixed 30", () => {
-    const feb = withUnfinishedMarks({ week: [], month: week(["Th1", "Th2"]) }, at("2026-02-10"));
+    const feb = withUnfinishedMarks(raw({ month: week(["Th1", "Th2"]) }), at("2026-02-10"));
     expect(feb.month[1].coverage).toEqual({ days: 10, totalDays: 28 }); // 2026 không nhuận
-    const sep = withUnfinishedMarks({ week: [], month: week(["Th8", "Th9"]) }, at("2026-09-06"));
+    const sep = withUnfinishedMarks(raw({ month: week(["Th8", "Th9"]) }), at("2026-09-06"));
     expect(sep.month[1].coverage).toEqual({ days: 6, totalDays: 30 });
   });
 
   it("leaves a finished month alone", () => {
-    const out = withUnfinishedMarks({ week: [], month: week(["Th7", "Th8"]) }, at("2026-08-31"));
+    const out = withUnfinishedMarks(raw({ month: week(["Th7", "Th8"]) }), at("2026-08-31"));
     expect(out.month[1].coverage).toBeUndefined();
   });
 
   it("handles an empty series without inventing a point", () => {
-    expect(withUnfinishedMarks({ week: [], month: [] }, at("2026-09-08"))).toEqual({ week: [], month: [] });
+    expect(withUnfinishedMarks(raw({}), at("2026-09-08"))).toEqual({ day: [], week: [], month: [] });
+  });
+
+  it("never stamps coverage on the day series — mốc ngày không có khái niệm kỳ dở dang", () => {
+    // Chuỗi ngày do bucketDaily* dựng đã dày kín tới `now`; hôm nay chưa sync là điểm null cuối chuỗi.
+    const day = [
+      { label: "6/9", value: 100 },
+      { label: "7/9", value: 120 },
+      { label: "8/9", value: null as number | null },
+    ];
+    const out = withUnfinishedMarks(raw({ day }), { now: "2026-09-08", through: "2026-09-07" });
+    expect(out.day.map((p) => p.label)).toEqual(["6/9", "7/9", "8/9"]);
+    expect(out.day.every((p) => p.coverage === undefined)).toBe(true);
+  });
+});
+
+describe("normalizeDistribution", () => {
+  it("null / non-object / array → []", () => {
+    expect(normalizeDistribution(null)).toEqual([]);
+    expect(normalizeDistribution("x")).toEqual([]);
+    expect(normalizeDistribution([1, 2])).toEqual([]);
+  });
+
+  it("coerces numeric strings, drops 0 and non-finite, sorts desc then key asc", () => {
+    expect(
+      normalizeDistribution({ VN: "0.8", KH: 0.1, LA: 0.1, Other: "0", bad: "abc" }),
+    ).toEqual([
+      { key: "VN", ratio: 0.8 },
+      { key: "KH", ratio: 0.1 },
+      { key: "LA", ratio: 0.1 },
+    ]);
+  });
+});
+
+describe("dayLabel", () => {
+  it("d/M, không zero-pad, không snap về thứ Hai", () => {
+    expect(dayLabel("2026-09-07")).toBe("7/9");
+    expect(dayLabel("2026-09-13")).toBe("13/9");
+    expect(dayLabel("2026-12-01")).toBe("1/12");
+  });
+});
+
+describe("bucketDaily* — chuỗi ngày dày kín cửa sổ", () => {
+  const win = (over: Partial<DayWindow> = {}): DayWindow => ({
+    from: "2026-09-01",
+    to: "2026-09-07",
+    through: "2026-09-07",
+    ...over,
+  });
+
+  it("bucketDailyViews: đúng độ dài cửa sổ, ngày thủng giữa chuỗi là null (không phải 0)", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-09-01", videoViews: 10 }),
+      row({ channelId: "a", date: "2026-09-02", videoViews: 20 }),
+      // 03/09 thủng
+      row({ channelId: "a", date: "2026-09-04", videoViews: 40 }),
+    ];
+    const out = bucketDailyViews(rows, win());
+    expect(out).toHaveLength(7);
+    expect(out.map((p) => p.value)).toEqual([10, 20, null, 40, null, null, null]);
+    expect(out[0].label).toBe("1/9");
+  });
+
+  it("bucketDailyViews: cộng mọi kênh trong ngày, không gán cổng độ phủ", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-09-01", videoViews: 10 }),
+      row({ channelId: "b", date: "2026-09-01", videoViews: 5 }),
+      // ngày 02: chỉ kênh a có số — views vẫn tính (dòng chảy)
+      row({ channelId: "a", date: "2026-09-02", videoViews: 30 }),
+    ];
+    const out = bucketDailyViews(rows, win());
+    expect(out[0].value).toBe(15);
+    expect(out[1].value).toBe(30);
+  });
+
+  it("bucketDailyLastFollowers: kéo ngang giá trị mới nhất mỗi kênh (tồn kho), gộp cả 2 kênh", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-09-01", followers: 100 }),
+      row({ channelId: "b", date: "2026-09-01", followers: 200 }),
+      row({ channelId: "a", date: "2026-09-02", followers: 110 }),
+      // 02/09: kênh b không sync → giữ 200; a lên 110 → 310
+    ];
+    const out = bucketDailyLastFollowers(rows, win());
+    expect(out[0].value).toBe(300);
+    expect(out[1].value).toBe(310);
+  });
+
+  it("bucketDailyLastFollowers: kênh chưa có mốc thì không đóng góp (không phải 0), không nuốt cả ngày", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-09-01", followers: 100 }),
+      row({ channelId: "b", date: "2026-09-04", followers: 200 }), // b's first datapoint
+    ];
+    const out = bucketDailyLastFollowers(rows, win());
+    // 01–03: chỉ a đóng góp (100). 04+: a giữ 100, b vào 200 → 300.
+    expect(out.map((p) => p.value)).toEqual([100, 100, 100, 300, 300, 300, 300]);
+  });
+
+  it("bucketDailyLastFollowers: ngày không kênh nào có số → null", () => {
+    const rows = [row({ channelId: "a", date: "2026-09-05", followers: 100 })];
+    const out = bucketDailyLastFollowers(rows, win());
+    expect(out.map((p) => p.value)).toEqual([null, null, null, null, 100, 100, 100]);
+  });
+
+  it("bucketDailyLastFollowers: dùng mốc TRƯỚC cửa sổ làm giá trị kéo vào ngày đầu", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-08-20", followers: 90 }), // trước from = 2026-09-01
+      row({ channelId: "a", date: "2026-09-05", followers: 130 }),
+    ];
+    const out = bucketDailyLastFollowers(rows, win());
+    expect(out.map((p) => p.value)).toEqual([90, 90, 90, 90, 130, 130, 130]);
+  });
+
+  it("bucketDailyLastFollowers: 1 kênh → ngày trước mốc đầu tiên là lỗ trống, sau đó kéo ngang", () => {
+    const rows = [
+      row({ channelId: "a", date: "2026-09-03", followers: 100 }),
+      row({ channelId: "a", date: "2026-09-05", followers: 130 }),
+    ];
+    const out = bucketDailyLastFollowers(rows, win());
+    expect(out.map((p) => p.value)).toEqual([null, null, 100, 100, 130, 130, 130]);
+  });
+
+  it("bucketDailyVideoCounts: 0 cho ngày yên ắng ≤ through, null sau through", () => {
+    const posted = ["2026-09-01", "2026-09-01", "2026-09-03"];
+    const out = bucketDailyVideoCounts(posted, win({ through: "2026-09-04" }));
+    expect(out.map((p) => p.value)).toEqual([2, 0, 1, 0, null, null, null]);
+  });
+
+  it("bucketDailyVideoCounts: through = null → toàn bộ null", () => {
+    const out = bucketDailyVideoCounts(["2026-09-01"], win({ through: null }));
+    expect(out.every((p) => p.value === null)).toBe(true);
   });
 });

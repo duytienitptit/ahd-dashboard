@@ -13,7 +13,7 @@ flowchart TD
 
     M1 --> M2[Tab Kênh: danh sách + bộ lọc đầy đủ]
     C1 --> M2
-    M2 --> M3[Chi tiết kênh: biểu đồ riêng, KPI, số liệu lưu theo ngày]
+    M2 --> M3[Chi tiết kênh: biểu đồ riêng ngày/tuần/tháng, KPI, nhân khẩu học khán giả]
 
     M1 --> M4[Tab Nhân sự: team đóng/mở, bấm ra bảng creator kèm số liệu + tạo tài khoản]
     M4 --> M4a[Chi tiết Nhân sự: 4 thẻ số, biểu đồ xu hướng, kênh phụ trách, số liệu ngày]

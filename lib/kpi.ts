@@ -98,16 +98,21 @@ export function computeProgress(targets: KpiTargets, actuals: KpiActuals, follow
 }
 
 /**
- * % of the cycle's calendar days that have passed, inclusive of both endpoints — day 4 of a 7-day
- * cycle (periodStart + 3) is `round(4/7*100) = 57`, matching docs/API_SPEC.md's worked example
- * (`elapsedPct: 57` next to `overallPct: 52`). Clamped to [0, 100]: a cycle that hasn't started yet
- * reads 0, one that's ended reads 100 forever after, never negative or over 100.
+ * % of the cycle's calendar days that are **fully done** — today is NOT counted as elapsed, because
+ * `remainingPerDay`'s `daysLeft` counts today as one of the remaining days ("hôm nay vẫn hành động
+ * được"). Đếm hôm nay ở cả hai vế là đếm hai lần: chu kỳ 7/9→13/9, hôm nay 8/9 từng ra `elapsedPct
+ * 29%` (2/7) CẠNH `6 ngày còn lại` → 2 + 6 = 8 ngày cho kỳ 7 ngày (bug sửa 08/09/2026). Sau khi bỏ
+ * `+ 1`: `elapsedDays + daysLeft === totalDays` ở mọi ngày trong kỳ.
+ *
+ * Ngày 4 của kỳ 7 ngày (periodStart + 3) → `round(3/7*100) = 43`. Clamped to [0, 100]: kỳ chưa bắt
+ * đầu đọc 0, kỳ đã kết thúc đọc 100 mãi (guard `today > periodEnd` riêng — nếu chỉ kẹp `cappedToday`
+ * thì ngày chót đang diễn ra ra `round(6/7) = 86`, và ngày sau khi hết kỳ cũng vậy).
  */
 export function elapsedPct(periodStart: string, periodEnd: string, today: string): number {
   const totalDays = daysBetweenDateStrings(periodStart, periodEnd) + 1; // inclusive; always >= 1 (DB: period_end >= period_start)
   if (today < periodStart) return 0;
-  const cappedToday = today > periodEnd ? periodEnd : today;
-  const elapsedDays = daysBetweenDateStrings(periodStart, cappedToday) + 1;
+  if (today > periodEnd) return 100;
+  const elapsedDays = daysBetweenDateStrings(periodStart, today); // ngày ĐÃ XONG — hôm nay thuộc daysLeft
   return Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
 }
 

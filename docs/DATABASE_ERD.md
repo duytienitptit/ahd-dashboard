@@ -202,6 +202,7 @@ hỏi lại, không tự suy diễn từ quyết định này.
 | `video_snapshot` | Index `(content_video_id, date DESC)` — dùng tính delta hằng ngày |
 | `content_video` | `tiktok_video_id` unique và `video_link` unique — dedup giữa các lần lấy |
 | `follower_activity` | `UNIQUE(channel_id, date, hour)` |
+| `audience_snapshot` | `UNIQUE(channel_id, captured_on)` — re-import cùng ngày là idempotent. Đọc: `/channels/[id]` lấy bản `captured_on` mới nhất (`fetchAudienceSnapshot`, `lib/dashboard.ts`, thêm 08/09/2026 — trước đó bảng này chỉ có đường ghi). Không đổi schema. |
 | `kpi_cycle` | Không cho 2 cycle cùng `channel_id` trùng khoảng ngày |
 | `kpi_cycle` | `followers_at_start` bắt buộc — set 1 lần khi tạo, không sửa |
 | `kpi_cycle` | `status = final` → read-only ở tầng app; thay đổi phải ghi `audit_log` |

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { addDaysToDateString, daysBetweenDateStrings, nowVnDateString, resolvePeriodParams, sampleDateForRun } from "./time";
+import {
+  addDaysToDateString,
+  dateRangeInclusive,
+  daysBetweenDateStrings,
+  nowVnDateString,
+  resolvePeriodParams,
+  sampleDateForRun,
+} from "./time";
 
 describe("addDaysToDateString", () => {
   it("shifts forward and backward across a month boundary", () => {
@@ -14,6 +21,34 @@ describe("daysBetweenDateStrings", () => {
     expect(daysBetweenDateStrings("2026-08-15", "2026-08-21")).toBe(6);
     expect(daysBetweenDateStrings("2026-08-21", "2026-08-15")).toBe(-6);
     expect(daysBetweenDateStrings("2026-08-15", "2026-08-15")).toBe(0);
+  });
+});
+
+describe("dateRangeInclusive", () => {
+  it("lists every day from and to inclusive, ascending", () => {
+    expect(dateRangeInclusive("2026-09-01", "2026-09-04")).toEqual([
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+      "2026-09-04",
+    ]);
+  });
+
+  it("returns a single day when from === to", () => {
+    expect(dateRangeInclusive("2026-09-08", "2026-09-08")).toEqual(["2026-09-08"]);
+  });
+
+  it("returns [] when to is before from", () => {
+    expect(dateRangeInclusive("2026-09-08", "2026-09-01")).toEqual([]);
+  });
+
+  it("crosses a month boundary", () => {
+    expect(dateRangeInclusive("2026-08-30", "2026-09-02")).toEqual([
+      "2026-08-30",
+      "2026-08-31",
+      "2026-09-01",
+      "2026-09-02",
+    ]);
   });
 });
 

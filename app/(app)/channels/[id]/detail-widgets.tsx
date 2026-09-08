@@ -1,4 +1,5 @@
-import type { ActivityHeatmap, ChannelVideo, HashtagStat, ViewerRatio } from "@/lib/dashboard";
+import { genderLabelVi, territoryLabelVi } from "@/lib/audience-labels";
+import type { ActivityHeatmap, AudienceShare, AudienceSnapshot, HashtagStat, ViewerRatio } from "@/lib/dashboard";
 import { formatCompact, formatFullDate, formatRatePct, formatShortDate } from "@/lib/format";
 import { METRIC_TEXT_CLASS, METRIC_TONE } from "@/lib/metric-tone";
 
@@ -146,42 +147,59 @@ export function HashtagTable({ stats }: { stats: HashtagStat[] }) {
   );
 }
 
-export function VideoList({ videos, totalVideoCount }: { videos: ChannelVideo[]; totalVideoCount: number | null }) {
-  const top = videos.slice(0, 12);
-  // `videos.length` is what OUR db has rows for (Content.csv 15-row cap, or however many Display
-  // API has synced so far) — `totalVideoCount` is TikTok's own reported total (data_snapshot's
-  // video_count). CLAUDE.md: don't silently swap one for the other — when they disagree, say both,
-  // so "7 video đã biết" doesn't read as "kênh chỉ có 7 video".
-  const subtitle =
-    totalVideoCount !== null && totalVideoCount !== videos.length
-      ? `${videos.length} video đã biết trong hệ thống · TikTok báo tổng ${totalVideoCount} video`
-      : `${videos.length} video đã biết`;
+function ShareRows({ shares, labelOf }: { shares: AudienceShare[]; labelOf: (key: string) => string }) {
   return (
-    <Card title="Video gần đây" subtitle={subtitle}>
-      {top.length === 0 ? (
-        <Empty text="Chưa có video nào — import Content.csv hoặc kết nối Display API." />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {top.map((v) => (
-            <a
-              key={v.id}
-              href={v.videoLink}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-start justify-between gap-3 rounded-input border border-line-soft px-3 py-2.5 hover:border-line"
-            >
-              <div className="min-w-0">
-                <div className="truncate text-[13px] font-semibold">{v.title ?? v.videoLink}</div>
-                <div className="mt-0.5 text-[11px] text-ink-3">
-                  {v.postedAt ? formatFullDate(v.postedAt.slice(0, 10)) : "Không rõ ngày đăng"}
-                </div>
-              </div>
-              <div className={`shrink-0 text-right text-[13px] font-bold ${METRIC_TEXT_CLASS[METRIC_TONE.views]}`}>
-                {v.latestViews !== null ? formatCompact(v.latestViews) : "—"}
-              </div>
-            </a>
-          ))}
+    <div className="flex flex-col gap-3">
+      {shares.map((s) => (
+        <div key={s.key}>
+          <div className="mb-[5px] flex items-baseline justify-between">
+            <span className="text-[12.5px] font-semibold">{labelOf(s.key)}</span>
+            <span className="text-[12px] text-ink-3">{formatRatePct(s.ratio, 1)}</span>
+          </div>
+          <div className="h-[5px] overflow-hidden rounded-pill bg-line-soft">
+            {/* Bề rộng = tỷ lệ tuyệt đối trên 100% (không chuẩn hoá theo max) — đây là phần trăm thật,
+                VN ~80% thì phải áp đảo về thị giác. */}
+            <div className="h-[5px] rounded-pill bg-cyan" style={{ width: `${Math.min(100, s.ratio * 100)}%` }} />
+          </div>
         </div>
+      ))}
+    </div>
+  );
+}
+
+/** Nhân khẩu học khán giả — ảnh chụp mới nhất từ `audience_snapshot` (FollowerGender.csv +
+ *  FollowerTopTerritories.csv). Một thẻ, không phải hai: cùng một bản chụp, một nguồn, và 4/9 kênh
+ *  chưa từng có studio_import nên trạng thái rỗng là trường hợp thường gặp — tách hai thẻ sẽ nhân
+ *  đôi cả chú thích lẫn empty state. */
+export function AudienceCard({ snapshot }: { snapshot: AudienceSnapshot | null }) {
+  return (
+    <Card title="Khán giả của kênh" subtitle="Giới tính & khu vực follower, từ file Studio import">
+      {snapshot === null ? (
+        <Empty text="Chưa có dữ liệu nhân khẩu học — cần import file Studio (Followers_*.zip) có kèm FollowerGender.csv / FollowerTopTerritories.csv." />
+      ) : (
+        <>
+          <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+            <div>
+              <div className="mb-3 text-[12px] font-bold text-ink-2">Giới tính</div>
+              {snapshot.gender.length > 0 ? (
+                <ShareRows shares={snapshot.gender} labelOf={genderLabelVi} />
+              ) : (
+                <p className="text-[12px] text-ink-3">Không có dữ liệu giới tính.</p>
+              )}
+            </div>
+            <div>
+              <div className="mb-3 text-[12px] font-bold text-ink-2">Top khu vực</div>
+              {snapshot.territories.length > 0 ? (
+                <ShareRows shares={snapshot.territories.slice(0, 8)} labelOf={territoryLabelVi} />
+              ) : (
+                <p className="text-[12px] text-ink-3">Không có dữ liệu khu vực.</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 text-[11px] text-ink-3">
+            Ảnh chụp ngày {formatFullDate(snapshot.capturedOn)} · không có lịch sử, chỉ cập nhật khi import Studio
+          </div>
+        </>
       )}
     </Card>
   );

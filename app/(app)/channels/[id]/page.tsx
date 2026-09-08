@@ -5,14 +5,19 @@ import { getCurrentOwnershipStart, listChannels } from "@/lib/channels";
 import { getCurrentUser } from "@/lib/auth";
 import {
   aggregateHashtagStats,
+  bucketDailyLastFollowers,
+  bucketDailyVideoCounts,
+  bucketDailyViews,
   bucketMonthlyLastFollowers,
   bucketMonthlyVideoCounts,
   bucketMonthlyViews,
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
   bucketWeeklyViews,
+  type DayWindow,
   latestDateOf,
   fetchActivityHeatmap,
+  fetchAudienceSnapshot,
   fetchChannelVideos,
   fetchDailyRows,
   fetchPostedVnDates,
@@ -31,8 +36,7 @@ import { EyeIcon, HeartIcon, StatTile, UsersIcon, VideoIcon } from "../../dashbo
 import { DateRangePicker } from "../../date-range-picker";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../../filter-transition";
 import { TrendChart } from "../../trend-chart";
-import { DailyTable } from "./daily-table";
-import { ActivityHeatmapCard, HashtagTable, NewViewerRatioCard, VideoList } from "./detail-widgets";
+import { ActivityHeatmapCard, AudienceCard, HashtagTable, NewViewerRatioCard } from "./detail-widgets";
 import { KpiCard } from "./kpi-card";
 import { ManualEntryForm } from "./manual-entry-form";
 
@@ -62,15 +66,19 @@ export default async function ChannelDetailPage({
   const historyFrom = addDaysToDateString(to, -(HISTORY_DAYS - 1));
   const trendFrom = isoWeekStart(addDaysToDateString(to, -55));
 
-  const [ownershipStart, periodStats, historyRows, postedDates, heatmap, videos, channelCycles] = await Promise.all([
-    getCurrentOwnershipStart(supabase, id),
-    getChannelPeriodStats(supabase, { channelIds: [id], from, to, comparedFrom, comparedTo }),
-    fetchDailyRows(supabase, [id], historyFrom, to),
-    fetchPostedVnDates(supabase, [id], historyFrom, to),
-    fetchActivityHeatmap(supabase, id),
-    fetchChannelVideos(supabase, id),
-    listKpiCycles(supabase, { channelId: id }),
-  ]);
+  const [ownershipStart, periodStats, historyRows, postedDates, heatmap, videos, channelCycles, audience] =
+    await Promise.all([
+      getCurrentOwnershipStart(supabase, id),
+      getChannelPeriodStats(supabase, { channelIds: [id], from, to, comparedFrom, comparedTo }),
+      fetchDailyRows(supabase, [id], historyFrom, to),
+      fetchPostedVnDates(supabase, [id], historyFrom, to),
+      fetchActivityHeatmap(supabase, id),
+      // `videos` chỉ còn nuôi `aggregateHashtagStats` → `HashtagTable` bên dưới (VideoList đã bỏ
+      // 08/09/2026). ĐỪNG xoá lời gọi này như code chết — HashtagTable sẽ trắng theo.
+      fetchChannelVideos(supabase, id),
+      listKpiCycles(supabase, { channelId: id }),
+      fetchAudienceSnapshot(supabase, id),
+    ]);
 
   // "KPI kỳ này" (M5) — the cycle covering TODAY, independent of this page's own date-range picker
   // (`from`/`to` above is for the trend chart/daily table, not the KPI card — see kpi-card.tsx's doc
@@ -86,8 +94,14 @@ export default async function ChannelDetailPage({
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
   // `withUnfinishedMarks` kéo dài chuỗi tới kỳ chứa `to` (luôn có cột "tuần này"), cắt còn 8 tuần /
   // 6 tháng, và đánh dấu cột cuối dở dang để biểu đồ vẽ nét đứt thay vì đọc như cú tụt thật.
-  const trendOpts = { now: to, through: latestDateOf(historyRows) };
+  const trendThrough = latestDateOf(historyRows);
+  const trendOpts = { now: to, through: trendThrough };
   const trendPostedDates = postedDates.filter((d) => d >= trendFrom);
+  // Mốc "ngày": 14 ngày gần nhất, lọc trong bộ nhớ từ cùng 180-ngày trên.
+  const dayFrom = addDaysToDateString(to, -13);
+  const dayTrendRows = historyRows.filter((r) => r.date >= dayFrom);
+  const dayTrendPostedDates = postedDates.filter((d) => d >= dayFrom);
+  const dayWindow: DayWindow = { from: dayFrom, to, through: trendThrough };
   const viewerRatio = latestViewerRatio(historyRows);
   const hashtagStats = aggregateHashtagStats(videos.map((v) => ({ hashtags: v.hashtags, views: v.latestViews })));
 
@@ -167,7 +181,11 @@ export default async function ChannelDetailPage({
                   key: "views",
                   label: "Lượt xem",
                   points: withUnfinishedMarks(
-                    { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
+                    {
+                      day: bucketDailyViews(dayTrendRows, dayWindow),
+                      week: bucketWeeklyViews(trendRows),
+                      month: bucketMonthlyViews(historyRows),
+                    },
                     trendOpts,
                   ),
                   format: "compact",
@@ -176,7 +194,11 @@ export default async function ChannelDetailPage({
                   key: "followers",
                   label: "Follower",
                   points: withUnfinishedMarks(
-                    { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
+                    {
+                      day: bucketDailyLastFollowers(dayTrendRows, dayWindow),
+                      week: bucketWeeklyLastFollowers(trendRows),
+                      month: bucketMonthlyLastFollowers(historyRows),
+                    },
                     trendOpts,
                   ),
                   format: "compact",
@@ -185,7 +207,11 @@ export default async function ChannelDetailPage({
                   key: "videos",
                   label: "Video",
                   points: withUnfinishedMarks(
-                    { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
+                    {
+                      day: bucketDailyVideoCounts(dayTrendPostedDates, dayWindow),
+                      week: bucketWeeklyVideoCounts(trendPostedDates),
+                      month: bucketMonthlyVideoCounts(postedDates),
+                    },
                     trendOpts,
                   ),
                   format: "count",
@@ -195,20 +221,13 @@ export default async function ChannelDetailPage({
             <NewViewerRatioCard ratio={viewerRatio} />
           </div>
 
-          {/* Bảng số liệu ngày lên vị trí chính (docs/TASKS.md Đợt 2 #1) — đây là dữ liệu chi tiết,
-              đáng tin nhất (thấy được từng ngày, từng nguồn, ngày nào thiếu), trước đây nằm cuối
-              trang dưới cả video/hashtag ít dùng hơn. CLAUDE.md: "trả lời dữ liệu đang thế nào trước". */}
+          {/* Biểu đồ "ngày" (14 ngày, mốc trong TrendChart) đã thay bảng "Số liệu đã lưu theo ngày"
+              trên trang này (08/09/2026). Bảng vẫn còn ở trang Nhân sự — nơi nó gộp nhiều kênh. */}
           {user.role === "manager" ? (
             <div className="mb-3.5">
               <ManualEntryForm channelId={id} todayVn={to} />
             </div>
           ) : null}
-          <div className="mb-3.5">
-            <DailyTable
-              rows={historyRows}
-              csvFilename={`${channel.tiktokHandle.replace(/^@/, "")}_${new Date().toISOString().slice(0, 10)}.csv`}
-            />
-          </div>
 
           <div className="mb-3.5 grid gap-3.5 lg:grid-cols-2">
             <ActivityHeatmapCard heatmap={heatmap} />
@@ -216,9 +235,7 @@ export default async function ChannelDetailPage({
           </div>
 
           <div>
-            {/* channel.latestStats.videos is TikTok's own reported total (data_snapshot.video_count via
-                v_channel_latest) — already fetched by listChannels() above, just never surfaced before. */}
-            <VideoList videos={videos} totalVideoCount={channel.latestStats?.videos ?? null} />
+            <AudienceCard snapshot={audience} />
           </div>
         </FilterPendingOverlay>
       </FilterTransitionProvider>

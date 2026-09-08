@@ -110,19 +110,31 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 {
                   key: "views",
                   label: "Lượt xem",
-                  points: { week: dashboard.trend.week.views, month: dashboard.trend.month.views },
+                  points: {
+                    day: dashboard.trend.day.views,
+                    week: dashboard.trend.week.views,
+                    month: dashboard.trend.month.views,
+                  },
                   format: "compact",
                 },
                 {
                   key: "followers",
                   label: "Follower",
-                  points: { week: dashboard.trend.week.followers, month: dashboard.trend.month.followers },
+                  points: {
+                    day: dashboard.trend.day.followers,
+                    week: dashboard.trend.week.followers,
+                    month: dashboard.trend.month.followers,
+                  },
                   format: "compact",
                 },
                 {
                   key: "videos",
                   label: "Video",
-                  points: { week: dashboard.trend.week.videos, month: dashboard.trend.month.videos },
+                  points: {
+                    day: dashboard.trend.day.videos,
+                    week: dashboard.trend.week.videos,
+                    month: dashboard.trend.month.videos,
+                  },
                   format: "count",
                 },
               ]}

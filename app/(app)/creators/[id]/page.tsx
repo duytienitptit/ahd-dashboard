@@ -5,12 +5,16 @@ import { requireUser } from "@/lib/auth";
 import { listCreators } from "@/lib/creators";
 import {
   aggregateChannelStats,
+  bucketDailyLastFollowers,
+  bucketDailyVideoCounts,
+  bucketDailyViews,
   bucketMonthlyLastFollowers,
   bucketMonthlyVideoCounts,
   bucketMonthlyViews,
   bucketWeeklyLastFollowers,
   bucketWeeklyVideoCounts,
   bucketWeeklyViews,
+  type DayWindow,
   latestDateOf,
   buildCreatorPerformance,
   fetchDailyRows,
@@ -88,8 +92,14 @@ export default async function CreatorDetailPage({
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
   // `withUnfinishedMarks` kéo dài chuỗi tới kỳ chứa `to` (luôn có cột "tuần này"), cắt còn 8 tuần /
   // 6 tháng, và đánh dấu cột cuối dở dang để biểu đồ vẽ nét đứt thay vì đọc như cú tụt thật.
-  const trendOpts = { now: to, through: latestDateOf(historyRows) };
+  const trendThrough = latestDateOf(historyRows);
+  const trendOpts = { now: to, through: trendThrough };
   const trendPostedDates = postedDates.filter((d) => d >= trendFrom);
+  // Mốc "ngày": 14 ngày gần nhất, lọc trong bộ nhớ từ cùng 180-ngày trên (không query thêm).
+  const dayFrom = addDaysToDateString(to, -13);
+  const dayTrendRows = historyRows.filter((r) => r.date >= dayFrom);
+  const dayTrendPostedDates = postedDates.filter((d) => d >= dayFrom);
+  const dayWindow: DayWindow = { from: dayFrom, to, through: trendThrough };
 
   // DailyTable is the one place that DOES want one row per date — mergeDailyRowsByDate's null-vs-0
   // and weakest-source rules exist specifically for this collapsed view.
@@ -188,7 +198,11 @@ export default async function CreatorDetailPage({
                   key: "views",
                   label: "Lượt xem",
                   points: withUnfinishedMarks(
-                    { week: bucketWeeklyViews(trendRows), month: bucketMonthlyViews(historyRows) },
+                    {
+                      day: bucketDailyViews(dayTrendRows, dayWindow),
+                      week: bucketWeeklyViews(trendRows),
+                      month: bucketMonthlyViews(historyRows),
+                    },
                     trendOpts,
                   ),
                   format: "compact",
@@ -197,7 +211,11 @@ export default async function CreatorDetailPage({
                   key: "followers",
                   label: "Follower",
                   points: withUnfinishedMarks(
-                    { week: bucketWeeklyLastFollowers(trendRows), month: bucketMonthlyLastFollowers(historyRows) },
+                    {
+                      day: bucketDailyLastFollowers(dayTrendRows, dayWindow),
+                      week: bucketWeeklyLastFollowers(trendRows),
+                      month: bucketMonthlyLastFollowers(historyRows),
+                    },
                     trendOpts,
                   ),
                   format: "compact",
@@ -206,7 +224,11 @@ export default async function CreatorDetailPage({
                   key: "videos",
                   label: "Video",
                   points: withUnfinishedMarks(
-                    { week: bucketWeeklyVideoCounts(trendPostedDates), month: bucketMonthlyVideoCounts(postedDates) },
+                    {
+                      day: bucketDailyVideoCounts(dayTrendPostedDates, dayWindow),
+                      week: bucketWeeklyVideoCounts(trendPostedDates),
+                      month: bucketMonthlyVideoCounts(postedDates),
+                    },
                     trendOpts,
                   ),
                   format: "count",

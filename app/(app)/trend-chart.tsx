@@ -18,18 +18,19 @@ type Tab = {
    *  tinted by it, so a caller can't add a metric tab without also deciding its colour. */
   key: keyof typeof METRIC_TONE;
   label: string;
-  /** Both granularities precomputed server-side (lib/dashboard.ts's `getDashboard`/channel-detail
-   *  page) — the tuần/tháng toggle below just picks one, no refetch, same as switching metric tabs. */
-  points: { week: TrendPoint[]; month: TrendPoint[] };
+  /** Cả 3 mốc precomputed server-side (lib/dashboard.ts's `getDashboard`/channel-detail/creator
+   *  page) — toggle ngày/tuần/tháng bên dưới chỉ chọn một, no refetch, same as switching metric tabs. */
+  points: Record<Granularity, TrendPoint[]>;
   format: keyof typeof FORMATTERS;
 };
 
-const GRANULARITY_LABEL = { week: "tuần", month: "tháng" } as const;
+const GRANULARITY_LABEL = { day: "ngày", week: "tuần", month: "tháng" } as const;
 type Granularity = keyof typeof GRANULARITY_LABEL;
 
-/** Tiền tố dòng đầu tooltip. Tuần cần chữ "tuần" vì nhãn chỉ là ngày trần ("17/8" — xem
- *  `weekStartLabel`); tháng thì bỏ trống, nhãn tháng đã tự mang "Th" nên thêm vào sẽ ra "tháng Th8". */
-const TOOLTIP_PREFIX: Record<Granularity, string> = { week: "tuần ", month: "" };
+/** Tiền tố dòng đầu tooltip. Ngày và tuần cần tiền tố vì nhãn chỉ là ngày trần ("7/9" — `dayLabel`,
+ *  `weekStartLabel` cho ra cùng hình dạng), nếu không thì "ngày 7/9" và "tuần 7/9" trông y hệt nhau;
+ *  tháng bỏ trống, nhãn tháng đã tự mang "Th" nên thêm vào sẽ ra "tháng Th8". */
+const TOOLTIP_PREFIX: Record<Granularity, string> = { day: "ngày ", week: "tuần ", month: "" };
 
 /**
  * Chỉ số **cộng dồn trong kỳ** (bucket = tổng các ngày) hay **tồn kho** (bucket = mức tại cuối kỳ)?
@@ -70,10 +71,11 @@ function niceRange(values: number[]): { lo: number; hi: number } {
   return { lo: Math.max(0, lo - pad), hi: hi + pad };
 }
 
-/** Inline-SVG line chart with a metric tab-switcher + tuần/tháng granularity toggle (docs/TASKS.md
- *  Đợt 2 #2) — no charting dependency, matching design/Main.dc.html's hand-built approach. Renders
- *  whichever `tabs[active].points[granularity]` series is selected; `subtitlePrefix` gets the
- *  "N tuần/tháng gần nhất" tail appended so it can't say "tuần" while showing months. */
+/** Inline-SVG line chart with a metric tab-switcher + ngày/tuần/tháng granularity toggle (docs/TASKS.md
+ *  Đợt 2 #2; "ngày" thêm 08/09/2026) — no charting dependency, matching design/Main.dc.html's
+ *  hand-built approach. Renders whichever `tabs[active].points[granularity]` series is selected;
+ *  `subtitlePrefix` gets the "N ngày/tuần/tháng gần nhất" tail appended so it can't say "tuần" while
+ *  showing days or months. */
 export function TrendChart({ title, subtitlePrefix, tabs }: { title: string; subtitlePrefix?: string; tabs: Tab[] }) {
   const [active, setActive] = useState(0);
   const [granularity, setGranularity] = useState<Granularity>("week");

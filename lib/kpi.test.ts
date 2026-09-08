@@ -97,19 +97,19 @@ function round1(n: number): number {
 }
 
 describe("elapsedPct", () => {
-  it("day 4 of a 7-day cycle ≈ 57% (docs/API_SPEC.md's worked example: elapsedPct 57, overallPct 52)", () => {
-    expect(elapsedPct("2026-08-17", "2026-08-23", "2026-08-20")).toBe(57);
+  it("day 4 of a 7-day cycle = 43% — 3 ngày ĐÃ XONG / 7, hôm nay không tính (thuộc daysLeft)", () => {
+    expect(elapsedPct("2026-08-17", "2026-08-23", "2026-08-20")).toBe(43);
   });
 
-  it("first day of the cycle is > 0%, not 0", () => {
-    expect(elapsedPct("2026-08-17", "2026-08-23", "2026-08-17")).toBe(14);
+  it("first day of the cycle is 0% — chưa có ngày nào xong", () => {
+    expect(elapsedPct("2026-08-17", "2026-08-23", "2026-08-17")).toBe(0);
   });
 
-  it("last day of the cycle is 100%", () => {
-    expect(elapsedPct("2026-08-17", "2026-08-23", "2026-08-23")).toBe(100);
+  it("last day of the cycle, đang diễn ra → 6/7 ngày đã xong = 86%, chưa phải 100", () => {
+    expect(elapsedPct("2026-08-17", "2026-08-23", "2026-08-23")).toBe(86);
   });
 
-  it("clamps to 100 once the cycle has ended", () => {
+  it("clamps to 100 once the cycle has ended (guard today > periodEnd)", () => {
     expect(elapsedPct("2026-08-17", "2026-08-23", "2026-09-01")).toBe(100);
   });
 
@@ -118,8 +118,20 @@ describe("elapsedPct", () => {
   });
 
   it("a 1-day cycle (periodStart === periodEnd) doesn't divide by zero", () => {
-    expect(elapsedPct("2026-08-20", "2026-08-20", "2026-08-20")).toBe(100);
+    expect(elapsedPct("2026-08-20", "2026-08-20", "2026-08-20")).toBe(0); // đang diễn ra, chưa xong
+    expect(elapsedPct("2026-08-20", "2026-08-20", "2026-08-21")).toBe(100); // đã qua
     expect(elapsedPct("2026-08-20", "2026-08-20", "2026-08-19")).toBe(0);
+  });
+
+  it("elapsedDays + daysLeft === totalDays ở mọi ngày trong kỳ (bất biến bug 08/09 vi phạm)", () => {
+    const start = "2026-09-07";
+    const end = "2026-09-13";
+    const totalDays = 7;
+    for (const today of ["2026-09-07", "2026-09-08", "2026-09-10", "2026-09-13"]) {
+      const elapsedDays = Math.round((elapsedPct(start, end, today) / 100) * totalDays);
+      const daysLeft = remainingPerDay(NO_TARGETS, NO_ACTUALS, end, today).daysLeft;
+      expect(elapsedDays + daysLeft).toBe(totalDays);
+    }
   });
 });
 
