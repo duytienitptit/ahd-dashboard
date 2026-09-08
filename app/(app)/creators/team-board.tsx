@@ -33,8 +33,11 @@ export type TeamGroupData = {
   creators: CreatorRowData[];
 };
 
-const RANK_STYLE: Record<CreatorRank, { label: string; bg: string; fg: string } | null> = {
-  leader: { label: "Dẫn đầu view", bg: "bg-cyan-bg", fg: "text-cyan-ink" },
+const RANK_STYLE: Record<CreatorRank, { label: string; bg: string; fg: string; medal?: boolean } | null> = {
+  // "medal" — huy chương vàng cho người dẫn đầu view (08/09/2026, theo yêu cầu "trông nổi bật hơn").
+  // Emoji 🥇 gánh phần "vàng"; màu amber giữ badge đọc được (amber ở chỗ khác là cảnh báo, nhưng 🥇 +
+  // viền vàng quanh thẻ đã đủ tách nghĩa).
+  leader: { label: "Dẫn đầu view", bg: "bg-amber-bg", fg: "text-amber-dark", medal: true },
   growth: { label: "Tăng trưởng tốt", bg: "bg-green-bg", fg: "text-green-dark" },
   attention: { label: "Cần chú ý", bg: "bg-red-bg", fg: "text-red-dark" },
   stable: null,
@@ -67,10 +70,15 @@ function CreatorCard({
 }) {
   const [editing, setEditing] = useState(false);
   const rankStyle = RANK_STYLE[creator.rank];
+  const isLeader = creator.rank === "leader";
   const avatar = avatarPalette(index);
 
   return (
-    <div className="rounded-input border border-line-soft px-3 py-3 hover:border-line">
+    <div
+      className={`rounded-input border bg-bg px-3 py-3 ${
+        isLeader ? "border-amber ring-1 ring-amber/30" : "border-line-soft hover:border-line"
+      }`}
+    >
       <Modal open={editing} onClose={() => setEditing(false)} title={`Sửa nhân sự — ${creator.name}`}>
         <CreatorEditForm creator={creator} teams={teams} onClose={() => setEditing(false)} bare />
       </Modal>
@@ -117,7 +125,14 @@ function CreatorCard({
           {creator.isActive ? "Đang hoạt động" : "Đã vô hiệu hoá"}
         </span>
         {rankStyle ? (
-          <span className={`rounded-pill px-2 py-0.5 text-[10.5px] font-semibold ${rankStyle.bg} ${rankStyle.fg}`}>{rankStyle.label}</span>
+          <span
+            className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[10.5px] font-semibold ${rankStyle.bg} ${rankStyle.fg} ${
+              rankStyle.medal ? "ring-1 ring-amber/40" : ""
+            }`}
+          >
+            {rankStyle.medal ? <span aria-hidden>🥇</span> : null}
+            {rankStyle.label}
+          </span>
         ) : null}
       </div>
 
@@ -164,11 +179,13 @@ function TeamColumn({
     <div
       ref={ref}
       id={`team-${key}`}
-      className={`flex w-[320px] shrink-0 flex-col rounded-card border ${
+      className={`flex w-[320px] shrink-0 flex-col overflow-hidden rounded-card border ${
         requestedTeam === key ? "border-cyan" : "border-line"
       }`}
     >
-      <div className="border-b border-line-soft px-4 py-3.5">
+      {/* Nền `line-soft` (cùng tông nền header bảng khắp app) + viền dưới → tách rõ vùng "tổng số
+          liệu team" khỏi danh sách thẻ nhân sự nền trắng bên dưới (08/09/2026, theo yêu cầu). */}
+      <div className="border-b border-line bg-line-soft px-4 py-3.5">
         <div className="flex items-center gap-2">
           <div
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-pill"
@@ -184,7 +201,7 @@ function TeamColumn({
           {group.creators.length} nhân sự · {channelCount} kênh
         </div>
         {hasNumbers ? (
-          <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-line-soft pt-2.5">
+          <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-line/70 pt-2.5">
             <MiniStat
               label="lượt xem"
               value={group.rollup.totalViews !== null ? formatCompact(group.rollup.totalViews) : "—"}

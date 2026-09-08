@@ -1890,6 +1890,15 @@ hẹp — theo yêu cầu). `CreatorEditForm` + `ResetPasswordForm` thêm prop `
 khi nằm trong Modal (Modal đã có viền + padding). `edit-toggle.tsx` ở `/creators/[id]` vẫn dùng
 inline (full width, không cần Modal).
 
+**Polish vòng 2 (cùng ngày, theo yêu cầu):**
+- Header cột (glyph + tên + "N nhân sự · M kênh" + 3 số rollup) nền `bg-line-soft` + `border-b
+  border-line` → tách rõ vùng tổng số liệu team khỏi danh sách thẻ nhân sự nền trắng. Cột thêm
+  `overflow-hidden` để bo góc ăn theo nền header.
+- Người "Dẫn đầu view" nổi bật kiểu **huy chương vàng**: badge `🥇 Dẫn đầu view` màu amber (đổi từ
+  cyan) + `ring-1 ring-amber/40`; thẻ của người đó `border-amber ring-1 ring-amber/30`. Amber ở chỗ
+  khác là cảnh báo — 🥇 + viền vàng đủ tách nghĩa. `RANK_STYLE.leader.medal` cờ điều khiển. Ghi vào
+  `docs/DESIGN_SYSTEM.md` bảng màu.
+
 ### 3. Nút "TikTok ↗" có nhãn thay icon ↗ trần
 
 `/channels` (`channel-form.tsx` `ChannelRow`): cột thao tác cuối `40px → 96px`, chứa chip "TikTok ↗"

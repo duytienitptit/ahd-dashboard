@@ -23,7 +23,7 @@ Token trích từ mockup 10 màn hình. Dùng đúng các giá trị này khi co
 | `green` | `#0BAD5B` | Trạng thái vượt tiến độ |
 | `green-dark` | `#046C45` | Chữ trạng thái xanh |
 | `green-bg` | `#E6F9F0` | Nền badge xanh |
-| `amber` | `#F5A623` | Trạng thái ổn định |
+| `amber` | `#F5A623` | Trạng thái ổn định · huy chương vàng "Dẫn đầu view" (badge 🥇 + viền/ring thẻ, `/creators`) |
 | `amber-dark` | `#8A5A06` | Chữ trạng thái vàng |
 | `amber-bg` | `#FFF6E5` | Nền badge vàng |
 
