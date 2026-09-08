@@ -218,108 +218,6 @@ export function groupByChannel(rows: DailyRow[]): Map<string, DailyRow[]> {
   return map;
 }
 
-/** Priority order a single day's `source` is picked by when multiple channels disagree — same order
- *  as `v_channel_daily`'s `source_rank()` (docs/DATABASE_ERD.md) and CLAUDE.md's
- *  "studio_import > business_api > display_api > vendor_scraping > manual_entry". Index = strength,
- *  lower is stronger. An unrecognized value sorts as weakest rather than throwing — defensive only,
- *  every real row's `source` is one of these five. */
-const SOURCE_PRIORITY = ["studio_import", "business_api", "display_api", "vendor_scraping", "manual_entry"];
-function sourceRank(source: string): number {
-  const rank = SOURCE_PRIORITY.indexOf(source);
-  return rank === -1 ? SOURCE_PRIORITY.length : rank;
-}
-
-/**
- * Merges one or more channels' `DailyRow`s into a single row per date — the Nhân sự detail page's
- * `DailyTable` shows one Creator's whole channel set as one timeline, not N side-by-side tables.
- * `channelCount` is the number of channels the caller expects a complete day to have data from (not
- * derived from `rows` itself — a day where every channel is silently missing wouldn't appear in
- * `rows` at all, so counting distinct channelIds present per day would never catch that case).
- *
- * Sums follow the same null-vs-0 rule as `sumViews`: a metric is `null` for a date only when NOT ONE
- * of that day's channel rows has a known value for it — never a bogus 0 standing in for "chưa có số
- *  đo". `source` takes the WEAKEST source among that day's rows (CLAUDE.md priority order) — a merged
- * day is only as trustworthy as its worst-covered channel. `isComplete` requires both every
- * contributing row to itself be complete AND every expected channel to have contributed a row that
- * day (a channel silently absent — e.g. rate-limited out of the sync — must not read as "đầy đủ").
- */
-export function mergeDailyRowsByDate(rows: DailyRow[], channelCount: number): DailyRow[] {
-  type Acc = {
-    date: string;
-    channelsPresent: number;
-    videoViews: number | null;
-    videoCount: number | null;
-    followers: number | null;
-    likes: number | null;
-    comments: number | null;
-    shares: number | null;
-    totalViewers: number | null;
-    newViewers: number | null;
-    returningViewers: number | null;
-    profileViews: number | null;
-    weakestSource: string;
-    isComplete: boolean;
-  };
-
-  const byDate = new Map<string, Acc>();
-  const addNullable = (a: number | null, b: number | null) => (a === null && b === null ? null : (a ?? 0) + (b ?? 0));
-
-  for (const row of rows) {
-    const existing = byDate.get(row.date);
-    const acc: Acc = existing ?? {
-      date: row.date,
-      channelsPresent: 0,
-      videoViews: null,
-      videoCount: null,
-      followers: null,
-      likes: null,
-      comments: null,
-      shares: null,
-      totalViewers: null,
-      newViewers: null,
-      returningViewers: null,
-      profileViews: null,
-      weakestSource: row.source,
-      isComplete: true,
-    };
-
-    acc.channelsPresent += 1;
-    acc.videoViews = addNullable(acc.videoViews, row.videoViews);
-    acc.videoCount = addNullable(acc.videoCount, row.videoCount);
-    acc.followers = addNullable(acc.followers, row.followers);
-    acc.likes = addNullable(acc.likes, row.likes);
-    acc.comments = addNullable(acc.comments, row.comments);
-    acc.shares = addNullable(acc.shares, row.shares);
-    acc.totalViewers = addNullable(acc.totalViewers, row.totalViewers);
-    acc.newViewers = addNullable(acc.newViewers, row.newViewers);
-    acc.returningViewers = addNullable(acc.returningViewers, row.returningViewers);
-    acc.profileViews = addNullable(acc.profileViews, row.profileViews);
-    if (sourceRank(row.source) > sourceRank(acc.weakestSource)) acc.weakestSource = row.source;
-    acc.isComplete = acc.isComplete && row.isComplete;
-
-    byDate.set(row.date, acc);
-  }
-
-  return [...byDate.values()]
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-    .map((acc) => ({
-      channelId: "merged",
-      date: acc.date,
-      videoViews: acc.videoViews,
-      videoCount: acc.videoCount,
-      followers: acc.followers,
-      likes: acc.likes,
-      comments: acc.comments,
-      shares: acc.shares,
-      totalViewers: acc.totalViewers,
-      newViewers: acc.newViewers,
-      returningViewers: acc.returningViewers,
-      profileViews: acc.profileViews,
-      source: acc.weakestSource,
-      isComplete: acc.isComplete && acc.channelsPresent === channelCount,
-    }));
-}
-
 /** `value: null` = not one day this week has a known videoViews — the chart must render this as a
  *  gap, never as a plotted 0 (a flat "0 views for 5 weeks" line reads as a real crash, not as
  *  "chưa có số đo"). */
@@ -1679,8 +1577,8 @@ export async function getDashboard(
   const dayTrendFrom = addDaysToDateString(to, -13); // 14 ngày gần nhất cho mốc "ngày"
   const weekTrendFrom = isoWeekStart(addDaysToDateString(to, -55)); // ~8 full ISO weeks, snapped to Monday
   // ~6 months back — enough to compare "tháng 7 với tháng 8" (docs/TASKS.md Đợt 2 #2), same 180-day
-  // window channels/[id]/page.tsx's DailyTable already uses (HISTORY_DAYS), so this superset covers
-  // the week + day windows above too — one fetch serves all three granularities, not three.
+  // window the channel/creator detail pages fetch (HISTORY_DAYS), so this superset covers the week +
+  // day windows above too — one fetch serves all three granularities, not three.
   const monthTrendFrom = addDaysToDateString(to, -179);
 
   let channelsQuery = supabase

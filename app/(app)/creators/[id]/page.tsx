@@ -21,22 +21,22 @@ import {
   fetchPostedVnDates,
   getChannelPeriodStats,
   isoWeekStart,
-  mergeDailyRowsByDate,
   pctChange,
   previousPeriod,
   withUnfinishedMarks,
 } from "@/lib/dashboard";
 import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromEnd } from "@/lib/format";
+import { attachProgress, listKpiCycles } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
 import { addDaysToDateString, resolvePeriodParams } from "@/lib/time";
 
 import { EyeIcon, HeartIcon, StatTile, UsersIcon, VideoIcon } from "../../dashboard-widgets";
 import { DateRangePicker } from "../../date-range-picker";
-import { DailyTable } from "../../channels/[id]/daily-table";
 import { FilterPendingOverlay, FilterTransitionProvider } from "../../filter-transition";
 import { TrendChart } from "../../trend-chart";
 import { CreatorChannelsTable } from "./creator-channels-table";
+import { CreatorKpiCard } from "./creator-kpi-card";
 import { CreatorEditToggle } from "./edit-toggle";
 
 const HISTORY_DAYS = 180;
@@ -75,20 +75,23 @@ export default async function CreatorDetailPage({
   const trendFrom = isoWeekStart(addDaysToDateString(to, -55));
   const channelIds = creator.channels.map((ch) => ch.id);
 
-  const [periodStats, historyRows, postedDates] = await Promise.all([
+  const [periodStats, historyRows, postedDates, kpiCycles] = await Promise.all([
     getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo }),
     fetchDailyRows(supabase, channelIds, historyFrom, to),
     fetchPostedVnDates(supabase, channelIds, historyFrom, to),
+    // Chỉ chu kỳ đang chạy — cho thẻ "Tiến độ KPI các kênh". Độc lập với `from`/`to` của bộ lọc
+    // trang (chu kỳ KPI có ngày riêng, xem KpiCard's doc comment).
+    listKpiCycles(supabase, { creatorId: id, activeOnly: true }),
   ]);
+  const kpiWithProgress = await attachProgress(supabase, kpiCycles);
 
   const rollup = aggregateChannelStats(channelIds, periodStats);
   const channelPerformance = buildCreatorPerformance([creator], periodStats).get(creator.id)!.channels;
 
-  // Trend buckets take the RAW multi-channel rows directly, never mergeDailyRowsByDate's output —
-  // bucketWeeklyLastFollowers/bucketMonthlyLastFollowers already resolve "each channel's own last
-  // known value that bucket, summed" via groupByChannel internally (see their docstrings). Feeding
-  // them pre-merged rows would instead take the last MERGED date's total, silently undercounting any
-  // bucket where the creator's channels last synced on different days within it.
+  // Trend buckets take the RAW multi-channel rows directly — bucketWeeklyLastFollowers/
+  // bucketMonthlyLastFollowers resolve "each channel's own last known value that bucket, summed" via
+  // groupByChannel internally (see their docstrings), so a creator's channels last syncing on
+  // different days within a bucket still roll up correctly.
   const trendRows = historyRows.filter((r) => r.date >= trendFrom);
   // `withUnfinishedMarks` kéo dài chuỗi tới kỳ chứa `to` (luôn có cột "tuần này"), cắt còn 8 tuần /
   // 6 tháng, và đánh dấu cột cuối dở dang để biểu đồ vẽ nét đứt thay vì đọc như cú tụt thật.
@@ -100,10 +103,6 @@ export default async function CreatorDetailPage({
   const dayTrendRows = historyRows.filter((r) => r.date >= dayFrom);
   const dayTrendPostedDates = postedDates.filter((d) => d >= dayFrom);
   const dayWindow: DayWindow = { from: dayFrom, to, through: trendThrough };
-
-  // DailyTable is the one place that DOES want one row per date — mergeDailyRowsByDate's null-vs-0
-  // and weakest-source rules exist specifically for this collapsed view.
-  const mergedHistory = mergeDailyRowsByDate(historyRows, channelIds.length);
 
   const teamHref = creator.team ? `/creators?team=${creator.team.id}` : "/creators?team=_unassigned";
   const teamLabel = creator.team?.name ?? "Chưa gán team";
@@ -238,16 +237,11 @@ export default async function CreatorDetailPage({
           </div>
 
           <div className="mb-3.5">
-            <CreatorChannelsTable channels={channelPerformance} />
+            <CreatorKpiCard channels={creator.channels} cycles={kpiWithProgress} />
           </div>
 
           <div>
-            <DailyTable
-              rows={mergedHistory}
-              csvFilename={`${creator.name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`}
-              subtitle="Mỗi ngày một bản ghi, tổng hợp mọi kênh phụ trách — nguồn ưu tiên thấp nhất trong ngày đó"
-              emptyText="Chưa có số liệu ngày nào cho nhân sự này."
-            />
+            <CreatorChannelsTable channels={channelPerformance} />
           </div>
         </FilterPendingOverlay>
       </FilterTransitionProvider>

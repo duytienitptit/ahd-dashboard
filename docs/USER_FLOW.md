@@ -16,7 +16,7 @@ flowchart TD
     M2 --> M3[Chi tiết kênh: biểu đồ riêng ngày/tuần/tháng, KPI, nhân khẩu học khán giả]
 
     M1 --> M4[Tab Nhân sự: mỗi team 1 CỘT kanban, mọi nhân sự hiện sẵn + tạo tài khoản]
-    M4 --> M4a[Chi tiết Nhân sự: 4 thẻ số, biểu đồ xu hướng ngày/tuần/tháng, kênh phụ trách, số liệu ngày]
+    M4 --> M4a[Chi tiết Nhân sự: 4 thẻ số, biểu đồ xu hướng ngày/tuần/tháng, tiến độ KPI các kênh, kênh phụ trách]
     M4a --> M3
     M1 --> M5[Đặt KPI: chọn kênh trước qua /kpi/new, rồi chu kỳ + tối thiểu 1/3 chỉ tiêu]
     M5 --> M6[Hệ thống tự chụp followersAtStart và khoá — M5, xong 25/08/2026]
@@ -60,10 +60,12 @@ flowchart TD
   dù ai bấm "Kết nối" trong app.
 - **Nhân sự có 2 tầng, thêm 21/08/2026**: `/creators` — mỗi team một CỘT kanban (`TeamBoard`, đổi từ
   accordion 08/09/2026 theo yêu cầu "vào trang là xem hết nhân sự luôn"), cuộn ngang khi nhiều team,
-  "Chưa gán team" là một cột. Mỗi creator là một thẻ gọn (avatar + tên + 3 số + badge + nút Sửa);
-  bấm tên vào `/creators/[id]` (4 thẻ số, biểu đồ, bảng kênh phụ trách bấm được sang `/channels/[id]`,
-  số liệu theo ngày gộp mọi kênh). `?team=<id>` (pill team ở trang chi tiết Creator) cuộn cột đó vào
-  tầm nhìn. Route `/creators/team/[id]` cũ đã bỏ.
+  "Chưa gán team" là một cột. Mỗi creator là một thẻ gọn (avatar + tên + 3 số + badge + nút Sửa mở
+  Modal); bấm tên vào `/creators/[id]` (4 thẻ số, biểu đồ xu hướng, **thẻ "Tiến độ KPI các kênh"**
+  — mỗi kênh 1 dòng badge 🟢🟡🔴 + "cần X/ngày", bấm sang `/channels/[id]`, và bảng kênh phụ trách).
+  Bảng "Số liệu đã lưu theo ngày" **đã bỏ khỏi cả `/creators/[id]` và `/channels/[id]`** (08/09/2026,
+  theo yêu cầu — biểu đồ mốc "ngày" thay). `?team=<id>` (pill team ở trang chi tiết Creator) cuộn cột
+  đó vào tầm nhìn. Route `/creators/team/[id]` cũ đã bỏ.
 - **Import file Studio cũng là ngoại lệ, thêm 21/08/2026**: bản đặc tả gốc chỉ cho Manager, nhưng vận
   hành thực tế đã có Creator tự export & upload file Studio hàng tuần cho kênh mình phụ trách — sửa
   lại cho khớp thực tế thay vì bắt đổi quy trình vận hành. **Khác với `manual_entry`**: import Studio

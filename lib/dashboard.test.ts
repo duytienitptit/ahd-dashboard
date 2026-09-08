@@ -25,7 +25,6 @@ import {
   isoWeekStart,
   latestFollowers,
   latestViewerRatio,
-  mergeDailyRowsByDate,
   pctChange,
   previousPeriod,
   rankCreatorPerformance,
@@ -331,61 +330,6 @@ describe("buildCreatorPerformance", () => {
     const creators = [{ id: "c1", channels: [{ id: "ch-unsynced", name: "Kênh mới", tiktokHandle: "@moi" }] }];
     const result = buildCreatorPerformance(creators, new Map());
     expect(result.get("c1")?.channels[0]).toMatchObject({ views: null, viewsDeltaPct: null, followersNow: null, videos: 0 });
-  });
-});
-
-describe("mergeDailyRowsByDate", () => {
-  it("sums same-date rows across channels, keeping the weakest source of the day", () => {
-    const rows = [
-      row({ channelId: "a", date: "2026-08-15", videoViews: 100, followers: 1000, source: "studio_import" }),
-      row({ channelId: "b", date: "2026-08-15", videoViews: 200, followers: 500, source: "display_api" }),
-    ];
-    const merged = mergeDailyRowsByDate(rows, 2);
-    expect(merged).toHaveLength(1);
-    expect(merged[0].videoViews).toBe(300);
-    expect(merged[0].followers).toBe(1500);
-    expect(merged[0].source).toBe("display_api"); // weaker than studio_import
-    expect(merged[0].isComplete).toBe(true);
-  });
-
-  it("keeps a metric null when NOT ONE contributing channel has a known value that day — never a bogus 0", () => {
-    const rows = [row({ channelId: "a", date: "2026-08-15", videoViews: null, followers: null })];
-    const merged = mergeDailyRowsByDate(rows, 1);
-    expect(merged[0].videoViews).toBeNull();
-    expect(merged[0].followers).toBeNull();
-  });
-
-  it("sums a metric across channels even when one of them is null that day (treats the null as not contributing, not as 0 for everyone)", () => {
-    const rows = [
-      row({ channelId: "a", date: "2026-08-15", videoViews: 100 }),
-      row({ channelId: "b", date: "2026-08-15", videoViews: null }),
-    ];
-    const merged = mergeDailyRowsByDate(rows, 2);
-    expect(merged[0].videoViews).toBe(100);
-  });
-
-  it("marks a date incomplete when fewer channels contributed than expected (one silently missing that day)", () => {
-    const rows = [row({ channelId: "a", date: "2026-08-15", videoViews: 100 })];
-    const merged = mergeDailyRowsByDate(rows, 2); // caller expects 2 channels, only 1 showed up
-    expect(merged[0].isComplete).toBe(false);
-  });
-
-  it("marks a date incomplete when any contributing row itself is incomplete, even if every channel showed up", () => {
-    const rows = [
-      row({ channelId: "a", date: "2026-08-15", videoViews: 100, isComplete: true }),
-      row({ channelId: "b", date: "2026-08-15", videoViews: 100, isComplete: false }),
-    ];
-    const merged = mergeDailyRowsByDate(rows, 2);
-    expect(merged[0].isComplete).toBe(false);
-  });
-
-  it("sorts merged rows ascending by date regardless of input order", () => {
-    const rows = [
-      row({ channelId: "a", date: "2026-08-16", videoViews: 1 }),
-      row({ channelId: "a", date: "2026-08-15", videoViews: 1 }),
-    ];
-    const merged = mergeDailyRowsByDate(rows, 1);
-    expect(merged.map((r) => r.date)).toEqual(["2026-08-15", "2026-08-16"]);
   });
 });
 

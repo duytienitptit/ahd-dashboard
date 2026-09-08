@@ -696,12 +696,16 @@ Chỉ làm nếu M0 cho thấy Display API không khả thi.
       `/channels/[id]`, `/creators/[id]`). Chuỗi dày kín cửa sổ (`bucketDaily*` mới, `dateRangeInclusive`),
       không tái dùng bucket core (ngày thủng sẽ biến mất khỏi trục X). Không thêm query.
 - [x] Bỏ bảng "Số liệu đã lưu theo ngày" + "Video gần đây" khỏi `/channels/[id]` (biểu đồ ngày thay
-      bảng; `DailyTable` GIỮ cho `/creators/[id]`; `fetchChannelVideos` GIỮ — nuôi `HashtagTable`).
-      Nút Xuất CSV mất ở trang kênh — chấp nhận.
+      bảng; `fetchChannelVideos` GIỮ — nuôi `HashtagTable`). Nút Xuất CSV mất ở trang kênh — chấp nhận.
 - [x] `AudienceCard` — nhân khẩu học khán giả (`audience_snapshot`, lần đầu có đường đọc):
       `fetchAudienceSnapshot` + `normalizeDistribution` + `lib/audience-labels.ts`. Chỉ trang chi tiết kênh.
 - [x] Bug KPI: `elapsedPct` đếm hôm nay 2 lần (cạnh `daysLeft`) → bỏ `+1`, guard `today > periodEnd`.
       Bất biến `elapsedDays + daysLeft === totalDays`. Chi tiết: [PROGRESS.md](PROGRESS.md).
+- [x] **Điều chỉnh giao diện đợt 2–3 (08/09)**: `/creators` accordion → kanban cột + Modal sửa;
+      "Tình hình KPI" (Dashboard) liệt kê cả kênh vàng; nút "TikTok ↗" có nhãn; thẻ "Người xem: mới
+      vs quay lại" (thêm `returning_viewers` + `profile_views`); header team tách màu + 🥇 dẫn đầu view;
+      **bỏ HẲN `DailyTable` + `mergeDailyRowsByDate`** khỏi cả 2 trang (user xác nhận); thêm
+      `CreatorKpiCard` vào `/creators/[id]`.
 
 ## Sau MVP
 

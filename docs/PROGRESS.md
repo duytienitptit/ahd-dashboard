@@ -1911,7 +1911,7 @@ cạnh @handle (bảng đó không có cột thao tác). `CHANNEL_TABLE_COLUMNS`
 
 `data_snapshot.returning_viewers` + `profile_views` **lần đầu có đường đọc** — đã ghi mỗi lần import
 Studio từ M3a nhưng chưa query bao giờ. Thêm vào `DAILY_SELECT` / `DailyRow` / `toDailyRow` /
-`mergeDailyRowsByDate` / `ViewerRatio` / `latestViewerRatio` (`lib/dashboard.ts`). `NewViewerRatioCard`
+`ViewerRatio` / `latestViewerRatio` (`lib/dashboard.ts`). `NewViewerRatioCard`
 (`detail-widgets.tsx`) giờ hiện: % người xem mới (như cũ) + danh sách "Người xem mới / quay lại / tổng
 / Lượt xem trang cá nhân" + ngày. `returningViewers`/`profileViews` lấy từ **cùng row** Viewers.csv/
 Overview.csv — `null` nếu ngày đó file kia chưa phủ (cửa sổ chốt 2 file có thể lệch). Subtitle viết
@@ -1928,8 +1928,24 @@ lại bằng tiếng Việt thường thay cho "newViewers / totalViewers".
 - Studio CSV đã parse hết 7 file, mọi cột (trừ `Difference in followers` cố ý bỏ). Không còn cột
   nào chưa dùng.
 
+### 5. Polish vòng 3 — chi tiết Nhân sự: bỏ hẳn bảng ngày + thêm KPI (cùng ngày, theo yêu cầu)
+
+- **`daily-table.tsx` + `mergeDailyRowsByDate` + `sourceRank`/`SOURCE_PRIORITY` XOÁ HẲN** — user
+  xác nhận không dùng bảng "Số liệu đã lưu theo ngày" ở đâu nữa (trước đó vòng 1 giữ cho `/creators/[id]`).
+  Kéo theo xoá `describe("mergeDailyRowsByDate")` (6 test). `DailyRow.returningViewers/profileViews`
+  GIỮ (giờ chỉ `latestViewerRatio` dùng). Nút Xuất CSV mất luôn ở trang Nhân sự — không bù (Tổng quan
+  vẫn có nút xuất riêng).
+- **`CreatorKpiCard`** (`app/(app)/creators/[id]/creator-kpi-card.tsx`, mới) — server component.
+  `listKpiCycles({ creatorId, activeOnly: true })` + `attachProgress`. Hiện: "X/N kênh đạt tiến độ ·
+  Y cần chú ý · Z tụt lại" + mỗi kênh 1 dòng: tên (Link `/channels/[id]`) + "cần X/ngày"
+  (`remaining.text`) + `KpiHealthBadge`. Kênh chưa có chu kỳ đang chạy → "Chưa đặt KPI + Đặt KPI".
+  Sắp đỏ → vàng → xanh → chưa-KPI. Đặt SAU biểu đồ, TRƯỚC "Kênh phụ trách" (CLAUDE.md thứ tự).
+
 ### Kiểm chứng (browser thật, Manager Đặng An, 08/09)
-`/creators` kanban: 3 cột, 7/7 creator hiện sẵn không cần bấm. Dashboard "Tình hình KPI": 9 mục
-vàng kèm chấm amber + lý do, cuộn trong khung. `/channels`: chip "TikTok ↗" + "Sửa" ở cột cuối.
-`/creators/[id]`: chip "TikTok" cạnh handle. `/channels/[id]` thẻ "Người xem": 564k mới + 398k quay
-lại = 962k tổng, 6,2k lượt xem trang, ngày 03/09. `vitest` 263 / `eslint` / `next build` xanh.
+`/creators` kanban: 3 cột, 7/7 creator hiện sẵn không cần bấm; header team nền xám tách khỏi thẻ;
+Hoàng Thùy Dương thẻ viền vàng + 🥇. Modal Sửa mở/đóng (X/Esc/click ngoài), không tràn. Dashboard
+"Tình hình KPI": 9 mục vàng kèm chấm amber + lý do. `/channels`: chip "TikTok ↗" + "Sửa" ở cột cuối.
+`/creators/[id]`: chip "TikTok" cạnh handle; **thẻ "Tiến độ KPI các kênh"** ("0/2 kênh đạt tiến độ",
+mỗi kênh badge + "cần X/ngày"); **không còn bảng "Số liệu đã lưu theo ngày"**. `/channels/[id]` thẻ
+"Người xem": 564k mới + 398k quay lại = 962k tổng, 6,2k lượt xem trang, ngày 03/09. `vitest` 257 /
+`eslint` / `next build` xanh.

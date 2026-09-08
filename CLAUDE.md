@@ -159,13 +159,12 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: điều chỉnh giao diện 08/09 (đợt 2) — `/creators` accordion → kanban cột
-(`team-board.tsx`), thẻ "Tình hình KPI" liệt kê cả kênh vàng, nút "TikTok ↗" có nhãn thay icon trần,
-thẻ "Người xem: mới vs quay lại" (thêm `returning_viewers` + `profile_views` — 2 cột lần đầu có đường
-đọc). Trước đó cùng ngày: mốc "ngày" cho `TrendChart`, bỏ bảng ngày + video khỏi `/channels/[id]`,
-`AudienceCard`, sửa `elapsedPct`. Đợt 1 đã commit + push (`fd82207`); đợt 2 chưa commit.** Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Điều chỉnh giao diện đợt 08/09/2026" + "Chi tiết kênh — mốc
-ngày ... (08/09/2026)".
+**Milestone hiện tại: điều chỉnh giao diện 08/09 (đợt 2–3) — `/creators` kanban cột + Modal sửa +
+header tách màu + 🥇 dẫn đầu view; "Tình hình KPI" liệt kê cả kênh vàng; nút "TikTok ↗" có nhãn; thẻ
+"Người xem: mới vs quay lại" (+ `returning_viewers`/`profile_views`); **bỏ HẲN `DailyTable` +
+`mergeDailyRowsByDate`** khỏi cả 2 trang; thêm `CreatorKpiCard` vào `/creators/[id]`. Đợt 1
+(`fd82207`) + đợt 2 (`8877eef`, `523f90d`) đã push; đợt 3 chưa commit.** Chi tiết:
+[docs/PROGRESS.md](docs/PROGRESS.md) mục "Điều chỉnh giao diện đợt 08/09/2026".
 Polish biểu đồ xu hướng 07/09 + M6 (chốt sổ KPI) +
 `/kpi` danh sách kênh + M5 (KPI Cycle) +
 M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh

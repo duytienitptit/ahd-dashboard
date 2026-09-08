@@ -60,8 +60,8 @@ chê tiếp, đừng tự đoán thêm — hỏi thẳng người dùng có ản
 
 Áp dụng ở (không giới hạn, tìm `metric-tone` để thấy hết): `TeamStatsRow`/`StatTile` (Tổng quan,
 `channels/[id]`, `creators/[id]`), header + giá trị bảng `/channels` và `/creators`
-(`channels-table.tsx`, `channel-form.tsx`, `team-accordion.tsx`, `creator-channels-table.tsx`),
-`DailyTable`, `TrendChart` (tab + đường), `HashtagTable`/`VideoList` (view), `GrowthCard`
+(`channels-table.tsx`, `channel-form.tsx`, `team-board.tsx`, `creator-channels-table.tsx`),
+`TrendChart` (tab + đường), `HashtagTable` (view), `GrowthCard`
 (follower)/`ViewShareCard` (view)/`EfficiencyCard` (view) ở Tổng quan.
 
 ## Font
