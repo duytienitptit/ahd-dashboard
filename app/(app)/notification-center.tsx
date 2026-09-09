@@ -57,7 +57,7 @@ export function NotificationCenter({ notifications }: { notifications: AppNotifi
             onClick={advance}
             className="rounded-btn border border-line px-4 py-2 text-[13px] font-semibold text-ink-2 hover:bg-surface"
           >
-            {current.cta ? "Để sau" : "Đã xem"}
+            Đã xem
           </button>
         </div>
 
