@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-
 import { requireUser } from "@/lib/auth";
 import { listCreators } from "@/lib/creators";
 import { aggregateChannelStats, buildCreatorPerformance, getChannelPeriodStats, previousPeriod, rankCreatorPerformance } from "@/lib/dashboard";
@@ -14,12 +12,15 @@ import { TeamBoard, type TeamGroupData } from "./team-board";
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
 
-// Manager-only screen (docs/USER_FLOW.md: "Tạo tài khoản Creator — Có / Ẩn"). RLS lets a Creator
-// read the creator table too (cross-channel visibility is deliberate elsewhere), but this specific
-// management screen — with the "tạo tài khoản" action — is not meant for them.
+// Shown to both roles (09/09/2026, theo yêu cầu "cho creator thấy được các creator khác"). Manager
+// gets the full screen; a Creator gets it read-only — every create/edit/delete control and the Team
+// manager are gated on `isManager` below, and the server actions behind them each call
+// `requireManager()` anyway (app/(app)/creators/actions.ts). The board's numbers come from tables a
+// Creator can already read via RLS; this just regroups them by person, same as `/channels` regroups
+// them by channel.
 export default async function CreatorsPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
-  if (user.role !== "manager") redirect("/");
+  const isManager = user.role === "manager";
 
   const params = await searchParams;
   const { from, to } = resolvePeriodParamsAllTime(params);
@@ -108,18 +109,25 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
             "+ Tạo tài khoản" thành khối riêng phía dưới, đọc lạc lõng giữa trang. */}
         <div className="mb-[18px] flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Nhân sự</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-extrabold tracking-[-0.6px]">Nhân sự</h1>
+              {!isManager ? (
+                <span className="inline-flex items-center gap-1.5 rounded-pill bg-line-soft px-2.5 py-1 text-[11.5px] font-semibold text-ink-2">
+                  Chỉ xem
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1.5 text-[13px] text-ink-3">
               {creators.length} Creator đang phụ trách {totalChannels} kênh
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <DateRangePicker from={from} to={to} />
-            <CreateCreatorForm teams={teamOptions} />
+            {isManager ? <CreateCreatorForm teams={teamOptions} /> : null}
           </div>
         </div>
 
-        <TeamManager teams={teams} />
+        {isManager ? <TeamManager teams={teams} /> : null}
 
         <FilterPendingOverlay>
           {creators.length === 0 ? (
@@ -127,7 +135,7 @@ export default async function CreatorsPage({ searchParams }: { searchParams: Sea
               Chưa có Creator nào.
             </div>
           ) : (
-            <TeamBoard groups={groups} teams={teamOptions} />
+            <TeamBoard groups={groups} teams={teamOptions} canManage={isManager} />
           )}
         </FilterPendingOverlay>
       </FilterTransitionProvider>

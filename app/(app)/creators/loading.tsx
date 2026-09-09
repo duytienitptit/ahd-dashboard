@@ -1,23 +1,14 @@
 import { PageHeaderSkeleton, Skeleton } from "../skeleton";
 
 // Mirrors creators/page.tsx: team board — a row of columns, each with a header + a couple of
-// creator cards.
+// creator cards. Shared by both roles now (09/09/2026), so no skeleton for the Manager-only
+// TeamManager card — a Creator would just see it flash and vanish.
 export default function CreatorsLoading() {
   return (
     <div className="px-8 py-10">
       <PageHeaderSkeleton />
 
-      <div className="mb-4 overflow-hidden rounded-card border border-line">
-        <div className="flex items-center justify-between px-5 py-[18px]">
-          <div>
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="mt-2 h-3 w-48" />
-          </div>
-          <Skeleton className="h-8 w-24 rounded-btn" />
-        </div>
-      </div>
-
-      <div className="flex gap-3.5 overflow-hidden">
+      <div className="mt-4 flex gap-3.5 overflow-hidden">
         {Array.from({ length: 3 }, (_, col) => (
           <div key={col} className="w-[320px] shrink-0 rounded-card border border-line">
             <div className="border-b border-line-soft px-4 py-3.5">

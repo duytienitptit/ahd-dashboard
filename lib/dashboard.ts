@@ -1453,6 +1453,48 @@ export async function getChannelPeriodStats(
   return result;
 }
 
+/**
+ * Xếp hạng TOÀN BỘ roster Creator theo tổng lượt xem + xu hướng toàn thời gian — bọc
+ * `getChannelPeriodStats → buildCreatorPerformance → rankCreatorPerformance` thành một lời gọi để
+ * `/creators`, thẻ chi tiết Creator (cúp 🏆 "TOP 1"), và thông báo `leader_flex` gọi chung: huy
+ * chương phải nghĩa y hệt ở mọi màn. "leader" là #1 toàn công ty, không phải #1 một team — xem
+ * `rankCreatorPerformance` docstring (bug 21/08/2026).
+ *
+ * `creators` phải là danh sách đầy đủ từ `listCreators` (đã kèm `channels` + `channelCount`), không
+ * lọc theo team. Không kênh nào → map rỗng (mọi người "stable"). `/creators/page.tsx` +
+ * `lib/notifications.ts` có bản inline cũ hơn — dùng lại được nhưng chưa gộp (đổi sau).
+ */
+export async function rankCreatorsAllTime(
+  supabase: SupabaseServerClient,
+  creators: {
+    id: string;
+    channelCount: number;
+    channels: { id: string; name: string; tiktokHandle: string }[];
+  }[],
+): Promise<Map<string, CreatorRank>> {
+  const channelIds = creators.flatMap((c) => c.channels.map((ch) => ch.id));
+  if (channelIds.length === 0) return new Map();
+
+  // Toàn thời gian — khớp `resolvePeriodParamsAllTime({})`, cùng cửa sổ `/creators` xếp hạng.
+  const from = ALL_TIME_FROM;
+  const to = nowVnDateString();
+  const { comparedFrom, comparedTo } = previousPeriod(from, to);
+  const stats = await getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo });
+  const perf = buildCreatorPerformance(creators, stats);
+
+  return rankCreatorPerformance(
+    creators.map((c) => {
+      const p = perf.get(c.id)!;
+      return {
+        creatorId: c.id,
+        totalViews: p.totalViews,
+        avgViewsDeltaPct: p.viewsDeltaPct,
+        channelCount: c.channelCount,
+      };
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/dashboard — docs/API_SPEC.md. Same shape for both roles; `myChannels` is the only
 // role-branch (creator-only), per docs/USER_FLOW.md "teamStats/trend/growth/viewShare/efficiency:

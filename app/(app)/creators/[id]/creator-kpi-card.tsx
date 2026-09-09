@@ -21,9 +21,13 @@ const HEALTH_SORT: Record<string, number> = { red: 0, yellow: 1, green: 2 };
 export function CreatorKpiCard({
   channels,
   cycles,
+  canManage,
 }: {
   channels: ChannelRef[];
   cycles: KpiCycleWithProgress[];
+  /** `false` for a Creator viewing the page — the "+ Đặt KPI" link is Manager-only and would just
+   *  bounce a Creator off `/kpi/new` (09/09/2026). */
+  canManage: boolean;
 }) {
   const cycleByChannel = new Map(cycles.map((c) => [c.channelId, c]));
   const withKpi = cycles.length;
@@ -88,9 +92,11 @@ export function CreatorKpiCard({
                 ) : (
                   <div className="flex items-center gap-2.5 text-[11.5px]">
                     <span className="text-ink-3">Chưa đặt KPI</span>
-                    <Link href={`/kpi/new?channelId=${ch.id}`} className="font-bold text-red hover:opacity-80">
-                      + Đặt KPI
-                    </Link>
+                    {canManage ? (
+                      <Link href={`/kpi/new?channelId=${ch.id}`} className="font-bold text-red hover:opacity-80">
+                        + Đặt KPI
+                      </Link>
+                    ) : null}
                   </div>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { listCreators } from "@/lib/creators";
@@ -23,9 +23,10 @@ import {
   isoWeekStart,
   pctChange,
   previousPeriod,
+  rankCreatorsAllTime,
   withUnfinishedMarks,
 } from "@/lib/dashboard";
-import { formatCompact, formatDeltaPct, formatSignedNumber, initialsFromEnd } from "@/lib/format";
+import { formatCompact, formatDeltaPct, formatSignedNumber } from "@/lib/format";
 import { attachProgress, listKpiCycles } from "@/lib/kpi";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
@@ -38,13 +39,16 @@ import { TrendChart } from "../../trend-chart";
 import { CreatorChannelsTable } from "./creator-channels-table";
 import { CreatorKpiCard } from "./creator-kpi-card";
 import { CreatorEditToggle } from "./edit-toggle";
+import { CreatorAvatar, LeaderBadge } from "./leader-badge";
 
 const HISTORY_DAYS = 180;
 
 type SearchParams = Promise<{ from?: string; to?: string }>;
 
-// Manager-only, same rule as /creators. The drill-down target /creators' rows never had before this
-// redesign — a Creator's channels used to be dead-end <span>s (CLAUDE.md, this session's feedback).
+// Both roles, same rule as /creators (09/09/2026). A Creator sees it read-only: the "Sửa thông tin"
+// toggle and the "+ Đặt KPI" link are gated on `isManager`. Everything else on the page —
+// StatTiles, trend chart, KPI health, channels table — is built from data a Creator can already
+// reach via /channels; this view just groups it by the person running the channels.
 export default async function CreatorDetailPage({
   params,
   searchParams,
@@ -53,7 +57,7 @@ export default async function CreatorDetailPage({
   searchParams: SearchParams;
 }) {
   const user = await requireUser();
-  if (user.role !== "manager") redirect("/");
+  const isManager = user.role === "manager";
 
   const { id } = await params;
   const search = await searchParams;
@@ -75,15 +79,19 @@ export default async function CreatorDetailPage({
   const trendFrom = isoWeekStart(addDaysToDateString(to, -55));
   const channelIds = creator.channels.map((ch) => ch.id);
 
-  const [periodStats, historyRows, postedDates, kpiCycles] = await Promise.all([
+  const [periodStats, historyRows, postedDates, kpiCycles, creatorRanks] = await Promise.all([
     getChannelPeriodStats(supabase, { channelIds, from, to, comparedFrom, comparedTo }),
     fetchDailyRows(supabase, channelIds, historyFrom, to),
     fetchPostedVnDates(supabase, channelIds, historyFrom, to),
     // Chỉ chu kỳ đang chạy — cho thẻ "Tiến độ KPI các kênh". Độc lập với `from`/`to` của bộ lọc
     // trang (chu kỳ KPI có ngày riêng, xem KpiCard's doc comment).
     listKpiCycles(supabase, { creatorId: id, activeOnly: true }),
+    // Xếp hạng toàn team (all-time) — chỉ để gắn cúp 🏆 "TOP 1" nếu người này đang dẫn đầu lượt xem.
+    // Khớp huy chương 🥇 ở `/creators` + thông báo `leader_flex` (cùng `rankCreatorsAllTime`).
+    rankCreatorsAllTime(supabase, creators),
   ]);
   const kpiWithProgress = await attachProgress(supabase, kpiCycles);
+  const isLeader = creatorRanks.get(id) === "leader";
 
   const rollup = aggregateChannelStats(channelIds, periodStats);
   const channelPerformance = buildCreatorPerformance([creator], periodStats).get(creator.id)!.channels;
@@ -123,12 +131,11 @@ export default async function CreatorDetailPage({
       <FilterTransitionProvider>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-pill bg-line-soft text-lg font-extrabold text-ink-2">
-              {initialsFromEnd(creator.name)}
-            </div>
+            <CreatorAvatar name={creator.name} isLeader={isLeader} />
             <div>
               <h1 className="text-2xl font-extrabold tracking-[-0.6px]">{creator.name}</h1>
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-ink-3">
+                {isLeader ? <LeaderBadge /> : null}
                 <span>{creator.username}</span>
                 <span className="h-[3px] w-[3px] shrink-0 rounded-pill bg-line" />
                 <Link href={teamHref} className="font-semibold hover:underline">
@@ -137,12 +144,15 @@ export default async function CreatorDetailPage({
                 {!creator.isActive ? (
                   <span className="rounded-pill bg-line-soft px-2 py-[2px] font-semibold text-ink-2">Đã vô hiệu hoá</span>
                 ) : null}
+                {!isManager ? (
+                  <span className="rounded-pill bg-line-soft px-2 py-[2px] font-semibold text-ink-2">Chỉ xem</span>
+                ) : null}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <DateRangePicker from={from} to={to} />
-            <CreatorEditToggle creator={creator} teams={teamOptions} />
+            {isManager ? <CreatorEditToggle creator={creator} teams={teamOptions} /> : null}
           </div>
         </div>
 
@@ -189,7 +199,9 @@ export default async function CreatorDetailPage({
             <StatTile label="Tổng số like" value={formatCompact(rollup.totalLikes)} unit="like" icon={<HeartIcon />} tone="crimson" />
           </div>
 
-          <div className="mb-3.5">
+          {/* Biểu đồ + "Tiến độ KPI" chung một hàng (09/09/2026, theo yêu cầu) — biểu đồ hẹp lại
+              cho dễ đọc nhịp, thẻ KPI thành cột phải ~340px (giống Tổng quan). Xuống 1 cột ở < lg. */}
+          <div className="mb-3.5 grid items-start gap-3.5 lg:grid-cols-[1fr_340px]">
             <TrendChart
               title="Diễn biến"
               tabs={[
@@ -234,10 +246,7 @@ export default async function CreatorDetailPage({
                 },
               ]}
             />
-          </div>
-
-          <div className="mb-3.5">
-            <CreatorKpiCard channels={creator.channels} cycles={kpiWithProgress} />
+            <CreatorKpiCard channels={creator.channels} cycles={kpiWithProgress} canManage={isManager} />
           </div>
 
           <div>

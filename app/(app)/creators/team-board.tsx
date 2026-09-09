@@ -63,10 +63,13 @@ function CreatorCard({
   creator,
   teams,
   index,
+  canManage,
 }: {
   creator: CreatorRowData;
   teams: { id: string; name: string }[];
   index: number;
+  /** `false` for a Creator viewing the board — hides the "Sửa" control + its Modal (09/09/2026). */
+  canManage: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const rankStyle = RANK_STYLE[creator.rank];
@@ -79,9 +82,11 @@ function CreatorCard({
         isLeader ? "border-amber ring-1 ring-amber/30" : "border-line-soft hover:border-line"
       }`}
     >
-      <Modal open={editing} onClose={() => setEditing(false)} title={`Sửa nhân sự — ${creator.name}`}>
-        <CreatorEditForm creator={creator} teams={teams} onClose={() => setEditing(false)} bare />
-      </Modal>
+      {canManage ? (
+        <Modal open={editing} onClose={() => setEditing(false)} title={`Sửa nhân sự — ${creator.name}`}>
+          <CreatorEditForm creator={creator} teams={teams} onClose={() => setEditing(false)} bare />
+        </Modal>
+      ) : null}
 
       <div className="flex items-start gap-2.5">
         <div
@@ -96,13 +101,15 @@ function CreatorCard({
           </Link>
           <div className="truncate text-[11px] text-ink-3">{creator.username}</div>
         </div>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="shrink-0 text-[12px] font-semibold text-red hover:opacity-80"
-        >
-          Sửa
-        </button>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="shrink-0 text-[12px] font-semibold text-red hover:opacity-80"
+          >
+            Sửa
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-2.5 grid grid-cols-3 gap-2">
@@ -151,10 +158,12 @@ function TeamColumn({
   group,
   teams,
   index,
+  canManage,
 }: {
   group: TeamGroupData;
   teams: { id: string; name: string }[];
   index: number;
+  canManage: boolean;
 }) {
   const searchParams = useSearchParams();
   const requestedTeam = searchParams.get("team");
@@ -217,7 +226,9 @@ function TeamColumn({
         {group.creators.length === 0 ? (
           <p className="py-6 text-center text-[12px] text-ink-3">Team này chưa có nhân sự nào.</p>
         ) : (
-          group.creators.map((creator, i) => <CreatorCard key={creator.id} creator={creator} teams={teams} index={i} />)
+          group.creators.map((creator, i) => (
+            <CreatorCard key={creator.id} creator={creator} teams={teams} index={i} canManage={canManage} />
+          ))
         )}
       </div>
     </div>
@@ -231,11 +242,20 @@ function TeamColumn({
  * team" là một cột như mọi cột khác. `?team=<id>` (từ pill team ở trang chi tiết Creator) cuộn cột đó
  * vào tầm nhìn + viền cyan.
  */
-export function TeamBoard({ groups, teams }: { groups: TeamGroupData[]; teams: { id: string; name: string }[] }) {
+export function TeamBoard({
+  groups,
+  teams,
+  canManage,
+}: {
+  groups: TeamGroupData[];
+  teams: { id: string; name: string }[];
+  /** `false` = a Creator viewing the board read-only — no "Sửa" on any card (09/09/2026). */
+  canManage: boolean;
+}) {
   return (
     <div className="scroll-thin flex gap-3.5 overflow-x-auto pb-2">
       {groups.map((group, i) => (
-        <TeamColumn key={groupKey(group.id)} group={group} teams={teams} index={i} />
+        <TeamColumn key={groupKey(group.id)} group={group} teams={teams} index={i} canManage={canManage} />
       ))}
     </div>
   );
