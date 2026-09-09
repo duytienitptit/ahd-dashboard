@@ -24,15 +24,18 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient
  * (`lib/notification-log.ts`) gộp vào nhật ký `localStorage` và nhớ "đã đọc" theo `id`.
  *
  * Các loại hiện có:
- *  • `leader_flex`     — top 1 view "flex" (mọi người).
+ *  • `leader_flex`     — top 1 view (mọi người). Creator: giọng chọc ghẹo; Manager: câu trang trọng.
  *  • `runner_up`       — chỉ Creator đang đứng top 2/3 view, lời động viên.
- *  • `import_reminder` — thứ Tư hằng tuần, nhắc mọi người nhập dữ liệu Studio.
+ *  • `import_reminder` — thứ Tư hằng tuần (mọi người). Creator: năn nỉ; Manager: nhắc lịch.
  *  • `kpi_assigned`    — Creator vừa được giao KPI cho kênh mình phụ trách.
- *  • `kpi_achieved`    — kênh đạt 100% KPI: báo cho Manager (+ Creator của kênh đó).
+ *  • `kpi_achieved`    — kênh đạt 100% KPI: Manager (câu trung tính) + Creator của kênh (câu vui).
  *
- * `repeat: true` cho MỌI thông báo Creator thấy (09/09/2026, theo yêu cầu) — hiện lại modal mỗi lần
- * vào Tổng quan, kể cả đã bấm "Đã xem". Manager giữ hành vi "hiện một lần" (trừ `import_reminder`
- * repeat cho tất cả — nhắc thứ Tư thì phải nhắc thật).
+ * **Giọng theo vai trò** (09/09/2026, theo yêu cầu): `formal = user.role === "manager"` → mọi câu
+ * chữ + icon Manager thấy đều lịch sự, nghiêm túc; Creator giữ giọng vui.
+ *
+ * `repeat: true` **chỉ cho thông báo THỨ HẠNG** (`leader_flex`, `runner_up`) — hiện lại modal mỗi
+ * lần vào Tổng quan, kể cả đã bấm "Đã xem". Loại khác (`import_reminder`, `kpi_*`) hiện một lần rồi
+ * thôi; `id` đổi thì hiện lại (thứ Tư tuần sau, chu kỳ KPI mới).
  *
  * Màu + độ "vui" từng loại: `NOTIF_STYLE` ở `lib/notification-log.ts` — client tô theo `kind`.
  * `id` mã hoá sự thật: `leader-flex:<creatorId>`, `runner-up:<creatorId>`,
@@ -80,6 +83,8 @@ export async function buildNotifications(
 ): Promise<AppNotification[]> {
   const out: AppNotification[] = [];
   const isCreator = user.role === "creator";
+  // Manager: giọng lịch sự, nghiêm túc. Creator: giọng vui, chọc ghẹo (09/09/2026, theo yêu cầu).
+  const formal = user.role === "manager";
 
   // 1) leader_flex — cho mọi người.  2) runner_up — chỉ người đang top 2/3.
   const { leader, ranked } = await creatorViewStanding(supabase);
@@ -87,10 +92,12 @@ export async function buildNotifications(
     out.push({
       id: `leader-flex:${leader.id}`,
       kind: "leader_flex",
-      icon: "😆",
-      message: `Haha mấy con gà, nhìn chị ${leader.name} của tao đây lày hehe. Nói chung là mấy vợ quá gà`,
-      cta: { label: "XEM VÀ KHEN", href: `/creators/${leader.id}` },
-      repeat: isCreator,
+      icon: formal ? "🏆" : "😆",
+      message: formal
+        ? `${leader.name} đang dẫn đầu toàn team về lượt xem.`
+        : `Haha mấy con gà, nhìn chị ${leader.name} của tao đây lày hehe. Nói chung là mấy vợ quá gà`,
+      cta: { label: formal ? "XEM CHI TIẾT" : "XEM VÀ KHEN", href: `/creators/${leader.id}` },
+      repeat: true, // thứ hạng → luôn hiện, cho cả Manager lẫn Creator
     });
   }
 
@@ -106,17 +113,18 @@ export async function buildNotifications(
     });
   }
 
-  // 3) import_reminder — thứ Tư (VN). Nhắc mọi người, repeat để không quên.
+  // 3) import_reminder — thứ Tư (VN). Hiện một lần; `id` gắn với tuần nên thứ Tư tuần sau lại hiện.
   const todayVn = nowVnDateString();
   const dow = new Date(`${todayVn}T00:00:00Z`).getUTCDay(); // 0=CN … 3=Thứ Tư
   if (dow === 3) {
     out.push({
       id: `import-reminder:${isoWeekStart(todayVn)}`,
       kind: "import_reminder",
-      icon: "🥺",
-      message: "Lạy ông đi qua lạy bà đi lại. Hãy nhập dữ liệu tuần này cho con, con đói lắm rồi.",
+      icon: formal ? "📋" : "🥺",
+      message: formal
+        ? "Hôm nay là thứ Tư — hạn nhập dữ liệu Studio cho tuần trước. Vui lòng hoàn tất trong ngày."
+        : "Lạy ông đi qua lạy bà đi lại. Hãy nhập dữ liệu tuần này cho con, con đói lắm rồi.",
       cta: { label: "NHẬP DỮ LIỆU", href: "/import" },
-      repeat: true,
     });
   }
 
@@ -142,21 +150,22 @@ export async function buildNotifications(
           icon: "🎁",
           message: `Anh nhắc em nhớ hoàn thành KPI cho kênh ${channel.name}, kỳ ${formatFullDate(cycle.periodStart)}–${formatFullDate(cycle.periodEnd)}. Mở xem chỉ tiêu nhé! Hoàn thành anh thưởng cho các bé`,
           cta: { label: "XEM KPI", href: `/channels/${channel.id}` },
-          repeat: true,
         });
       }
 
       // kpi_achieved — đạt 100%. Báo cho Manager (bao quát mọi KPI) và Creator của kênh đó.
       const achieved = cycle.progress.overallPct !== null && cycle.progress.overallPct >= 100;
       if (achieved && (user.role === "manager" || managesThis)) {
-        const who = channel.currentCreator?.name ? ` ${channel.currentCreator.name} làm tốt lắm!` : "";
+        const pct = Math.round(cycle.progress.overallPct!);
+        const creatorName = channel.currentCreator?.name;
         out.push({
           id: `kpi-achieved:${cycle.id}`,
           kind: "kpi_achieved",
-          icon: "🥳",
-          message: `Kênh ${channel.name} đã đạt KPI kỳ này (${Math.round(cycle.progress.overallPct!)}%).${who}`,
+          icon: formal ? "✅" : "🥳",
+          message: formal
+            ? `Kênh ${channel.name} đã hoàn thành KPI kỳ này (${pct}%)${creatorName ? ` — ${creatorName} phụ trách` : ""}.`
+            : `Kênh ${channel.name} của bạn đã đạt KPI kỳ này (${pct}%)! Làm tốt lắm.`,
           cta: { label: "XEM", href: `/channels/${channel.id}` },
-          repeat: managesThis,
         });
       }
     }
