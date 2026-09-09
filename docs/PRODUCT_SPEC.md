@@ -18,7 +18,7 @@ cả khi không đặt KPI nào thì hệ thống vẫn phải có giá trị nh
 | Vai trò | Quyền hạn |
 | :--- | :--- |
 | Manager | Xem toàn team, giao KPI, phân công kênh, chốt sổ cuối chu kỳ |
-| Creator | Xem KPI + tiến độ kênh mình phụ trách, xem chéo số liệu kênh khác |
+| Creator | Xem KPI + tiến độ kênh mình phụ trách, xem chéo số liệu kênh khác, xem chéo trang Nhân sự (danh sách Creator / team / xếp hạng / tiến độ KPI — chỉ xem, 09/09/2026) |
 
 - Cấu trúc: 1 Manager duy nhất, mô hình phẳng. Schema không hard-code 1 Manager (mở rộng multi-team sau này không cần thiết kế lại).
   **21/08/2026: đã thêm `team`** (bảng `team`, `creator.team_id`) đúng như tiên liệu ở đây — nhưng
@@ -82,7 +82,7 @@ Ngoài MVP (làm sau, không loại): Leaderboard/badge, thư viện top video, 
 | P1 | Leaderboard & Badge thi đua |
 | P1 | Open Benchmarking — xem chéo, thư viện top video |
 | P1 | Creator Profile — trang tổng kết cá nhân |
-| P2 | Cảnh báo chủ động (kênh 🔴, gần hết chu kỳ) — kênh gửi chưa chọn |
+| P2 | Cảnh báo chủ động (kênh 🔴, gần hết chu kỳ) — **cơ chế đã dựng 09/09** (modal + chuông, xem mục 7), còn chọn kênh gửi + thêm loại |
 | P2 | Multi-Manager / multi-team |
 | P2 | Engine tính thưởng/lương tự động từ số liệu Final |
 
@@ -154,6 +154,11 @@ ràng buộc và index. Mục này chỉ giữ quy tắc nghiệp vụ.
 
 ## 7. Triển khai
 
+- **Cơ chế thông báo (08–09/09/2026)** — hạ tầng, không phải bộ thông báo hoàn chỉnh ("chỉ cần có
+  cơ chế trước"). Modal giữa màn hình ở Tổng quan + chuông header; nhật ký `localStorage` (chưa có
+  bảng DB — thêm khi cần đồng bộ nhiều máy). 5 loại đầu: dẫn đầu view, top 2/3, nhắc import thứ Tư,
+  được giao KPI, kênh đạt KPI. Thông báo thứ hạng lặp lại mỗi lần vào; loại khác một lần. Giọng
+  Manager nghiêm túc, Creator vui. Chi tiết + cách thêm loại mới: [PROGRESS.md](PROGRESS.md).
 - Người code: chính người dùng, tự triển khai (vibe coding).
 - Hạ tầng: ưu tiên nền tảng free tier (website nội bộ, data nhỏ — 8 kênh), mở rộng trả phí sau nếu cần.
 - Tech stack:

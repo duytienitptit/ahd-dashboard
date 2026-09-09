@@ -23,7 +23,7 @@ Token trích từ mockup 10 màn hình. Dùng đúng các giá trị này khi co
 | `green` | `#0BAD5B` | Trạng thái vượt tiến độ |
 | `green-dark` | `#046C45` | Chữ trạng thái xanh |
 | `green-bg` | `#E6F9F0` | Nền badge xanh |
-| `amber` | `#F5A623` | Trạng thái ổn định · huy chương vàng "Dẫn đầu view" (badge 🥇 + viền/ring thẻ, `/creators`) |
+| `amber` | `#F5A623` | Trạng thái ổn định · huy chương vàng "Dẫn đầu view" (badge 🥇 `/creators`; cúp 🏆 + avatar gradient ở `/creators/[id]` của người TOP 1) |
 | `amber-dark` | `#8A5A06` | Chữ trạng thái vàng |
 | `amber-bg` | `#FFF6E5` | Nền badge vàng |
 
@@ -51,8 +51,10 @@ khác.
 **Phạm vi áp dụng:** tiêu đề cột bảng, số liệu chính (giá trị lớn/số trong ô bảng), tab + đường biểu
 đồ trong `TrendChart`. **KHÔNG áp dụng cho:** badge %thay đổi (`DeltaPill`/`formatDeltaPct` — vẫn xanh
 lá=tăng/đỏ=giảm như trước), badge trạng thái (`Đang hoạt động`/`tạm tính`/`đã đối chiếu`...), thanh
-tiến độ KPI. Quyết định có chủ đích (24/08/2026, theo yêu cầu): giữ 2 hệ màu tách biệt — "màu theo
-chỉ số" (nhận diện chỉ số nào) và "màu theo chiều hướng" (tăng/giảm/cảnh báo) — để không lẫn nhau.
+tiến độ KPI, **màu thông báo** (`NOTIF_STYLE` trong `lib/notification-log.ts` — amber/crimson/orange/
+blue/green theo `kind`; cố ý dùng thoải mái hơn vì "cơ chế vui, đừng nhàm chán", 08/09/2026). Quyết
+định có chủ đích (24/08/2026, theo yêu cầu): giữ 2 hệ màu tách biệt — "màu theo chỉ số" (nhận diện
+chỉ số nào) và "màu theo chiều hướng" (tăng/giảm/cảnh báo) — để không lẫn nhau.
 
 ⚠️ **Đã đổi bộ màu 1 lần trong ngày 24/08/2026** — bản đầu dùng `blue #3B82F6`/`purple #8B5CF6`
 (tím thật), bị chê "xanh dương và tím khó phân biệt". Bản hiện tại (trên) tách bạch rõ hơn. Nếu bị

@@ -166,8 +166,16 @@ Query: `?channelId=`, `?status=draft|final`, `?activeOnly=true` (đang chạy = 
 <= periodEnd`, theo ngày lịch `Asia/Ho_Chi_Minh`). Creator chỉ thấy cycle của (nhiều nhất) đúng kênh
 mình phụ trách — lọc ở tầng route (`?channelId=` của Creator cho kênh khác cũng bị bỏ qua), **không
 dựa vào RLS**: policy của `kpi_cycle` cho mọi vai trò đã đăng nhập đọc toàn bộ (giống mọi bảng nghiệp
-vụ khác — "Creator xem chéo số liệu kênh khác" trong CLAUDE.md là về dữ liệu kênh, không phải về
-việc ai được giao chỉ tiêu).
+vụ khác).
+
+> **09/09/2026 — điều chỉnh phạm vi:** trang **Nhân sự** (`/creators/[id]`, không phải endpoint này)
+> giờ cho Creator xem badge `health` (kèm `overallPct`) của **chu kỳ đang chạy** trên kênh người
+> khác, theo yêu cầu "cho creator thấy được các creator khác". Endpoint `GET /api/kpi-cycles` và tab
+> `/kpi` ("KPI của tôi") **vẫn** tự giới hạn về kênh của chính Creator — đó là góc nhìn cá nhân, và
+> chúng lộ thêm `targetViews/Videos/Followers` thô, `forecast`, `dataGaps`, các kỳ đã qua; thẻ ở
+> `/creators/[id]` chỉ có badge + "cần X/ngày" của kỳ đang chạy. Câu "Creator xem chéo là về dữ liệu
+> kênh, không phải ai được giao chỉ tiêu" trước đây ở đây đã được nới theo yêu cầu — mức đạt chỉ tiêu
+> nay cũng thuộc diện minh bạch chéo, chỉ số chỉ tiêu thô thì không.
 
 Mỗi cycle luôn kèm sẵn `progress`/`health`/`remaining`/`forecast`/`dataGaps` — không có endpoint
 riêng để lấy progress, tính 1 lần ở server cho toàn bộ danh sách (2 truy vấn Supabase cho N cycle,

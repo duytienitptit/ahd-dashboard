@@ -707,6 +707,36 @@ Chỉ làm nếu M0 cho thấy Display API không khả thi.
       **bỏ HẲN `DailyTable` + `mergeDailyRowsByDate`** khỏi cả 2 trang (user xác nhận); thêm
       `CreatorKpiCard` vào `/creators/[id]`.
 
+## Nhân sự mở cho Creator — chỉ-xem (09/09/2026, theo yêu cầu "cho creator thấy được các creator khác")
+
+- [x] Tab "Nhân sự" vào `NAV_ITEMS.creator` (`app/(app)/layout.tsx`).
+- [x] `/creators` + `/creators/[id]`: bỏ `redirect("/")`, thêm `isManager`; gate `CreateCreatorForm` +
+      `TeamManager` + nút "Sửa" mỗi thẻ + `CreatorEditToggle` + link "+ Đặt KPI". Pill "Chỉ xem".
+- [x] `TeamBoard` + `CreatorKpiCard` nhận prop `canManage`. `loading.tsx` bỏ skeleton `TeamManager`.
+- [x] Doc: [USER_FLOW.md](USER_FLOW.md), [PRODUCT_SPEC.md](PRODUCT_SPEC.md) mục Vai trò,
+      [API_SPEC.md](API_SPEC.md) `GET /api/kpi-cycles` (nới ghi chú về KPI chéo), [PROGRESS.md](PROGRESS.md).
+- [ ] Kiểm chứng browser bằng phiên đăng nhập **Creator** (phiên hiện tại là Manager) — xác nhận
+      ẩn đúng mọi control + tab hiện.
+
+## Cơ chế thông báo (08–09/09/2026, theo yêu cầu "chỉ cần có cơ chế trước")
+
+- [x] Hạ tầng: `lib/notifications.ts` (sinh nội dung server) + `lib/notification-log.ts` (nhật ký
+      `localStorage`, chưa có bảng DB — cố ý) + `notification-center.tsx` (modal giữa màn hình, bắt
+      buộc xem) + `notification-bell.tsx` (chuông header, mọi trang).
+- [x] 5 loại: `leader_flex`, `runner_up`, `import_reminder` (thứ Tư), `kpi_assigned`, `kpi_achieved`.
+- [x] `repeat` CHỈ cho thông báo thứ hạng (`leader_flex` + `runner_up`); loại khác hiện 1 lần.
+- [x] Giọng theo vai trò: `formal = manager` (câu + icon lịch sự) vs Creator (giọng vui).
+- [x] Màu/icon từng loại (`NOTIF_STYLE`). Chi tiết: [PROGRESS.md](PROGRESS.md).
+- [ ] Bảng DB `notification` + `notification_read` — khi cần đồng bộ nhiều máy / lưu lâu dài.
+- [ ] Kiểm chứng góc nhìn Creator (đang đăng nhập Manager).
+
+## Cúp 🏆 TOP 1 + gộp biểu đồ/KPI một hàng ở `/creators/[id]` (09/09/2026, theo yêu cầu)
+
+- [x] Người dẫn đầu lượt xem toàn team: avatar cúp vàng + huy hiệu "TOP 1" (`leader-badge.tsx`).
+- [x] `lib/dashboard.ts` `rankCreatorsAllTime()` — helper chung cho 🥇/🏆/`leader_flex`.
+- [x] Biểu đồ "Diễn biến" + "Tiến độ KPI các kênh" chung một hàng (`lg:grid-cols-[1fr_340px]`).
+- [x] Commit `256f324` (gộp với đợt `canManage`). Doc: [PROGRESS.md](PROGRESS.md).
+
 ## Sau MVP
 
 - [ ] P1 — Leaderboard & Badge

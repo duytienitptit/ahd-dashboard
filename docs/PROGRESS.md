@@ -1949,3 +1949,120 @@ Hoàng Thùy Dương thẻ viền vàng + 🥇. Modal Sửa mở/đóng (X/Esc/c
 mỗi kênh badge + "cần X/ngày"); **không còn bảng "Số liệu đã lưu theo ngày"**. `/channels/[id]` thẻ
 "Người xem": 564k mới + 398k quay lại = 962k tổng, 6,2k lượt xem trang, ngày 03/09. `vitest` 257 /
 `eslint` / `next build` xanh.
+
+## Nhân sự mở cho Creator — chỉ-xem (09/09/2026, theo yêu cầu "cho creator thấy được các creator khác")
+
+**Yêu cầu:** Creator đang thấy số liệu chéo mọi *kênh* (`/channels`) nhưng không thấy "bản gom theo
+người" — trang Nhân sự. Mở nó ra cho Creator, chỉ-xem.
+
+**Đã cân nhắc trước khi làm (hỏi người dùng, chọn "bảng đầy đủ"):** 3 mức — (A) cả roster + hiệu suất
++ xếp hạng + tiến độ KPI người khác; (B) bỏ KPI + xếp hạng; (C) chỉ danh sách. Người dùng chọn **A**
+sau khi được nêu rõ 2 hệ quả: (1) Creator sẽ thấy badge KPI (`45% · Cần tăng tốc`) của kênh người
+khác — trước đây `GET /api/kpi-cycles` + `/kpi` cố ý giới hạn Creator về kênh của mình
+([API_SPEC.md](API_SPEC.md) ghi chú cũ "xem chéo là về dữ liệu kênh, không phải ai được giao chỉ
+tiêu"); (2) huy chương 🥇/"Cần chú ý" = leaderboard mềm, vốn [PRODUCT_SPEC.md](PRODUCT_SPEC.md) xếp
+"làm sau". Người dùng đồng ý cả hai.
+
+**Thay đổi — thuần tầng UI (RLS đã cho Creator đọc `creator`/`channel`/`kpi_cycle` từ đầu; server
+action + route đằng sau đều `requireManager()` sẵn):**
+- `app/(app)/layout.tsx` — thêm `{ href: "/creators", label: "Nhân sự" }` vào `NAV_ITEMS.creator`
+  (sau "Kênh", khớp thứ tự Manager).
+- `app/(app)/creators/page.tsx` — bỏ `if (user.role !== "manager") redirect("/")` (+ import
+  `redirect`), thay bằng `const isManager = user.role === "manager"`. Gate `<CreateCreatorForm>` +
+  `<TeamManager>`; `<TeamBoard … canManage={isManager}>`. Pill "Chỉ xem" cạnh H1 khi `!isManager`.
+- `app/(app)/creators/team-board.tsx` — prop `canManage` xuyên `TeamBoard → TeamColumn → CreatorCard`;
+  gate nút "Sửa" + `<Modal>` chứa `CreatorEditForm`.
+- `app/(app)/creators/[id]/page.tsx` — bỏ `redirect` như trên; gate `<CreatorEditToggle>`;
+  `<CreatorKpiCard … canManage={isManager}>`; pill "Chỉ xem" cạnh tên.
+- `app/(app)/creators/[id]/creator-kpi-card.tsx` — prop `canManage`; ẩn link "+ Đặt KPI" khi `false`
+  (nó chỉ bật Creator về `/kpi/new` — Manager-only).
+- `app/(app)/creators/loading.tsx` — bỏ skeleton của `TeamManager` (Manager-only) để Creator không
+  thấy nó nhấp nháy rồi biến mất.
+
+**KHÔNG đổi:** `/kpi` + `GET /api/kpi-cycles` vẫn tự giới hạn Creator về kênh của mình (góc nhìn cá
+nhân, lộ thêm target thô + forecast + kỳ cũ); `listCreators()` vẫn trả full roster (đã M/C từ M2);
+mọi RLS; team vẫn chỉ là nhãn tổ chức.
+
+**Kiểm chứng:** `tsc --noEmit` / `eslint` / `vitest` 257/257 xanh. Browser thật Manager `Đặng An`:
+`/creators` + `/creators/[id]` giữ nguyên mọi control (đã chụp). Góc nhìn Creator: _chưa chạy được —
+phiên browser đang đăng nhập Manager, cần login Creator để xác nhận ẩn đúng._
+
+## Cơ chế thông báo — modal giữa màn hình + chuông header (08–09/09/2026, theo yêu cầu)
+
+**Yêu cầu gốc:** "chưa triển khai quá nhiều tính năng về thông báo — chỉ cần có **cơ chế** trước,
+sau này tôi sẽ yêu cầu nhiều loại". Nên đây là hạ tầng, không phải bộ thông báo hoàn chỉnh.
+
+### Kiến trúc — 3 mảnh
+
+| File | Vai trò |
+| :--- | :--- |
+| `lib/notifications.ts` `buildNotifications(supabase, user)` | **Nơi duy nhất** sinh nội dung (câu chữ, icon, CTA). Chạy server-side mỗi lần vào Tổng quan (`/`). Trả `AppNotification[]` ĐANG liên quan tới `user` lúc này. |
+| `lib/notification-log.ts` | Nhật ký phía client trong `localStorage` (`ahd:notif-log`, tối đa 30). Types + `NOTIF_STYLE` (màu/icon từng loại) + helpers `mergeIntoLog` / `markRead` / `subscribeLog`. **Chưa có bảng DB** (cố ý) → nhật ký theo từng trình duyệt, xoá cache là mất. |
+| `app/(app)/notification-center.tsx` | Hộp thoại **giữa màn hình, "bắt buộc phải xem"** — không đóng bằng Esc/click nền, chỉ nút "Đã xem". Bày từng cái một. Chạy ở `/`. |
+| `app/(app)/notification-bell.tsx` | Chuông ở header (mọi trang, trong `layout.tsx`) — badge số chưa đọc + panel "gần đây". Thuần hiển thị, đọc `localStorage` qua `useSyncExternalStore`. |
+
+Client đọc `localStorage` bằng `useSyncExternalStore(subscribeLog, rawLogSnapshot, serverLogSnapshot)`
+— **không** `useState`+`useEffect` (vướng lint `react-hooks/set-state-in-effect` của React 19).
+
+### 5 loại thông báo hiện có
+
+| `kind` | Ai thấy | `repeat` | Icon (Manager / Creator) | Nội dung |
+| :--- | :--- | :--- | :--- | :--- |
+| `leader_flex` | mọi người | **có** | 🏆 / 😆 | Manager: "X đang dẫn đầu toàn team về lượt xem." · Creator: "Haha mấy con gà, nhìn chị X…" |
+| `runner_up` | Creator đang top 2/3 view | **có** | 😤 | "Mạnh nữa lên đi em ey. Đá đít top 1 cho anh." |
+| `import_reminder` | mọi người, **thứ Tư** (giờ VN) | không | 📋 / 🥺 | Manager: "Hôm nay là thứ Tư — hạn nhập dữ liệu Studio…" · Creator: "Lạy ông đi qua lạy bà đi lại…" |
+| `kpi_assigned` | Creator của kênh vừa được giao KPI | không | 🎁 | "Anh nhắc em nhớ hoàn thành KPI cho kênh X, kỳ …" |
+| `kpi_achieved` | Manager + Creator của kênh, khi `overallPct ≥ 100` | không | ✅ / 🥳 | Manager: "Kênh X đã hoàn thành KPI kỳ này (105%) — Y phụ trách." · Creator: "…của bạn đã đạt KPI…! Làm tốt lắm." |
+
+**Hai quyết định định hình cơ chế (09/09, theo yêu cầu):**
+
+1. **`repeat: true` CHỈ cho thông báo thứ hạng** (`leader_flex`, `runner_up`) — modal hiện lại MỖI
+   lần vào Tổng quan, kể cả đã bấm "Đã xem" (`dismissedThisLoad` chỉ tắt cho lần tải trang đó). Loại
+   khác hiện một lần rồi thôi (bám `readAt` trong nhật ký); `id` đổi thì coi như thông báo mới → thứ
+   Tư tuần sau `import_reminder` lại hiện (id gắn `isoWeekStart`), chu kỳ KPI mới thì `kpi_*` lại hiện
+   (id gắn `cycleId`). Trước đó (76c3bb2) từng để `repeat` cho mọi thông báo Creator — người dùng thu
+   hẹp lại vì "các thông báo khác chỉ cần xem 1 lần".
+2. **Giọng theo vai trò** — `formal = user.role === "manager"`. Manager thấy câu chữ + icon lịch sự,
+   nghiêm túc; Creator giữ giọng vui/chọc ghẹo "như tôi đã làm". `runner_up` + `kpi_assigned` chỉ
+   Creator thấy nên không nhánh. `leader_flex` repeat cho **cả hai vai trò** (đã xác nhận).
+
+**Màu:** `NOTIF_STYLE` trong `notification-log.ts` map `kind` → `{ bar, bubble, btn }` (amber /
+crimson / orange / blue / green). Cố ý dùng màu thoải mái hơn quy tắc `metric-tone` — "đây là cơ chế
+thú vị, đừng làm nó nhàm chán".
+
+`id` mã hoá sự thật: `leader-flex:<creatorId>`, `runner-up:<creatorId>`,
+`import-reminder:<mondayOfWeek>`, `kpi-assigned:<cycleId>`, `kpi-achieved:<cycleId>`.
+
+### Chưa làm / để sau
+- **Bảng DB** (`notification` + `notification_read`) — cần khi muốn đồng bộ nhiều máy / lưu lâu dài /
+  Claude đọc lại được. Giữ nguyên `AppNotification` làm shape.
+- Thêm loại thông báo mới: chỉ sửa `buildNotifications` + thêm 1 dòng vào `NotificationKind` +
+  `NOTIF_STYLE`. Không phải đụng 2 component.
+- Góc nhìn Creator của modal/chuông: _chưa chạy browser được (đang đăng nhập Manager)._
+
+Commits: `4cdf349` (cơ chế + leader_flex) · `2f6234b` (KPI + hộp thoại giữa màn hình + chuông) ·
+`f3c919a` · `76c3bb2` (import thứ Tư + runner_up + màu/icon) · `c281dfb` (giọng theo vai trò + thu
+hẹp `repeat`).
+
+## Cúp 🏆 "TOP 1" ở chi tiết Creator + gộp biểu đồ/KPI một hàng (09/09/2026, theo yêu cầu)
+
+**`256f324`.** Hai chỉnh nhỏ ở `/creators/[id]`, commit chung với đợt `canManage` phía trên vì
+`page.tsx` đụng cả hai (người dùng chọn "gộp luôn, commit từ phiên thông báo").
+
+- **Người dẫn đầu lượt xem toàn team** được tô khác: avatar **cúp vàng** (gradient amber + 🏆 ở góc)
+  + huy hiệu **"🏆 TOP 1 lượt xem toàn team"** cạnh tên. Không phải leader → avatar xám thường.
+  `app/(app)/creators/[id]/leader-badge.tsx` (`CreatorAvatar` + `LeaderBadge`).
+- **`lib/dashboard.ts` `rankCreatorsAllTime(supabase, creators)`** — bọc `getChannelPeriodStats →
+  buildCreatorPerformance → rankCreatorPerformance` thành một lời gọi. Cùng công thức với `/creators`
+  (🥇) và `lib/notifications.ts` (`leader_flex`) nên "leader" = **#1 toàn công ty, toàn thời gian**,
+  nghĩa y hệt ở mọi màn. `/creators/page.tsx` + `lib/notifications.ts` còn bản inline cũ hơn — gộp sau.
+- ⚠️ **Cố ý dùng xếp hạng TOÀN THỜI GIAN, không theo bộ lọc `?from=` của trang.** Hệ quả nhìn thấy
+  được: trang Phạm Minh Trí (không có huy hiệu) có thể hiện "1,83M view · 7 ngày qua" > trang Hoàng
+  Thùy Dương (`TOP 1`) "1,26M view" — vì cửa sổ 7 ngày là dao động ngắn hạn, còn huy hiệu bám tổng
+  luỹ kế. Đây là hành vi đúng: đổi huy hiệu theo kỳ sẽ làm nó nghĩa khác nhau giữa các màn (đúng bug
+  mà `rankCreatorPerformance` docstring cảnh báo). Không "sửa".
+- **Biểu đồ "Diễn biến" + thẻ "Tiến độ KPI các kênh" chung một hàng** —
+  `grid lg:grid-cols-[1fr_340px]` (giống Tổng quan). Biểu đồ hẹp lại cho dễ đọc nhịp; < lg xuống 1 cột.
+
+Kiểm chứng browser (Manager Đặng An): Hoàng Thùy Dương có avatar cúp + huy hiệu; Phạm Minh Trí không;
+2 thẻ nằm cùng hàng cả 2 trang. `vitest` 257 / `eslint` / `next build` xanh.

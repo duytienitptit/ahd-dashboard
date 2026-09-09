@@ -159,13 +159,20 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: điều chỉnh giao diện 08/09 (đợt 2–3) — `/creators` kanban cột + Modal sửa +
-header tách màu + 🥇 dẫn đầu view; "Tình hình KPI" liệt kê cả kênh vàng; nút "TikTok ↗" có nhãn; thẻ
-"Người xem: mới vs quay lại" (+ `returning_viewers`/`profile_views`); **bỏ HẲN `DailyTable` +
-`mergeDailyRowsByDate`** khỏi cả 2 trang; thêm `CreatorKpiCard` vào `/creators/[id]`. Đợt 1
-(`fd82207`) + đợt 2 (`8877eef`, `523f90d`) đã push; đợt 3 chưa commit.** Chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Điều chỉnh giao diện đợt 08/09/2026".
-Polish biểu đồ xu hướng 07/09 + M6 (chốt sổ KPI) +
+**Milestone hiện tại: cơ chế thông báo + polish `/creators`. CHƯA PUSH (7 commit local).**
+- **Thông báo** (`4cdf349`→`c281dfb`): modal giữa màn hình ở Tổng quan ("bắt buộc xem") + chuông
+  header. 5 loại (`leader_flex`/`runner_up`/`import_reminder`/`kpi_assigned`/`kpi_achieved`); `repeat`
+  CHỈ cho thông báo thứ hạng; giọng theo vai trò (`formal = manager`); nhật ký `localStorage`, **chưa
+  có bảng DB** (cố ý). Nội dung: `lib/notifications.ts`.
+- **`256f324`** (gộp 2 luồng): cúp 🏆 "TOP 1" cho người dẫn đầu view ở `/creators/[id]` +
+  `rankCreatorsAllTime` helper; biểu đồ "Diễn biến" + "Tiến độ KPI" chung một hàng; **mở trang Nhân
+  sự cho Creator chỉ-xem** (`canManage` prop, bỏ `redirect("/")`, nới `GET /api/kpi-cycles` — Creator
+  thấy KPI kênh người khác).
+
+Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Cơ chế thông báo", "Cúp 🏆 TOP 1", "Nhân sự mở
+cho Creator". Còn treo: kiểm chứng góc nhìn Creator (browser đang đăng nhập Manager).
+
+Điều chỉnh giao diện 08/09 (đợt 1–3) + Polish biểu đồ xu hướng 07/09 + M6 (chốt sổ KPI) +
 `/kpi` danh sách kênh + M5 (KPI Cycle) +
 M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh
 thật + bỏ lưu zip Storage — tất cả đã lên `main`. Chi tiết từng milestone:
@@ -217,8 +224,9 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **`git push`** — đợt 1 (`fd82207` chi tiết kênh) đã push. Đợt 2 (điều chỉnh giao diện) chưa
-   commit. `.claude/settings.json` chặn cứng push nên người dùng tự chạy. Vercel auto-redeploy.
+1. **`git push`** — `main` đang **7 commit trước `origin`** (chưa push): 5 commit thông báo
+   (`4cdf349`→`c281dfb`) + `256f324` (cúp TOP 1 + gộp hàng + Nhân sự cho Creator) + `<docs>`.
+   `.claude/settings.json` chặn cứng push nên người dùng tự chạy. Vercel auto-redeploy.
 2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
    `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của
    tôi" rỗng nếu không), rồi resubmit theo đúng quy trình portal ở

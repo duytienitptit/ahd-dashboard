@@ -16,8 +16,12 @@ flowchart TD
     M2 --> M3[Chi tiết kênh: biểu đồ riêng ngày/tuần/tháng, KPI, nhân khẩu học khán giả]
 
     M1 --> M4[Tab Nhân sự: mỗi team 1 CỘT kanban, mọi nhân sự hiện sẵn + tạo tài khoản]
-    M4 --> M4a[Chi tiết Nhân sự: 4 thẻ số, biểu đồ xu hướng ngày/tuần/tháng, tiến độ KPI các kênh, kênh phụ trách]
+    C1 -- chỉ xem --> M4
+    M4 --> M4a[Chi tiết Nhân sự: 4 thẻ số, biểu đồ + tiến độ KPI cùng hàng, kênh phụ trách; cúp TOP 1 nếu dẫn đầu view]
     M4a --> M3
+
+    M1 --> N1[Thông báo: modal giữa màn hình ở Tổng quan + chuông header mọi trang]
+    C1 --> N1
     M1 --> M5[Đặt KPI: chọn kênh trước qua /kpi/new, rồi chu kỳ + tối thiểu 1/3 chỉ tiêu]
     M5 --> M6[Hệ thống tự chụp followersAtStart và khoá — M5, xong 25/08/2026]
     M1 --> I1[Import thứ Tư: kéo-thả 4 zip/kênh → parse → ghi snapshot]
@@ -42,7 +46,8 @@ flowchart TD
 | :--- | :--- | :--- |
 | Đầu trang Tổng quan | Thẻ số tổng hợp toàn team | Khối "Kênh của tôi" + gợi ý hành động |
 | Phần dữ liệu toàn team | Đầy đủ | Đầy đủ, gắn nhãn "Chỉ xem"; kênh của mình được tô đậm |
-| Tab điều hướng | Tổng quan · Kênh · Nhân sự · Dữ liệu (Import + Nhập tay + Kết nối) · KPI | Tổng quan · Kênh · Dữ liệu (Import + Kết nối, không có Nhập tay) · KPI của tôi |
+| Tab điều hướng | Tổng quan · Kênh · Nhân sự · Dữ liệu (Import + Nhập tay + Kết nối) · KPI | Tổng quan · Kênh · Nhân sự · Dữ liệu (Import + Kết nối, không có Nhập tay) · KPI của tôi |
+| Trang Nhân sự (`/creators`, `/creators/[id]`) | Đầy đủ | Đầy đủ, gắn nhãn "Chỉ xem" (09/09/2026) — ẩn "+ Tạo tài khoản", quản lý Team, nút "Sửa" mỗi thẻ, "Sửa thông tin", "+ Đặt KPI" |
 | Nút Đặt KPI / Chốt sổ / Xuất dữ liệu | Có | Ẩn |
 | Import file Studio | Toàn bộ 8 kênh | Chỉ kênh mình đang phụ trách |
 | Kết nối Display API | Toàn bộ 8 kênh + nút "Chạy đồng bộ ngay" | Chỉ kênh mình đang phụ trách, không có nút đồng bộ toàn hệ thống |
@@ -51,6 +56,10 @@ flowchart TD
 ## Ghi chú
 
 - Creator xem được số liệu kênh khác (yêu cầu minh bạch để học hỏi chéo), nhưng không sửa được gì.
+  Từ 09/09/2026 gồm cả **trang Nhân sự** (`/creators` + `/creators/[id]`) ở chế độ chỉ-xem — thấy
+  danh sách mọi Creator, phân team, kênh phụ trách, huy chương xếp hạng theo view, và tiến độ KPI
+  (chu kỳ đang chạy) của từng kênh. Mọi thao tác tạo/sửa/xoá + quản lý Team vẫn Manager-only, gate
+  theo `user.role` ở page + `requireManager()` ở mọi server action/route đằng sau.
 - Không có self-signup. Manager tạo tài khoản Creator.
 - Chốt sổ chỉ Manager thực hiện.
 - **Kết nối Display API là ngoại lệ**: Creator được tự Authorize kênh mình phụ trách (quyết định M3b,
@@ -66,6 +75,19 @@ flowchart TD
   Bảng "Số liệu đã lưu theo ngày" **đã bỏ khỏi cả `/creators/[id]` và `/channels/[id]`** (08/09/2026,
   theo yêu cầu — biểu đồ mốc "ngày" thay). `?team=<id>` (pill team ở trang chi tiết Creator) cuộn cột
   đó vào tầm nhìn. Route `/creators/team/[id]` cũ đã bỏ.
+  **Từ 09/09/2026 cả hai trang mở cho Creator (chỉ-xem)** — `page.tsx` không còn `redirect("/")`, thay
+  bằng `const isManager = user.role === "manager"`; `TeamBoard` nhận prop `canManage`, `CreatorKpiCard`
+  nhận `canManage`. Nhãn "Chỉ xem" cạnh H1 / cạnh tên khi `!isManager`.
+  **`/creators/[id]` của người dẫn đầu lượt xem toàn team** (09/09/2026): avatar cúp vàng + huy hiệu
+  "🏆 TOP 1 lượt xem toàn team" cạnh tên — xếp hạng toàn thời gian, cùng nghĩa với 🥇 ở `/creators` và
+  thông báo `leader_flex` (`lib/dashboard.ts` `rankCreatorsAllTime`). Biểu đồ "Diễn biến" + thẻ "Tiến
+  độ KPI các kênh" nằm chung một hàng cho dễ đọc.
+- **Cơ chế thông báo (08–09/09/2026)** — hiện ở mọi vai trò: **modal giữa màn hình** ở Tổng quan
+  ("bắt buộc phải xem", chỉ nút "Đã xem") + **chuông** ở header mọi trang (badge chưa đọc + danh sách
+  gần đây). Thông báo thứ hạng (`leader_flex`, `runner_up`) hiện lại mỗi lần vào Tổng quan; loại khác
+  (`import_reminder` thứ Tư, `kpi_assigned`, `kpi_achieved`) hiện một lần. Giọng Manager lịch sự,
+  giọng Creator vui. Nhật ký trong `localStorage` (chưa có bảng DB). Chi tiết:
+  [PROGRESS.md](PROGRESS.md) mục "Cơ chế thông báo".
 - **Import file Studio cũng là ngoại lệ, thêm 21/08/2026**: bản đặc tả gốc chỉ cho Manager, nhưng vận
   hành thực tế đã có Creator tự export & upload file Studio hàng tuần cho kênh mình phụ trách — sửa
   lại cho khớp thực tế thay vì bắt đổi quy trình vận hành. **Khác với `manual_entry`**: import Studio
