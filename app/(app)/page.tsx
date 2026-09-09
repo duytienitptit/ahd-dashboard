@@ -9,7 +9,7 @@ import { listTeams } from "@/lib/teams";
 import { resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { CreatorFilterSelect } from "./creator-filter";
-import { NotificationHost } from "./notification-host";
+import { NotificationCenter } from "./notification-center";
 import {
   DataFreshnessLine,
   EfficiencyCard,
@@ -44,7 +44,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId, teamId }),
     listCreators(supabase),
     listTeams(supabase),
-    buildNotifications(supabase),
+    buildNotifications(supabase, { id: user.id, role: user.role }),
   ]);
   // M5: kpiSummary/myChannels' KPI fields come from a second call, not getDashboard() itself — see
   // lib/kpi.ts's buildDashboardKpiSummary doc comment for why (avoids a circular import between
@@ -153,7 +153,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </FilterPendingOverlay>
       </FilterTransitionProvider>
 
-      <NotificationHost notifications={notifications} />
+      <NotificationCenter notifications={notifications} />
     </div>
   );
 }

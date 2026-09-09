@@ -1,3 +1,5 @@
+import type { AppRole } from "@/lib/auth";
+import { listChannels } from "@/lib/channels";
 import { listCreators } from "@/lib/creators";
 import {
   buildCreatorPerformance,
@@ -5,27 +7,32 @@ import {
   previousPeriod,
   rankCreatorPerformance,
 } from "@/lib/dashboard";
+import { formatFullDate } from "@/lib/format";
+import { attachProgress, listKpiCycles } from "@/lib/kpi";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolvePeriodParamsAllTime } from "@/lib/time";
+
+import type { AppNotification } from "./notification-log";
+
+export type { AppNotification } from "./notification-log";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 /**
- * Cơ chế thông báo — cố tình tối giản (08/09/2026, theo yêu cầu: "chỉ cần có cơ chế trước, sau này
- * thêm nhiều loại"). Một thông báo = một `AppNotification`; `buildNotifications` gom mọi loại, client
- * `NotificationHost` hiện từng cái một và nhớ "đã tắt" trong `localStorage` theo `id`.
+ * Tính danh sách thông báo ĐANG liên quan tới `user` — chạy mỗi lần vào Tổng quan (`/`). Client
+ * (`lib/notification-log.ts`) gộp vào nhật ký `localStorage` và nhớ "đã đọc" theo `id`, nên cùng một
+ * `id` chỉ "bắt buộc xem" một lần (khớp "vào lần đầu thì show").
  *
- * `id` phải đổi khi SỰ THẬT đứng sau nó đổi (vd. `leader-flex:<creatorId>` — top 1 đổi người → id
- * mới → hiện lại). Cùng một id đã tắt thì không hiện lại nữa (khớp "vào lần đầu thì show").
+ * Ba loại hiện có:
+ *  • `leader_flex` — top 1 view "flex" (mọi người), copy do người dùng đặt.
+ *  • `kpi_assigned` — Creator vừa được giao KPI cho kênh mình phụ trách.
+ *  • `kpi_achieved` — kênh đạt 100% KPI: báo cho Manager (+ Creator của kênh đó).
+ *
+ * `id` mã hoá sự thật: `leader-flex:<creatorId>`, `kpi-assigned:<cycleId>`, `kpi-achieved:<cycleId>`.
+ * Thêm loại mới = thêm nhánh ở đây, không phải sửa client.
  */
-export type AppNotification = {
-  id: string;
-  /** Emoji hiển thị to bên trái. */
-  icon: string;
-  message: string;
-  /** Nút hành động — bỏ qua nếu không cần. `href` là link nội bộ. */
-  cta?: { label: string; href: string };
-};
+
+type NotifUser = { id: string; role: AppRole };
 
 /** Top 1 nhân sự theo tổng lượt xem toàn thời gian — cùng người nhận huy chương 🥇 "Dẫn đầu view"
  *  trên `/creators` (`rankCreatorPerformance`), để thông báo và badge không mâu thuẫn nhau. `null`
@@ -55,18 +62,62 @@ async function topCreatorByViews(
   return leader ? { id: leader.id, name: leader.name } : null;
 }
 
-export async function buildNotifications(supabase: SupabaseServerClient): Promise<AppNotification[]> {
+export async function buildNotifications(
+  supabase: SupabaseServerClient,
+  user: NotifUser,
+): Promise<AppNotification[]> {
   const out: AppNotification[] = [];
 
-  // Loại đầu tiên: top 1 "flex" — copy do người dùng đặt (08/09/2026).
+  // 1) leader_flex — cho mọi người.
   const leader = await topCreatorByViews(supabase);
   if (leader) {
     out.push({
       id: `leader-flex:${leader.id}`,
+      kind: "leader_flex",
       icon: "😆",
       message: `Haha mấy con gà, nhìn chị ${leader.name} tao đây lày hehe`,
       cta: { label: "XEM VÀ KHEN", href: `/creators/${leader.id}` },
     });
+  }
+
+  // 2) + 3) KPI — cần chu kỳ đang chạy + tên kênh + ai phụ trách.
+  const [activeCycles, channels] = await Promise.all([
+    listKpiCycles(supabase, { activeOnly: true }),
+    listChannels(supabase),
+  ]);
+  if (activeCycles.length > 0) {
+    const channelById = new Map(channels.map((c) => [c.id, c]));
+    const withProgress = await attachProgress(supabase, activeCycles);
+
+    for (const cycle of withProgress) {
+      const channel = channelById.get(cycle.channelId);
+      if (!channel) continue;
+      const managesThis = user.role === "creator" && channel.currentCreator?.id === user.id;
+
+      // kpi_assigned — chỉ Creator của kênh đó.
+      if (managesThis) {
+        out.push({
+          id: `kpi-assigned:${cycle.id}`,
+          kind: "kpi_assigned",
+          icon: "🎯",
+          message: `Bạn được giao KPI cho kênh ${channel.name}, kỳ ${formatFullDate(cycle.periodStart)}–${formatFullDate(cycle.periodEnd)}. Mở xem chỉ tiêu nhé!`,
+          cta: { label: "XEM KPI", href: `/channels/${channel.id}` },
+        });
+      }
+
+      // kpi_achieved — đạt 100%. Báo cho Manager (bao quát mọi KPI) và Creator của kênh đó.
+      const achieved = cycle.progress.overallPct !== null && cycle.progress.overallPct >= 100;
+      if (achieved && (user.role === "manager" || managesThis)) {
+        const who = channel.currentCreator?.name ? ` ${channel.currentCreator.name} làm tốt lắm!` : "";
+        out.push({
+          id: `kpi-achieved:${cycle.id}`,
+          kind: "kpi_achieved",
+          icon: "🎉",
+          message: `Kênh ${channel.name} đã đạt KPI kỳ này (${Math.round(cycle.progress.overallPct!)}%).${who}`,
+          cta: { label: "XEM", href: `/channels/${channel.id}` },
+        });
+      }
+    }
   }
 
   return out;

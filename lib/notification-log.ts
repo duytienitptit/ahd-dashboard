@@ -1,0 +1,112 @@
+/**
+ * Nhật ký thông báo phía client — `localStorage`. Server (`lib/notifications.ts`) tính ra danh sách
+ * thông báo ĐANG liên quan mỗi lần vào Tổng quan; hàm này gộp cái mới vào nhật ký, giữ cả cái đã đọc
+ * để "danh sách thông báo gần đây" (chuông ở header) còn thấy.
+ *
+ * Cố tình chưa có bảng DB (08/09/2026, theo yêu cầu "chưa triển khai nhiều") — hệ quả: nhật ký theo
+ * từng trình duyệt, xoá cache là mất. Khi cần đồng bộ nhiều máy / lưu lâu dài thì thêm bảng
+ * `notification` + `notification_read`, giữ nguyên `AppNotification` làm shape.
+ */
+
+export type AppNotification = {
+  /** Định danh ổn định — MÃ HOÁ SỰ THẬT đứng sau (vd `kpi-achieved:<cycleId>`). Đổi khi sự thật đổi
+   *  → coi như thông báo mới. Trạng thái "đã đọc" bám theo id này. */
+  id: string;
+  kind: "leader_flex" | "kpi_assigned" | "kpi_achieved";
+  /** Emoji to bên trái. */
+  icon: string;
+  message: string;
+  /** Nút hành động — link nội bộ. */
+  cta?: { label: string; href: string };
+};
+
+export type LoggedNotification = AppNotification & {
+  /** `Date.now()` lần đầu client thấy thông báo này. */
+  firstSeenAt: number;
+  /** `null` = chưa đọc (còn hiện ở modal giữa màn hình + đếm ở chuông). */
+  readAt: number | null;
+};
+
+const KEY = "ahd:notif-log";
+const MAX = 30;
+const CHANGE_EVENT = "ahd:notif-log-changed";
+const EMPTY = "[]";
+
+export function readLog(): LoggedNotification[] {
+  return parseLog(rawLogSnapshot());
+}
+
+/** Chuỗi JSON thô của nhật ký — dùng làm `getSnapshot` cho `useSyncExternalStore`. So sánh bằng
+ *  chuỗi (theo giá trị) nên nội dung không đổi thì React thấy không đổi. */
+export function rawLogSnapshot(): string {
+  try {
+    return localStorage.getItem(KEY) ?? EMPTY;
+  } catch {
+    return EMPTY;
+  }
+}
+
+/** `getServerSnapshot` cho `useSyncExternalStore` — SSR không có `localStorage`, coi như rỗng. */
+export function serverLogSnapshot(): string {
+  return EMPTY;
+}
+
+export function parseLog(raw: string): LoggedNotification[] {
+  try {
+    const parsed = JSON.parse(raw) as LoggedNotification[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function write(log: LoggedNotification[]) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(log.slice(-MAX)));
+  } catch {
+    // localStorage bị chặn — bỏ qua, thông báo sẽ tính lại ở lần vào sau.
+  }
+  try {
+    window.dispatchEvent(new Event(CHANGE_EVENT));
+  } catch {
+    /* SSR / môi trường không có window */
+  }
+}
+
+/** Gộp danh sách thông báo server vừa tính vào nhật ký. Cái nào chưa có (theo `id`) → thêm, đánh dấu
+ *  chưa đọc. Trả về nhật ký sau khi gộp. */
+export function mergeIntoLog(current: AppNotification[]): LoggedNotification[] {
+  const log = readLog();
+  const known = new Set(log.map((l) => l.id));
+  let changed = false;
+  for (const n of current) {
+    if (!known.has(n.id)) {
+      log.push({ ...n, firstSeenAt: Date.now(), readAt: null });
+      changed = true;
+    }
+  }
+  if (changed) write(log);
+  return changed ? readLog() : log;
+}
+
+export function markRead(ids: string[]) {
+  if (ids.length === 0) return;
+  const set = new Set(ids);
+  const now = Date.now();
+  write(readLog().map((l) => (set.has(l.id) && l.readAt === null ? { ...l, readAt: now } : l)));
+}
+
+export function markAllRead() {
+  markRead(readLog().filter((l) => l.readAt === null).map((l) => l.id));
+}
+
+/** `subscribe` cho `useSyncExternalStore` — nhật ký đổi trong tab (custom event) lẫn giữa các tab
+ *  (`storage`). */
+export function subscribeLog(cb: () => void): () => void {
+  window.addEventListener(CHANGE_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+}

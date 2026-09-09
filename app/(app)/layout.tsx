@@ -5,6 +5,7 @@ import { getCurrentUser, type AppRole } from "@/lib/auth";
 import { initialsFromEnd } from "@/lib/format";
 
 import { NavLinks } from "./nav-links";
+import { NotificationBell } from "./notification-bell";
 
 // Tabs per docs/USER_FLOW.md "Khác biệt theo vai trò".
 const NAV_ITEMS: Record<AppRole, { href: string; label: string }[]> = {
@@ -20,6 +21,10 @@ const NAV_ITEMS: Record<AppRole, { href: string; label: string }[]> = {
   creator: [
     { href: "/", label: "Tổng quan" },
     { href: "/channels", label: "Kênh" },
+    // "Nhân sự" mở cho Creator ở chế độ chỉ-xem (09/09/2026, theo yêu cầu "cho creator thấy được
+    // các creator khác") — cùng trang Manager dùng, mọi nút tạo/sửa/xoá + quản lý Team bị ẩn theo
+    // vai trò. Cùng tinh thần "minh bạch để học hỏi chéo" của docs/USER_FLOW.md.
+    { href: "/creators", label: "Nhân sự" },
     // Cùng "Dữ liệu" như Manager từ 21/08/2026 — Creator giờ upload được file Studio cho kênh
     // mình phụ trách (theo vận hành thực tế, xem CLAUDE.md). /import có DataTabs điều hướng sang
     // /connections, nên chỉ cần 1 mục nav trỏ vào /import là đủ, không cần 2 mục riêng.
@@ -58,6 +63,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <NotificationBell />
           <div className="text-right">
             <div className="text-[13px] font-semibold leading-tight">{user.name}</div>
             <div className="text-[11px] leading-tight text-ink-3">
