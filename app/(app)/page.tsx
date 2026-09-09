@@ -3,11 +3,13 @@ import { listCreators } from "@/lib/creators";
 import { getDashboard } from "@/lib/dashboard";
 import { formatDeltaPct, formatSignedNumber } from "@/lib/format";
 import { buildDashboardKpiSummary, mergeDashboardKpi } from "@/lib/kpi";
+import { buildNotifications } from "@/lib/notifications";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listTeams } from "@/lib/teams";
 import { resolvePeriodParamsAllTime } from "@/lib/time";
 
 import { CreatorFilterSelect } from "./creator-filter";
+import { NotificationHost } from "./notification-host";
 import {
   DataFreshnessLine,
   EfficiencyCard,
@@ -38,10 +40,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const teamId = params.teamId ?? null;
 
   const supabase = await createSupabaseServerClient();
-  const [dashboardBase, creators, teams] = await Promise.all([
+  const [dashboardBase, creators, teams, notifications] = await Promise.all([
     getDashboard(supabase, { role: user.role, userId: user.id, from, to, creatorId, teamId }),
     listCreators(supabase),
     listTeams(supabase),
+    buildNotifications(supabase),
   ]);
   // M5: kpiSummary/myChannels' KPI fields come from a second call, not getDashboard() itself — see
   // lib/kpi.ts's buildDashboardKpiSummary doc comment for why (avoids a circular import between
@@ -149,6 +152,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </div>
         </FilterPendingOverlay>
       </FilterTransitionProvider>
+
+      <NotificationHost notifications={notifications} />
     </div>
   );
 }
