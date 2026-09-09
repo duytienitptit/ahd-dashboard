@@ -95,7 +95,7 @@ export async function buildNotifications(
       icon: formal ? "🏆" : "😆",
       message: formal
         ? `${leader.name} đang dẫn đầu toàn team về lượt xem.`
-        : `Haha mấy con gà, nhìn chị ${leader.name} của tao đây lày hehe. Nói chung là mấy vợ quá gà`,
+        : `Haha mấy con vợ, nhìn chị ${leader.name} TOP 1 của lòng tao đây lày hehe. Mấy vợ cũng cố lên nhé. Yêu các vợ❤️`,
       cta: { label: formal ? "XEM CHI TIẾT" : "XEM VÀ KHEN", href: `/creators/${leader.id}` },
       repeat: true, // thứ hạng → luôn hiện, cho cả Manager lẫn Creator
     });
@@ -107,7 +107,7 @@ export async function buildNotifications(
       id: `runner-up:${runnerUp.id}`,
       kind: "runner_up",
       icon: "😤",
-      message: "Mạnh nữa lên đi em ey. Đá đít top 1 cho anh.",
+      message: "Mạnh nữa lên đi em ey. Đá đít top 1 cho anh.🏌️",
       cta: leader ? { label: "XEM TOP 1", href: `/creators/${leader.id}` } : undefined,
       repeat: true,
     });
