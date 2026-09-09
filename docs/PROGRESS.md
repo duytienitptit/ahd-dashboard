@@ -2004,45 +2004,64 @@ sau này tôi sẽ yêu cầu nhiều loại". Nên đây là hạ tầng, khôn
 Client đọc `localStorage` bằng `useSyncExternalStore(subscribeLog, rawLogSnapshot, serverLogSnapshot)`
 — **không** `useState`+`useEffect` (vướng lint `react-hooks/set-state-in-effect` của React 19).
 
-### 5 loại thông báo hiện có
+### 6 loại thông báo hiện có
 
-| `kind` | Ai thấy | `repeat` | Icon (Manager / Creator) | Nội dung |
+| `kind` | Ai thấy | `repeat` | Icon | Nội dung |
 | :--- | :--- | :--- | :--- | :--- |
-| `leader_flex` | mọi người | **có** | 🏆 / 😆 | Manager: "X đang dẫn đầu toàn team về lượt xem." · Creator: "Haha mấy con gà, nhìn chị X…" |
-| `runner_up` | Creator đang top 2/3 view | **có** | 😤 | "Mạnh nữa lên đi em ey. Đá đít top 1 cho anh." |
-| `import_reminder` | mọi người, **thứ Tư** (giờ VN) | không | 📋 / 🥺 | Manager: "Hôm nay là thứ Tư — hạn nhập dữ liệu Studio…" · Creator: "Lạy ông đi qua lạy bà đi lại…" |
+| `leader_flex` | mọi người | **có** | 🏆 / 😆 | Manager: "X đang dẫn đầu toàn team về lượt xem." · Creator: "Haha mấy con vợ, nhìn chị X TOP 1…" |
+| `runner_up` | Creator đang top 2/3 view | **có** | 😤 | "Mạnh nữa lên đi em ey. Đá đít top 1 cho anh.🏌️" |
+| `import_reminder` | **chỉ Creator**, **thứ Tư** (giờ VN) | không | 🥺 | "Lạy ông đi qua lạy bà đi lại. Hãy nhập dữ liệu tuần này cho con…" (Manager không nộp data nên bỏ, 09/09) |
+| `import_missing` | **chỉ Manager**, **thứ Tư→CN** tuần hiện tại | **có** | 😔 | "Anh thật thất vọng khi những người A, B, C chưa upload data" — liệt kê đích danh ai chưa nộp file tuần trước. Bar đỏ. |
 | `kpi_assigned` | Creator của kênh vừa được giao KPI | không | 🎁 | "Anh nhắc em nhớ hoàn thành KPI cho kênh X, kỳ …" |
 | `kpi_achieved` | Manager + Creator của kênh, khi `overallPct ≥ 100` | không | ✅ / 🥳 | Manager: "Kênh X đã hoàn thành KPI kỳ này (105%) — Y phụ trách." · Creator: "…của bạn đã đạt KPI…! Làm tốt lắm." |
 
+**`import_missing`** (09/09/2026, theo yêu cầu "báo những người chưa import"):
+- Chỉ Manager. Hiện **từ thứ Tư tới hết tuần lịch hiện tại** (`todayVn >= isoWeekStart(todayVn) + 2`),
+  không chỉ đúng ngày thứ Tư — để người nộp trễ (thứ Năm, thứ Sáu…) vẫn bị nêu tên.
+- "Chưa nộp" = kênh đang hoạt động **không có dòng `studio_import` nào** cho tuần lịch trước
+  (thứ Hai–CN). Chạy import 1 lần là coi như xong — không xét đủ 7 ngày (Studio có thể thiếu ngày
+  thật). `whoMissedImport()` query thẳng `data_snapshot` (kiểm tồn tại row, như `fetchManualEntryDates`).
+- `repeat: true` — hiện lại mỗi lần Manager vào Tổng quan tới khi **mọi người đã nộp** (`whoMissedImport`
+  rỗng → không push → modal tự tắt). Tên hiện là người phụ trách kênh, hoặc `kênh <tên>` nếu chưa gán ai.
+- `id = import-missing:<mondayOfLastWeek>` → tuần sau là thông báo mới.
+
 **Hai quyết định định hình cơ chế (09/09, theo yêu cầu):**
 
-1. **`repeat: true` CHỈ cho thông báo thứ hạng** (`leader_flex`, `runner_up`) — modal hiện lại MỖI
-   lần vào Tổng quan, kể cả đã bấm "Đã xem" (`dismissedThisLoad` chỉ tắt cho lần tải trang đó). Loại
-   khác hiện một lần rồi thôi (bám `readAt` trong nhật ký); `id` đổi thì coi như thông báo mới → thứ
-   Tư tuần sau `import_reminder` lại hiện (id gắn `isoWeekStart`), chu kỳ KPI mới thì `kpi_*` lại hiện
-   (id gắn `cycleId`). Trước đó (76c3bb2) từng để `repeat` cho mọi thông báo Creator — người dùng thu
-   hẹp lại vì "các thông báo khác chỉ cần xem 1 lần".
+1. **`repeat: true` cho thông báo thứ hạng** (`leader_flex`, `runner_up`) **+ `import_missing`** —
+   modal hiện lại MỖI lần vào Tổng quan, kể cả đã bấm "Đã xem" (`dismissedThisLoad` chỉ tắt cho lần
+   tải trang đó). Loại khác hiện một lần rồi thôi (bám `readAt` trong nhật ký); `id` đổi thì coi như
+   thông báo mới → thứ Tư tuần sau `import_reminder` lại hiện (id gắn `isoWeekStart`), chu kỳ KPI mới
+   thì `kpi_*` lại hiện (id gắn `cycleId`). Trước đó (76c3bb2) từng để `repeat` cho mọi thông báo
+   Creator — người dùng thu hẹp lại vì "các thông báo khác chỉ cần xem 1 lần".
 2. **Giọng theo vai trò** — `formal = user.role === "manager"`. Manager thấy câu chữ + icon lịch sự,
    nghiêm túc; Creator giữ giọng vui/chọc ghẹo "như tôi đã làm". `runner_up` + `kpi_assigned` chỉ
    Creator thấy nên không nhánh. `leader_flex` repeat cho **cả hai vai trò** (đã xác nhận).
 
 **Màu:** `NOTIF_STYLE` trong `notification-log.ts` map `kind` → `{ bar, bubble, btn }` (amber /
-crimson / orange / blue / green). Cố ý dùng màu thoải mái hơn quy tắc `metric-tone` — "đây là cơ chế
-thú vị, đừng làm nó nhàm chán".
+crimson / orange / **red** (`import_missing`) / blue / green). Cố ý dùng màu thoải mái hơn quy tắc
+`metric-tone` — "đây là cơ chế thú vị, đừng làm nó nhàm chán".
 
 `id` mã hoá sự thật: `leader-flex:<creatorId>`, `runner-up:<creatorId>`,
-`import-reminder:<mondayOfWeek>`, `kpi-assigned:<cycleId>`, `kpi-achieved:<cycleId>`.
+`import-reminder:<mondayOfWeek>`, `import-missing:<mondayOfLastWeek>`, `kpi-assigned:<cycleId>`,
+`kpi-achieved:<cycleId>`.
 
 ### Chưa làm / để sau
 - **Bảng DB** (`notification` + `notification_read`) — cần khi muốn đồng bộ nhiều máy / lưu lâu dài /
   Claude đọc lại được. Giữ nguyên `AppNotification` làm shape.
 - Thêm loại thông báo mới: chỉ sửa `buildNotifications` + thêm 1 dòng vào `NotificationKind` +
   `NOTIF_STYLE`. Không phải đụng 2 component.
-- Góc nhìn Creator của modal/chuông: _chưa chạy browser được (đang đăng nhập Manager)._
+
+### Đã kiểm chứng (production, 09/09)
+- **Creator** (Nguyễn Thị Hà): `leader_flex` 😆 (lời đã sửa) → `import_reminder` 🥺 → `kpi_assigned`
+  🎁. Reload: `leader_flex` hiện lại, 2 cái sau không.
+- **Manager** (Đặng An, local): **không còn** `import_reminder`; thấy `leader_flex` 🏆 →
+  `import_missing` 😔 (bar đỏ, "Anh thật thất vọng khi những người … chưa upload data"). Reload: cả
+  hai hiện lại (đều `repeat`). Chuông liệt kê đủ.
 
 Commits: `4cdf349` (cơ chế + leader_flex) · `2f6234b` (KPI + hộp thoại giữa màn hình + chuông) ·
 `f3c919a` · `76c3bb2` (import thứ Tư + runner_up + màu/icon) · `c281dfb` (giọng theo vai trò + thu
-hẹp `repeat`).
+hẹp `repeat`) · `f4fd432` (chỉnh lời) · **`import_missing` cho Manager + `import_reminder` bỏ khỏi
+Manager (09/09)**.
 
 ## Cúp 🏆 "TOP 1" ở chi tiết Creator + gộp biểu đồ/KPI một hàng (09/09/2026, theo yêu cầu)
 

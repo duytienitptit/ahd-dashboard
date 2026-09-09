@@ -8,7 +8,13 @@
  * `notification` + `notification_read`, giữ nguyên `AppNotification` làm shape.
  */
 
-export type NotificationKind = "leader_flex" | "runner_up" | "import_reminder" | "kpi_assigned" | "kpi_achieved";
+export type NotificationKind =
+  | "leader_flex"
+  | "runner_up"
+  | "import_reminder"
+  | "import_missing"
+  | "kpi_assigned"
+  | "kpi_achieved";
 
 export type AppNotification = {
   /** Định danh ổn định — MÃ HOÁ SỰ THẬT đứng sau (vd `kpi-achieved:<cycleId>`). Đổi khi sự thật đổi
@@ -35,6 +41,8 @@ export const NOTIF_STYLE: Record<NotificationKind, { bar: string; bubble: string
   leader_flex: { bar: "bg-amber", bubble: "bg-amber-bg", btn: "bg-amber-dark hover:bg-amber-dark/90" },
   runner_up: { bar: "bg-crimson", bubble: "bg-crimson-bg", btn: "bg-crimson hover:bg-crimson/90" },
   import_reminder: { bar: "bg-orange", bubble: "bg-orange-bg", btn: "bg-orange hover:bg-orange/90" },
+  // import_missing — Manager, "ai chưa nộp" quá hạn: đỏ, đây là nhắc nợ chứ không phải lời mời.
+  import_missing: { bar: "bg-red", bubble: "bg-red-bg", btn: "bg-red hover:bg-red/90" },
   kpi_assigned: { bar: "bg-blue", bubble: "bg-blue-bg", btn: "bg-blue hover:bg-blue/90" },
   kpi_achieved: { bar: "bg-green", bubble: "bg-green-bg", btn: "bg-green-dark hover:bg-green-dark/90" },
 };

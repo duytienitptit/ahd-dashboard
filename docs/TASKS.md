@@ -723,7 +723,8 @@ Chỉ làm nếu M0 cho thấy Display API không khả thi.
 - [x] Hạ tầng: `lib/notifications.ts` (sinh nội dung server) + `lib/notification-log.ts` (nhật ký
       `localStorage`, chưa có bảng DB — cố ý) + `notification-center.tsx` (modal giữa màn hình, bắt
       buộc xem) + `notification-bell.tsx` (chuông header, mọi trang).
-- [x] 5 loại: `leader_flex`, `runner_up`, `import_reminder` (thứ Tư), `kpi_assigned`, `kpi_achieved`.
+- [x] 6 loại: `leader_flex`, `runner_up`, `import_reminder` (Creator, thứ Tư), `import_missing`
+      (Manager, thứ Tư→CN, nêu đích danh ai chưa nộp — `repeat` tới khi xong), `kpi_assigned`, `kpi_achieved`.
 - [x] `repeat` CHỈ cho thông báo thứ hạng (`leader_flex` + `runner_up`); loại khác hiện 1 lần.
 - [x] Giọng theo vai trò: `formal = manager` (câu + icon lịch sự) vs Creator (giọng vui).
 - [x] Màu/icon từng loại (`NOTIF_STYLE`). Chi tiết: [PROGRESS.md](PROGRESS.md).

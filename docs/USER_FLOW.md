@@ -84,10 +84,12 @@ flowchart TD
   độ KPI các kênh" nằm chung một hàng cho dễ đọc.
 - **Cơ chế thông báo (08–09/09/2026)** — hiện ở mọi vai trò: **modal giữa màn hình** ở Tổng quan
   ("bắt buộc phải xem", chỉ nút "Đã xem") + **chuông** ở header mọi trang (badge chưa đọc + danh sách
-  gần đây). Thông báo thứ hạng (`leader_flex`, `runner_up`) hiện lại mỗi lần vào Tổng quan; loại khác
-  (`import_reminder` thứ Tư, `kpi_assigned`, `kpi_achieved`) hiện một lần. Giọng Manager lịch sự,
-  giọng Creator vui. Nhật ký trong `localStorage` (chưa có bảng DB). Chi tiết:
-  [PROGRESS.md](PROGRESS.md) mục "Cơ chế thông báo".
+  gần đây). Thông báo thứ hạng (`leader_flex`, `runner_up`) + `import_missing` hiện lại mỗi lần vào
+  Tổng quan; loại khác (`import_reminder`, `kpi_assigned`, `kpi_achieved`) hiện một lần. **Về import
+  thứ Tư:** Creator thấy `import_reminder` ("hãy nhập dữ liệu"); Manager KHÔNG (Manager không nộp
+  data) — thay bằng `import_missing` nêu đích danh ai chưa nộp file tuần trước, lặp tới thứ CN /
+  tới khi mọi người đã nộp. Giọng Manager lịch sự, giọng Creator vui. Nhật ký `localStorage` (chưa
+  có bảng DB). Chi tiết: [PROGRESS.md](PROGRESS.md) mục "Cơ chế thông báo".
 - **Import file Studio cũng là ngoại lệ, thêm 21/08/2026**: bản đặc tả gốc chỉ cho Manager, nhưng vận
   hành thực tế đã có Creator tự export & upload file Studio hàng tuần cho kênh mình phụ trách — sửa
   lại cho khớp thực tế thay vì bắt đổi quy trình vận hành. **Khác với `manual_entry`**: import Studio
