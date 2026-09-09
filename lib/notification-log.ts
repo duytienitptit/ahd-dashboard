@@ -8,16 +8,35 @@
  * `notification` + `notification_read`, giữ nguyên `AppNotification` làm shape.
  */
 
+export type NotificationKind = "leader_flex" | "runner_up" | "import_reminder" | "kpi_assigned" | "kpi_achieved";
+
 export type AppNotification = {
   /** Định danh ổn định — MÃ HOÁ SỰ THẬT đứng sau (vd `kpi-achieved:<cycleId>`). Đổi khi sự thật đổi
    *  → coi như thông báo mới. Trạng thái "đã đọc" bám theo id này. */
   id: string;
-  kind: "leader_flex" | "kpi_assigned" | "kpi_achieved";
+  kind: NotificationKind;
   /** Emoji to bên trái. */
   icon: string;
   message: string;
   /** Nút hành động — link nội bộ. */
   cta?: { label: string; href: string };
+  /** `true` = hiện lại modal MỖI lần vào Tổng quan, kể cả đã bấm "Đã xem" (09/09/2026, theo yêu cầu
+   *  — cho Creator: nhắc liên tục). "Đã xem" chỉ đóng cho lần tải trang đó; vào lại là hiện tiếp.
+   *  `false`/bỏ trống = hiện một lần rồi thôi (bám `readAt`). */
+  repeat?: boolean;
+};
+
+/**
+ * Màu + sắc thái từng loại — client tô theo `kind` (đây là "cơ chế vui", không phải badge dữ liệu
+ * nên dùng màu thoải mái hơn quy tắc `metric-tone`). `bar` = viền trên modal + chấm ở chuông;
+ * `bubble` = nền vòng tròn emoji; `btn` = nút CTA.
+ */
+export const NOTIF_STYLE: Record<NotificationKind, { bar: string; bubble: string; btn: string }> = {
+  leader_flex: { bar: "bg-amber", bubble: "bg-amber-bg", btn: "bg-amber-dark hover:bg-amber-dark/90" },
+  runner_up: { bar: "bg-crimson", bubble: "bg-crimson-bg", btn: "bg-crimson hover:bg-crimson/90" },
+  import_reminder: { bar: "bg-orange", bubble: "bg-orange-bg", btn: "bg-orange hover:bg-orange/90" },
+  kpi_assigned: { bar: "bg-blue", bubble: "bg-blue-bg", btn: "bg-blue hover:bg-blue/90" },
+  kpi_achieved: { bar: "bg-green", bubble: "bg-green-bg", btn: "bg-green-dark hover:bg-green-dark/90" },
 };
 
 export type LoggedNotification = AppNotification & {

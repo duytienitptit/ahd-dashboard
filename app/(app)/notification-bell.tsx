@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
-import { markAllRead, parseLog, rawLogSnapshot, serverLogSnapshot, subscribeLog } from "@/lib/notification-log";
+import { markAllRead, NOTIF_STYLE, parseLog, rawLogSnapshot, serverLogSnapshot, subscribeLog } from "@/lib/notification-log";
 
 /**
  * Chuông thông báo ở header — "danh sách thông báo gần đây" (08/09/2026, theo yêu cầu). Đọc thẳng
@@ -59,14 +59,16 @@ export function NotificationBell() {
             ) : (
               <div className="max-h-[360px] overflow-y-auto">
                 {recent.map((n) => {
+                  const style = NOTIF_STYLE[n.kind];
                   const body = (
-                    <div className={`flex gap-2.5 px-4 py-3 ${n.readAt === null ? "" : "opacity-55"}`}>
+                    <div className={`flex gap-2.5 py-3 pr-4 ${n.readAt === null ? "" : "opacity-55"}`}>
+                      <span className={`w-1 shrink-0 rounded-pill ${style.bar}`} />
                       <span className="text-[18px] leading-none">{n.icon}</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-[12px] leading-snug text-ink">{n.message}</p>
                         {n.cta ? <span className="mt-1 inline-block text-[11px] font-bold text-red">{n.cta.label} →</span> : null}
                       </div>
-                      {n.readAt === null ? <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-pill bg-red" /> : null}
+                      {n.readAt === null ? <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-pill ${style.bar}`} /> : null}
                     </div>
                   );
                   return n.cta ? (
