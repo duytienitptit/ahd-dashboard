@@ -26,6 +26,7 @@ nào, hệ thống vẫn phải có giá trị nhờ việc lưu và trình bày
 | [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md) | Viết parser import — cấu trúc export TikTok Studio thật, các bẫy bắt buộc xử lý |
 | [docs/TASKS.md](docs/TASKS.md) | Chọn task tiếp theo, cập nhật trạng thái sau khi xong |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Nhớ lại quyết định/deviation của milestone đã xong — không cần đọc để bắt đầu task mới |
+| [docs/HANDOVER.md](docs/HANDOVER.md) | Đang bàn giao sản phẩm cho developer kế nhiệm — checklist chuyển hạ tầng/secrets, việc còn treo |
 
 Mockup gốc 10 màn hình MVP: `design/*.dc.html` — tham chiếu bố cục khi dựng UI.
 Biến môi trường: `.env.example`.
@@ -159,8 +160,9 @@ Biến môi trường: `.env.example`.
 
 ## Trạng thái
 
-**Milestone hiện tại: cơ chế thông báo + polish `/creators` — đã push tới `f4fd432`; `import_missing`
-chưa commit.**
+**Milestone hiện tại: cơ chế thông báo + polish `/creators` — đã push tới `f41a2a4` (gồm cả
+`import_missing`). Đang chuẩn bị bàn giao sản phẩm cho developer kế nhiệm, xem
+[docs/HANDOVER.md](docs/HANDOVER.md).**
 - **Thông báo** (`4cdf349`→`f4fd432`): modal giữa màn hình ở Tổng quan ("bắt buộc xem") + chuông
   header. 6 loại — `leader_flex`/`runner_up`/`import_reminder` (Creator, thứ Tư)/`import_missing`
   (Manager, thứ Tư→CN, nêu đích danh ai chưa nộp file, `repeat` tới khi xong)/`kpi_assigned`/
@@ -226,9 +228,8 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 
 ### Việc tiếp theo
 
-1. **`git push`** — cơ chế thông báo + cúp TOP 1 + Nhân sự cho Creator đã push tới `f4fd432`.
-   Commit `import_missing` (thông báo Manager "ai chưa nộp") còn local. `.claude/settings.json` chặn
-   cứng push nên người dùng tự chạy. Vercel auto-redeploy.
+1. ~~`git push`~~ — **xác nhận xong** (16/09/2026: `git fetch` cho thấy `main` local đã khớp
+   `origin/main` tại `f41a2a4`, gồm cả `import_missing`). Không còn gì cần push.
 2. **Resubmit đơn Production TikTok**: đã có Creator demo `test` + Apply Reason mới soạn; còn đặt
    `DEMO_CREATOR_USERNAME` trên Vercel, quyết định có gán 1 kênh cho tài khoản demo không (3 màn "của
    tôi" rỗng nếu không), rồi resubmit theo đúng quy trình portal ở
@@ -244,6 +245,9 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
 5. **Hỏi team: Bé Na có chủ ý xoá 7 video không?** (đăng 29/07→19/08, còn thấy ở snapshot 25/08, mất
    khỏi response 28/08). Code xử lý đúng, chỉ là chuyện vận hành cần biết. Đã loại trừ khả năng do
    import nhầm kênh: 57 video của Bé Na đều có `video_link` mang đúng `@c.ba.nng.sn2` (kiểm 05/09).
+6. **Bàn giao sản phẩm cho developer kế nhiệm** (bắt đầu 16/09/2026, chuyển hẳn quyền sở hữu hạ
+   tầng) — checklist đầy đủ ở [docs/HANDOVER.md](docs/HANDOVER.md): dọn working tree, chuyển GitHub/
+   Vercel/Supabase/TikTok Developer App, bàn giao secrets.
 
 Vận hành: team đã nhận việc export & upload file Studio hàng tuần (thứ Tư, cho tuần trước đó). Các
 mục còn treo: xem mục 8 [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
