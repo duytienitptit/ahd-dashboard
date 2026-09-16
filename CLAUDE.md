@@ -24,8 +24,6 @@ nào, hệ thống vẫn phải có giá trị nhờ việc lưu và trình bày
 | [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | Lấy số liệu ở đâu cho chỉ số nào — Display API vs Studio import, giới hạn từng nguồn |
 | [docs/DISPLAY_API.md](docs/DISPLAY_API.md) | Gọi Display API — endpoint, scope, token, rate limit, các bẫy |
 | [docs/CSV_FORMAT.md](docs/CSV_FORMAT.md) | Viết parser import — cấu trúc export TikTok Studio thật, các bẫy bắt buộc xử lý |
-| [docs/TASKS.md](docs/TASKS.md) | Chọn task tiếp theo, cập nhật trạng thái sau khi xong |
-| [docs/PROGRESS.md](docs/PROGRESS.md) | Nhớ lại quyết định/deviation của milestone đã xong — không cần đọc để bắt đầu task mới |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | Đang bàn giao sản phẩm cho developer kế nhiệm — checklist chuyển hạ tầng/secrets, việc còn treo |
 
 Mockup gốc 10 màn hình MVP: `design/*.dc.html` — tham chiếu bố cục khi dựng UI.
@@ -62,8 +60,7 @@ Biến môi trường: `.env.example`.
   thời gian" từng đẩy kỳ so sánh lùi về trước khi kênh tồn tại → `followersGain = null` bị coerce
   thành "+0" giả (bug đã sửa). `weekStats.likes` là tổng thô `data_snapshot.likes` (chỉ
   `studio_import` ghi, không gate độ phủ như views) — số sẽ thấp giữa tuần tới khi Manager upload
-  file Studio thứ Tư, đánh đổi có chủ đích (theo yêu cầu, không chặn bằng "chưa đủ dữ liệu"). Chi
-  tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "weekStats — tăng trưởng theo tuần lịch cố định".
+  file Studio thứ Tư, đánh đổi có chủ đích (theo yêu cầu, không chặn bằng "chưa đủ dữ liệu").
 - ⚠️ **Không dùng `Content.csv` để đếm số video** — cap cứng 15 dòng, bỏ sót video mới nhất, thứ tự
   không đoán được (đã kiểm chứng trên data thật). Số video lấy từ `video_count` của Display API.
   `Content.csv` chỉ dùng cho thư viện top video (P1).
@@ -98,8 +95,7 @@ Biến môi trường: `.env.example`.
   không có badge so kỳ trước) ở mọi chỗ trước đây hiện tỷ lệ tương tác (22/08/2026, theo yêu cầu, đánh
   đổi có chủ đích — quy tắc "chỉ số dẫn báo duy nhất" trước đó đã bỏ). Hàm thuần `engagementRate()` và
   cột `data_snapshot.likes/comments/shares` vẫn còn trong code (parser CSV vẫn ghi) — không dùng ở UI
-  hiện tại nhưng đừng xoá, có thể cần lại sau. Chi tiết: [PROGRESS.md](docs/PROGRESS.md) mục "Tỷ lệ
-  tương tác → Lượt tim, toàn app".
+  hiện tại nhưng đừng xoá, có thể cần lại sau.
 - `followersDiff` **không lưu vào DB** — tự tính từ chuỗi `followers` (cột gốc trong CSV bị sai, xem dưới).
 - **Xoá Kênh/Nhân sự là xoá thật** (21/08/2026, theo yêu cầu — không phải soft-delete), Manager-only,
   UI bắt gõ đúng tên để xác nhận (`ConfirmDeleteForm`). Xoá kênh **chặn hẳn** nếu kênh có
@@ -137,7 +133,7 @@ Biến môi trường: `.env.example`.
   `@layer base`**, không viết trần ngoài layer nào — luật ngoài layer thắng mọi class Tailwind
   (`text-ink-2`...) bất kể độ cụ thể, vì Tailwind v4 phát class trong `@layer utilities`. Bug thật đã
   gặp: `a { color: red }` viết trần khiến mọi `<Link>` cố đặt màu khác đỏ đều bị ép về đỏ, 17 file dính
-  (26/08/2026) — xem [docs/PROGRESS.md](docs/PROGRESS.md) mục "Bug màu link".
+  (26/08/2026).
 
 ## Cách làm việc với dự án này
 
@@ -149,14 +145,13 @@ Biến môi trường: `.env.example`.
   vì đây là quy tắc dễ quên giữa lúc đang làm nhanh). Áp dụng mọi lúc, không riêng gì quyết định khó
   sửa — nhưng đặc biệt quan trọng với schema, phân quyền, cách tính KPI, hoặc bất kỳ chỗ nào một suy
   đoán sai sẽ khó phát hiện lại sau.
-- Cập nhật `docs/TASKS.md` sau khi hoàn thành task; cập nhật `docs/PRODUCT_SPEC.md` khi có
-  quyết định sản phẩm mới.
+- Cập nhật `docs/PRODUCT_SPEC.md` khi có quyết định sản phẩm mới.
 - **Giữ `CLAUDE.md` ngắn — file này auto-load vào MỌI phiên, phình ra là tốn context mọi lúc dù task
-  đang làm không liên quan.** Xong 1 milestone: chi tiết đầy đủ ("X đã xong — có gì dùng được ngay")
-  viết vào [docs/PROGRESS.md](docs/PROGRESS.md), **không** viết thẳng vào mục "Trạng thái" của
-  `CLAUDE.md`. Mục "Trạng thái" ở đây chỉ giữ: 1 dòng milestone hiện tại + việc tiếp theo, việc đang
-  treo/chặn thật (không phải lịch sử), và vài dòng reference hay tra (deploy URL, project id). Nếu
-  sửa xong mà "Trạng thái" dài hơn ~40 dòng, đó là dấu hiệu cần dọn bớt sang PROGRESS.md.
+  đang làm không liên quan.** Mục "Trạng thái" chỉ giữ: 1 dòng milestone hiện tại + việc tiếp theo,
+  việc đang treo/chặn thật (không phải lịch sử), và vài dòng reference hay tra (deploy URL, project
+  id). Mục đã xong và không còn ai cần tra lại thì **xoá hẳn** khỏi "Trạng thái" thay vì giữ tích luỹ
+  mãi. Nếu sửa xong mà "Trạng thái" dài hơn ~40 dòng, đó là dấu hiệu cần dọn bớt mục cũ, không phải
+  chuyển sang file khác.
 
 ## Trạng thái
 
@@ -173,26 +168,22 @@ Biến môi trường: `.env.example`.
   sự cho Creator chỉ-xem** (`canManage` prop, bỏ `redirect("/")`, nới `GET /api/kpi-cycles` — Creator
   thấy KPI kênh người khác).
 
-Chi tiết: [docs/PROGRESS.md](docs/PROGRESS.md) mục "Cơ chế thông báo", "Cúp 🏆 TOP 1", "Nhân sự mở
-cho Creator". Đã kiểm chứng cả góc nhìn Creator lẫn Manager (production + local).
+Đã kiểm chứng cả góc nhìn Creator lẫn Manager (production + local).
 
 Điều chỉnh giao diện 08/09 (đợt 1–3) + Polish biểu đồ xu hướng 07/09 + M6 (chốt sổ KPI) +
 `/kpi` danh sách kênh + M5 (KPI Cycle) +
 M4 + M3c + Đợt 1/2 + Team + drill-down + CRUD đầy đủ + đăng nhập username + Display API 9/9 kênh
-thật + bỏ lưu zip Storage — tất cả đã lên `main`. Chi tiết từng milestone:
-[docs/PROGRESS.md](docs/PROGRESS.md) (tìm theo tên mục). Checklist: [docs/TASKS.md](docs/TASKS.md).
+thật + bỏ lưu zip Storage — tất cả đã lên `main`.
 
 ✅ **Cron `display_api` chạy ổn định từ 29/08** — không thủng ngày nào tới 04/09.
 `is_complete=false` chỉ còn ở 25/08 và 28/08 (hệ quả một lần của khoảng thủng cron 26–27/08, đã tự
-khỏi như dự đoán — xác nhận bằng `node scripts/diagnose-data.mjs` mục A). Gốc lỗi cron cũ + chi tiết:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Cron display_api chưa từng chạy".
+khỏi như dự đoán — xác nhận bằng `node scripts/diagnose-data.mjs` mục A).
 
 🎯 **Badge độ phủ nguồn thay cho tách 2 tab Display API/Studio (05/09/2026).** Cân nhắc tách hẳn màn
 báo cáo thành 2 tab để hết phải hoà giải 2 nguồn hay lệch nhau — **từ chối**: đẩy quyết định kỹ thuật
 xuống Manager (không ai có cơ sở chọn tin số nào), và đổi hình dạng lỗi chứ không xoá lỗi. Badge
 "x% kỳ này đã đối chiếu" trên Tổng quan (`lib/dashboard.ts` `aggregateSourceCoverage()`) giữ một con
-số duy nhất nhưng lộ ra nó dựa trên bao nhiêu phần đã đối chiếu. Cân nhắc đầy đủ + số liệu đo được:
-[docs/PROGRESS.md](docs/PROGRESS.md) mục "Badge độ phủ nguồn". Đề xuất chưa làm: ẩn `%` "so kỳ
+số duy nhất nhưng lộ ra nó dựa trên bao nhiêu phần đã đối chiếu. Đề xuất chưa làm: ẩn `%` "so kỳ
 trước" khi 2 kỳ lệch cơ cấu nguồn; nhân badge sang `/channels`/chi tiết kênh/Nhân sự/Team.
 
 ❌ **TikTok từ chối đơn Production (04/09/2026), sai đúng 1 field: Website URL** trỏ tới trang login
@@ -209,8 +200,7 @@ duyệt app TikTok). Creator thật: **Phạm Minh Trí** — **gán lại ngay 
 trước. Bắt bằng `@handle` trong `video_link` của `Content.csv` (mạnh nhất) và handle nhúng trong tên
 file zip Studio. Fail-closed khi chứng minh được lệch, fail-open khi không đọc ra handle nào (file bị
 rename) — chặn nhầm thì người dùng đọc thông báo sửa được, cho lọt thì hỏng dữ liệu âm thầm. Bẫy này
-đã hỏng dữ liệu thật 2 lần trước khi có chặn: xem [docs/PROGRESS.md](docs/PROGRESS.md) mục "Import
-nhầm kênh".
+đã hỏng dữ liệu thật 2 lần trước khi có chặn (2 kênh dính: xem mục "Việc tiếp theo" bên dưới, Bé Na).
 
 🔑 Manager thật đăng nhập bằng username `andang`. `TOKEN_ENCRYPTION_KEY` trên Vercel hợp lệ — **không
 sinh khoá mới**, cần ở `.env.local` thì copy nguyên giá trị từ Vercel xuống.
@@ -240,7 +230,7 @@ React vì lý do đó — **giữ nguyên**. Chẩn đoán Display API read-only
    lại (cửa sổ chốt cũ chỉ ghi tới 21/08, đã sửa code nhưng chưa import lại). Ngày 24/08 không nguồn
    nào có, tự đầy ở kỳ import sau (từ 26/08). **4/9 kênh chưa từng có `studio_import` nào** (Mộc Đi
    Rừng, Tiến Sĩ Sprout, Vườn Của Hant, **Bé Na** — Bé Na vào danh sách này sau khi dọn dữ liệu import
-   nhầm 05/09, xem PROGRESS.md) → chưa chốt sổ KPI được. **Bé Na cần export lại file Studio của chính
+   nhầm 05/09) → chưa chốt sổ KPI được. **Bé Na cần export lại file Studio của chính
    nó** và Làm Nông Thông Thái cần import lại bộ file đã bị ghi nhầm sang Bé Na.
 5. **Hỏi team: Bé Na có chủ ý xoá 7 video không?** (đăng 29/07→19/08, còn thấy ở snapshot 25/08, mất
    khỏi response 28/08). Code xử lý đúng, chỉ là chuyện vận hành cần biết. Đã loại trừ khả năng do

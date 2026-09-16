@@ -88,7 +88,7 @@ const METRIC_BAR_HEALTH = {
  * "thanh tiến độ KPI" as an explicit exclusion: a progress bar's job is to show progress-vs-pace,
  * the "chiều hướng" half of the app's two separate color systems, not metric identity). First
  * implementation of this component used the metric palette by mistake — caught and fixed before
- * merge, see docs/PROGRESS.md "M5 — KPI Cycle".
+ * merge.
  *
  * Bar width clamps to [0, 100] — the underlying `pct` never does (lib/kpi.ts's `computeProgress`:
  * an overachieved target or a follower drop is a real number; only the bar clamps, not the math).

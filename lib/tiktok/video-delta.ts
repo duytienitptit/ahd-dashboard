@@ -25,8 +25,8 @@ export type VideoDeltaResult = {
 };
 
 /**
- * Pure port of `diffSnapshots()` from tools/m0-display-api-probe/probe.mjs, extended 24/08/2026
- * (docs/DISPLAY_API.md bẫy #10, #12, #13 — "B1" in PROGRESS.md) to fix a real rò: the original
+ * Pure port of the `diffSnapshots()` logic manually verified during M0 (before this file existed),
+ * extended 24/08/2026 (docs/DISPLAY_API.md bẫy #10, #12, #13) to fix a real rò: the original
  * rule assumed "no prior snapshot" only ever meant "genuinely new video" — true right after a
  * video's own first post, but false the moment ANY video goes a day without a snapshot for reasons
  * that have nothing to do with when it was posted (a sync gap, a reconnect, a rate-limited prior

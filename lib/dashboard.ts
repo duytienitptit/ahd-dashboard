@@ -442,7 +442,7 @@ function monthKey(dateStr: string): string {
   return dateStr.slice(0, 7);
 }
 
-/** "Th7", "Th8" — month label for the trend chart's tuần/tháng toggle (docs/TASKS.md Đợt 2 #2). */
+/** "Th7", "Th8" — month label for the trend chart's tuần/tháng toggle. */
 function monthLabel(dateStr: string): string {
   return `Th${Number(dateStr.slice(5, 7))}`;
 }
@@ -790,7 +790,7 @@ export async function fetchDataFreshness(
   // cap PostgREST applies SILENTLY — the exact trap scripts/diagnose-data.mjs's fetchAll() exists to
   // avoid) and would still have to reduce it client-side. These all go out in one Promise.all batch,
   // so it costs one round-trip, not N. Deliberately not a Postgres view: same call made for
-  // `sumLatestVideoLikes()` (docs/PROGRESS.md) — at ~9 channels a migration isn't worth it. If the
+  // `sumLatestVideoLikes()` — at ~9 channels a migration isn't worth it. If the
   // channel count reaches the dozens, this is the first place to swap in a grouped view.
   const [latestResult, ...reconciledResults] = await Promise.all([
     supabase
@@ -1560,7 +1560,7 @@ export type DashboardResponse = {
    *  server-side instead of adding a `?metric=` param the client would have to refetch on every
    *  tab click. docs/API_SPEC.md updated to match (M4). */
   /** Cả 3 mốc ngày/tuần/tháng computed server-side, same reasoning as bundling all 3 metrics below —
-   *  the mockups' ngày/tuần/tháng toggle (docs/TASKS.md Đợt 2 #2, "so tháng 7 với tháng 8") switches
+   *  the mockups' ngày/tuần/tháng toggle ("so tháng 7 với tháng 8", thêm 21/08/2026) switches
    *  client-side with no refetch, exactly like the Lượt xem/Follower/Video metric tabs already do.
    *  `day` = 14 ngày gần nhất, dày kín cửa sổ; điểm ngày không bao giờ mang `coverage`. */
   trend: {
@@ -1618,7 +1618,7 @@ export async function getDashboard(
   const { comparedFrom: weekComparedFrom, comparedTo: weekComparedTo } = previousPeriod(weekFrom, weekTo);
   const dayTrendFrom = addDaysToDateString(to, -13); // 14 ngày gần nhất cho mốc "ngày"
   const weekTrendFrom = isoWeekStart(addDaysToDateString(to, -55)); // ~8 full ISO weeks, snapped to Monday
-  // ~6 months back — enough to compare "tháng 7 với tháng 8" (docs/TASKS.md Đợt 2 #2), same 180-day
+  // ~6 months back — enough to compare "tháng 7 với tháng 8", same 180-day
   // window the channel/creator detail pages fetch (HISTORY_DAYS), so this superset covers the week +
   // day windows above too — one fetch serves all three granularities, not three.
   const monthTrendFrom = addDaysToDateString(to, -179);

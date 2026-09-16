@@ -60,7 +60,7 @@ function FinalizedMeta({ finalizedByName, finalizedAt }: { finalizedByName: stri
 
 /**
  * `/kpi/[id]/finalize` — the only screen that can lock a cycle (Manager-only, gated in page.tsx).
- * Reused for BOTH the pre-lock review ("đối chiếu số liệu trước khi khoá", docs/TASKS.md) and the
+ * Reused for BOTH the pre-lock review ("đối chiếu số liệu trước khi khoá") and the
  * post-lock read-only view ("xem lại lịch sử các kỳ đã chốt") — `cycle.status` decides which one
  * renders, so a Manager clicking "Xem chốt sổ" on an old cycle lands on the exact same route a
  * still-draft one uses, just without the checklist/buttons.

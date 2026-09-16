@@ -134,7 +134,8 @@ Time, "Video title", "Video link", "Post time", "Total likes", "Total comments",
 8. **`video_link` trong `Content.csv` mang `@handle` của chủ kênh** —
    `https://www.tiktok.com/@lam.nong.thong.thai/video/7412…`. Đây là bằng chứng mạnh nhất để biết bộ
    file thuộc kênh nào (nội dung file, rename không qua mặt được), dùng cho guard chống import nhầm
-   kênh — xem [PROGRESS.md](PROGRESS.md) mục "Import nhầm kênh".
+   kênh — xem [lib/import/channel-guard.ts](../lib/import/channel-guard.ts), tóm tắt sự cố ở
+   [CLAUDE.md](../CLAUDE.md) mục "Trạng thái" ("Import nhầm kênh").
 
 ## ⏱ Độ trễ dữ liệu — 2 ngày
 

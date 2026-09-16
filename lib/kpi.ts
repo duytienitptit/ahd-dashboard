@@ -745,8 +745,8 @@ export type DashboardMyChannelKpi = {
  * straight through, no second filter query. `onTrack`/`atRisk`/`behind` count this channel set's
  * currently-ACTIVE cycles by `health.value`; `attention` lists every cycle that is NOT on track —
  * `red` (tụt lại) first, then `yellow` (cần chú ý) — no top-N cap, matching the 24/08/2026 "no
- * artificial top-N" decision already applied to growth/viewShare/efficiency (CLAUDE.md, docs/TASKS.md
- * M4 notes). Đổi 08/09/2026 từ "chỉ red".
+ * artificial top-N" decision already applied to growth/viewShare/efficiency (CLAUDE.md). Đổi
+ * 08/09/2026 từ "chỉ red".
  */
 export async function buildDashboardKpiSummary(
   supabase: SupabaseServerClient,
@@ -816,8 +816,8 @@ export async function buildDashboardKpiSummary(
 }
 
 /** Splices `buildDashboardKpiSummary`'s result into a `getDashboard()` response — replaces the
- *  hard-coded `{onTrack:0,atRisk:0,behind:0,attention:[]}` (docs/TASKS.md: "M5 hasn't created any
- *  kpi_cycle row yet", no longer true) and fills in each `myChannels[]` entry's KPI fields. A
+ *  hard-coded `{onTrack:0,atRisk:0,behind:0,attention:[]}` (true before M5 existed, no longer) and
+ *  fills in each `myChannels[]` entry's KPI fields. A
  *  channel with no active cycle keeps `getDashboard()`'s own default
  *  (`hasActiveKpi:false, overallStatus:null, metrics:[]`) — `byChannel.get()` returning `undefined`
  *  spreads nothing on top of it. */

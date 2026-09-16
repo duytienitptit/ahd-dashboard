@@ -1,11 +1,11 @@
 import type { ListVideosResult, TikTokDataProvider, TikTokUserStats, TikTokVideo } from "./provider";
 
-// Ported from the M0 verification harness (tools/m0-display-api-probe/probe.mjs), which already ran
-// these exact calls against real sandbox accounts — not a fresh implementation from docs alone.
+// Ported from the M0 verification harness, which already ran these exact calls against real sandbox
+// accounts before this file existed — not a fresh implementation from docs alone.
 
 const API_BASE = "https://open.tiktokapis.com/v2";
 
-const MAX_PAGES = 60; // same safety net probe.mjs uses: 60 pages x 20 = 1200 videos
+const MAX_PAGES = 60; // same safety net used during M0 verification: 60 pages x 20 = 1200 videos
 const PAGE_SIZE = 20; // hard API maximum
 
 const USER_FIELDS = ["follower_count", "video_count"];

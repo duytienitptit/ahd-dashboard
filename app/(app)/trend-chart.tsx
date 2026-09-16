@@ -71,8 +71,8 @@ function niceRange(values: number[]): { lo: number; hi: number } {
   return { lo: Math.max(0, lo - pad), hi: hi + pad };
 }
 
-/** Inline-SVG line chart with a metric tab-switcher + ngày/tuần/tháng granularity toggle (docs/TASKS.md
- *  Đợt 2 #2; "ngày" thêm 08/09/2026) — no charting dependency, matching design/Main.dc.html's
+/** Inline-SVG line chart with a metric tab-switcher + ngày/tuần/tháng granularity toggle
+ *  ("ngày" thêm 08/09/2026) — no charting dependency, matching design/Main.dc.html's
  *  hand-built approach. Renders whichever `tabs[active].points[granularity]` series is selected;
  *  `subtitlePrefix` gets the "N ngày/tuần/tháng gần nhất" tail appended so it can't say "tuần" while
  *  showing days or months. */

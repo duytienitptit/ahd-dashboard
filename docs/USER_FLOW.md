@@ -89,7 +89,7 @@ flowchart TD
   thứ Tư:** Creator thấy `import_reminder` ("hãy nhập dữ liệu"); Manager KHÔNG (Manager không nộp
   data) — thay bằng `import_missing` nêu đích danh ai chưa nộp file tuần trước, lặp tới thứ CN /
   tới khi mọi người đã nộp. Giọng Manager lịch sự, giọng Creator vui. Nhật ký `localStorage` (chưa
-  có bảng DB). Chi tiết: [PROGRESS.md](PROGRESS.md) mục "Cơ chế thông báo".
+  có bảng DB). Chi tiết: xem [CLAUDE.md](../CLAUDE.md) mục "Trạng thái" và `lib/notifications.ts`.
 - **Import file Studio cũng là ngoại lệ, thêm 21/08/2026**: bản đặc tả gốc chỉ cho Manager, nhưng vận
   hành thực tế đã có Creator tự export & upload file Studio hàng tuần cho kênh mình phụ trách — sửa
   lại cho khớp thực tế thay vì bắt đổi quy trình vận hành. **Khác với `manual_entry`**: import Studio

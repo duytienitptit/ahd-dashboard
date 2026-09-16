@@ -158,7 +158,8 @@ ràng buộc và index. Mục này chỉ giữ quy tắc nghiệp vụ.
   cơ chế trước"). Modal giữa màn hình ở Tổng quan + chuông header; nhật ký `localStorage` (chưa có
   bảng DB — thêm khi cần đồng bộ nhiều máy). 5 loại đầu: dẫn đầu view, top 2/3, nhắc import thứ Tư,
   được giao KPI, kênh đạt KPI. Thông báo thứ hạng lặp lại mỗi lần vào; loại khác một lần. Giọng
-  Manager nghiêm túc, Creator vui. Chi tiết + cách thêm loại mới: [PROGRESS.md](PROGRESS.md).
+  Manager nghiêm túc, Creator vui. Chi tiết + cách thêm loại mới: xem [CLAUDE.md](../CLAUDE.md) mục
+  "Trạng thái" và `lib/notifications.ts`.
 - Người code: chính người dùng, tự triển khai (vibe coding).
 - Hạ tầng: ưu tiên nền tảng free tier (website nội bộ, data nhỏ — 8 kênh), mở rộng trả phí sau nếu cần.
 - Tech stack:

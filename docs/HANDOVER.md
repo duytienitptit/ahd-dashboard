@@ -31,17 +31,47 @@ thay đổi liên quan tới việc bàn giao (tài liệu này, cập nhật CL
 
 ## 3. Chuyển quyền sở hữu hạ tầng
 
-| Dịch vụ | Hiện tại | Hành động | Rủi ro / lưu ý |
+⚠️ **Đã tra doc chính thức 16/09/2026 — cả Vercel lẫn Supabase đều KHÔNG có nút "đưa quyền sở hữu cho
+một tài khoản lạ" kiểu GitHub.** "Transfer" ở cả 2 nơi là di chuyển project giữa 2 org/team mà **chính
+người bấm transfer đã là thành viên của cả hai** — xem
+[Supabase project transfer](https://supabase.com/docs/guides/platform/project-transfer) (phải là Owner
+ở org nguồn, **ít nhất Member** ở org đích) và
+[Vercel transferring projects](https://vercel.com/docs/projects/transferring-projects) (phải là Owner
+ở team nguồn, **là thành viên** của team đích). Nếu chưa từng được mời vào org/team nào khác, dropdown
+chọn đích sẽ trống — đúng như thực tế gặp phải.
+
+**Cách đơn giản hơn nhiều — mời dev mới vào chỗ đang có sẵn, thay vì chuyển project sang chỗ họ:**
+
+| Dịch vụ | Hiện tại | Hành động khuyến nghị | Lưu ý |
 | :--- | :--- | :--- | :--- |
-| GitHub | Repo private dưới `duytienitptit` | Settings → Danger Zone → **Transfer ownership**, nhập tài khoản GitHub dev mới | Đổi remote URL cục bộ sau khi transfer (`git remote set-url`) |
-| Vercel | Project `ahd-dashboard`, **Function region đặt tay = `hkg1`** (Project Settings → Functions, không nằm trong code) | Project Settings → **Transfer** sang account/team dev mới | **Kiểm tra lại region `hkg1` còn giữ sau transfer** — mất cấu hình này thì mọi round-trip DB chậm hẳn, dễ bị chẩn đoán nhầm thành bug ở tầng khác. Cấu hình lại toàn bộ biến môi trường ở đích mới (Vercel không tự copy env vars khi transfer) |
-| Supabase | Project `ftdfmclxkjmrfikdipnt`, region Tokyo, free tier | Project Settings → General → **Transfer project** sang org của dev mới (hoặc thêm dev mới làm Owner của org hiện tại rồi tự gỡ mình ra) | Xác nhận dev mới có org free tier còn chỗ nhận trước khi transfer |
-| TikTok Developer App | Client key/secret riêng, **đang chờ duyệt Production** (mục 5) | ⚠️ **Chưa xác minh** TikTok Developer Portal có cho transfer ownership app hay không — nhiều portal dạng này chỉ cho thêm "member", không đổi được tài khoản gốc. Tự kiểm tra trên portal trước khi cam kết mốc thời gian | **Rủi ro cao nhất trong bảng này.** Nếu portal không hỗ trợ transfer: phương án dự phòng là dùng chung tài khoản TikTok Developer hiện tại (chia sẻ qua kênh an toàn) thay vì tạo app mới — tạo app mới nghĩa là **xin duyệt Production lại từ đầu**, trong khi đơn hiện tại đã bị từ chối 1 lần và đang chờ resubmit |
+| GitHub | Repo private dưới `duytienitptit` | Settings → Danger Zone → **Transfer ownership**, nhập tài khoản GitHub dev mới (GitHub cho transfer thẳng tới 1 tài khoản, không cần mời trước — khác Vercel/Supabase) | Đổi remote URL cục bộ sau khi transfer (`git remote set-url`) |
+| Vercel | Project `ahd-dashboard` hiện ở **personal account** (`duytien's projects`, không phải Team) theo ảnh chụp 16/09. Function region đặt tay = `hkg1` | **Miễn phí, khuyến nghị (quyết định 16/09 — không dùng Pro Trial)**: **không transfer, deploy lại từ đầu**. Sau khi GitHub đã transfer (dòng trên), dev mới tự tạo project Vercel **mới** trên chính Hobby account của họ, import từ repo (giờ đã là của họ) → dán lại `.env` (mục 4) → tự set lại **Function Region = `hkg1`** (Project Settings → Functions — bước này không tự động vì là project mới, không phải transfer). Cron tự có sẵn vì đã khai trong `vercel.json` | **Domain sẽ đổi** — project mới nhận `*.vercel.app` khác, không giữ được `ahd-dashboard-dusky` (project cũ vẫn tồn tại nên tên đó vẫn bị chiếm). Bắt buộc: báo Manager/team đổi bookmark, và cập nhật `TIKTOK_REDIRECT_URI` ở cả TikTok Developer Portal lẫn env var mới. Xoá project Vercel cũ sau khi xác nhận bản mới chạy ổn |
+| Supabase | Project `ftdfmclxkjmrfikdipnt`, region Tokyo, free tier, org hiện tại `duytienitptit's Org` | Organization Settings → Team → **mời dev mới làm Owner** của org hiện tại → họ accept → bạn rời org. Docs không nhắc giới hạn mời member theo gói (khác Vercel) — cứ thử trực tiếp, gặp chặn mới cần tính tiếp | Project ID/API keys/service role key **không đổi** vì project không di chuyển đi đâu |
+| TikTok Developer App | Client key/secret riêng, **đang chờ duyệt Production** (mục 5) | ⚠️ **Chưa xác minh** TikTok Developer Portal có cho thêm member/transfer hay không. Tự kiểm tra trên portal trước khi cam kết mốc thời gian | **Rủi ro cao nhất trong bảng này.** Nếu portal không hỗ trợ: dùng chung tài khoản TikTok Developer hiện tại (chia sẻ qua kênh an toàn) thay vì tạo app mới — tạo app mới nghĩa là **xin duyệt Production lại từ đầu**, trong khi đơn hiện tại đã bị từ chối 1 lần và đang chờ resubmit |
 | Domain | Không thấy domain riêng ngoài `*.vercel.app` | Không cần hành động | Xác nhận lại với người bàn giao nếu có domain mua ngoài phạm vi repo này |
 
-**Thứ tự khuyến nghị**: Supabase + GitHub trước (ít phụ thuộc nhau) → Vercel (re-link env vars, kiểm
-tra lại region Function) → xác nhận app chạy được trên hạ tầng mới → xử lý TikTok Developer App sau
-cùng, tách riêng, vì rủi ro cao nhất và có thể mất nhiều ngày làm việc với portal.
+⚠️ **Vercel Team collaboration (nhiều người cùng quản lý 1 project) chỉ có ở Pro, không có ở Hobby**
+([so sánh Hobby/Pro](https://vercel.com/docs/plans/hobby)) — tạo Team mới luôn bắt chọn Pro hoặc Pro
+Trial, không có lựa chọn miễn phí (đúng như ảnh chụp thực tế 16/09). **Pro Trial 14 ngày không né được
+phí**: xác nhận qua doc — *"It is not possible to change Owners during the Pro trial period. Owners can
+be changed once the Pro trial has upgraded to a paid Pro plan"* ([nguồn](https://vercel.com/docs/plans/pro-plan/trials)).
+Hết 14 ngày mà chưa thêm thẻ thanh toán, mọi thành viên mời thêm **bị gỡ tự động**, về lại Hobby 1
+mình — nên không dùng trial để "né" phí, chỉ trì hoãn. Đã xác minh thêm: **Hobby hiện tại (2026) không
+cho mời thêm thành viên dưới bất kỳ hình thức nào, kể cả invite cơ bản** (khác thông tin cũ từ 2024 lan
+truyền trên vài discussion — đã kiểm chứng lại là lỗi thời). Vì bạn đã quyết định không dùng Pro Trial
+(16/09), phương án chọn là **deploy lại từ đầu** ở bảng trên, không phải trả phí Vercel. Chỉ cân nhắc
+trả **$20/tháng cho 1 Developer seat** nếu sau này muốn dùng đúng nút "Transfer Project" chính thức
+(ví dụ dev mới đã sẵn có Team Pro riêng, họ mời bạn vào — khi đó không tốn thêm phí cho bạn).
+
+⚠️ **Riêng, độc lập với việc bàn giao**: Hobby plan giới hạn *"non-commercial, personal use only"*
+([fair use guidelines](https://vercel.com/docs/limits/fair-use-guidelines#commercial-usage)). Dashboard
+này là công cụ nội bộ của một doanh nghiệp thật, dùng để tính KPI/thưởng — về nguyên tắc đã không thuộc
+diện Hobby free từ trước, không riêng gì lúc bàn giao. Đáng cân nhắc nâng Pro như một quyết định riêng.
+
+**Thứ tự khuyến nghị**: Supabase + GitHub trước (ít phụ thuộc nhau, không cần dev mới thao tác gì) →
+GitHub xong thì dev mới deploy lại Vercel từ repo đã nhận (mục Vercel ở bảng trên) → xác nhận app chạy
+được trên hạ tầng mới, cập nhật `TIKTOK_REDIRECT_URI` → báo team đổi bookmark domain → xử lý TikTok
+Developer App sau cùng, tách riêng, vì rủi ro cao nhất và có thể mất nhiều ngày làm việc với portal.
 
 ## 4. Secrets cần bàn giao
 

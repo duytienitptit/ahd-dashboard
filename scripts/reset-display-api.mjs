@@ -1,10 +1,10 @@
 // Reset sạch tầng dữ liệu Display API cho MỌI kênh đang kết nối (24/08/2026) — theo yêu cầu, sau khi
-// scripts/backfill-daily-views.mjs phát hiện: sync.ts CŨ ghi `video_snapshot.date` và
-// `data_snapshot.date` theo 2 quy ước ngày KHÁC NHAU (xem docs/PROGRESS.md mục "Siết kết nối Display
-// API..."), nên dữ liệu display_api hiện có không dựng lại đúng được mà không đoán — nhất là ngày
-// 24/08 có nhiều lần "Chạy đồng bộ ngay" thủ công đè lên nhau. Thay vì cố sửa dữ liệu cũ, xoá sạch
-// tầng TẠM TÍNH này và để code mới (B1, đã sửa trong lib/tiktok/sync.ts) dựng lại từ đầu, sạch và
-// không mơ hồ.
+// scripts/backfill-daily-views.mjs phát hiện sync.ts CŨ ghi `video_snapshot.date` và
+// `data_snapshot.date` theo 2 quy ước ngày KHÁC NHAU (chi tiết đầy đủ + cách phát hiện: xem comment
+// đầu scripts/backfill-daily-views.mjs), nên dữ liệu display_api hiện có không dựng lại đúng được mà
+// không đoán — nhất là ngày 24/08 có nhiều lần "Chạy đồng bộ ngay" thủ công đè lên nhau. Thay vì cố
+// sửa dữ liệu cũ, xoá sạch tầng TẠM TÍNH này và để code mới (B1, đã sửa trong lib/tiktok/sync.ts) dựng
+// lại từ đầu, sạch và không mơ hồ.
 //
 //   node scripts/reset-display-api.mjs            (mặc định: chỉ in ra, KHÔNG đổi gì)
 //   node scripts/reset-display-api.mjs --confirm   (áp dụng thật: revoke TikTok + xoá DB)

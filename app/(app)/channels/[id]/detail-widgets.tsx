@@ -121,8 +121,8 @@ export function ActivityHeatmapCard({ heatmap }: { heatmap: ActivityHeatmap }) {
             </div>
           </div>
 
-          {/* Thang màu + số — trước đây chỉ có màu, không biết đậm nhạt tương ứng số bao nhiêu
-              (docs/TASKS.md Đợt 2 #1). Ô đậm nhất đã tự hiện số ngay trên lưới ở trên, đây là
+          {/* Thang màu + số — trước đây chỉ có màu, không biết đậm nhạt tương ứng số bao nhiêu.
+              Ô đậm nhất đã tự hiện số ngay trên lưới ở trên, đây là
               thang tham chiếu chung cho phần còn lại. */}
           <div className="mt-3 flex items-center gap-2 text-[11px] text-ink-3">
             <span>Ít hoạt động</span>

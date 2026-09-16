@@ -10,8 +10,7 @@ import { ManualEntryPicker } from "./manual-entry-picker";
 
 // Manager-only — CLAUDE.md: manual_entry là ngoại lệ duy nhất KHÔNG mở cho Creator (khác với import
 // file Studio ở tab cạnh bên), người hưởng thưởng không tự khai số tính thưởng. Thêm 21/08/2026 —
-// trước đây "+ Nhập tay" chỉ có ở Chi tiết kênh, dưới cùng danh sách video, không ai tìm ra
-// (docs/PROGRESS.md).
+// trước đây "+ Nhập tay" chỉ có ở Chi tiết kênh, dưới cùng danh sách video, không ai tìm ra.
 export default async function ManualEntryPage() {
   const user = await requireUser();
   if (user.role !== "manager") redirect("/");

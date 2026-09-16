@@ -20,18 +20,26 @@ import { createClient } from "@supabase/supabase-js";
 
 process.loadEnvFile(".env.local");
 
-// ⚠️ TẠM KHOÁ 24/08/2026 — dry-run chạy thật hôm nay cho thấy script này tính SAI cho dữ liệu ghi
-// bởi sync.ts CŨ (trước bản vá B1): video_snapshot.date và data_snapshot.date dùng 2 quy ước ngày
-// KHÁC NHAU ở code cũ (xem PROGRESS.md mục "Siết kết nối Display API..." — phần "Bug phát hiện lúc
-// chạy backfill"), nên join theo date ở script này bị lệch 1 ngày cho toàn bộ dữ liệu cũ. Số in ra
-// ở dry-run KHÔNG dùng được. Đừng gỡ dòng dưới cho tới khi hiểu rõ + xác nhận lại cách tính.
+// ⚠️ TẠM KHOÁ 24/08/2026 — dry-run chạy thật hôm đó cho thấy script này tính SAI cho dữ liệu ghi bởi
+// sync.ts CŨ (trước bản vá B1). Nguyên nhân: sync.ts CŨ ghi 2 cột ngày theo 2 quy ước KHÁC NHAU —
+// `video_snapshot.date` = ngày đồng hồ lúc cron chạy, còn `data_snapshot.date` = ngày của LẦN SYNC
+// TRƯỚC (qua `determineSyncDate`/`last_sync_at`, đã sửa). Với cron 1 lần/ngày, 2 giá trị này luôn
+// lệch nhau đúng 1 ngày — script này giả định 2 cột dùng chung 1 ngày (đúng cho dữ liệu code MỚI ghi,
+// sai cho dữ liệu cũ) nên join nhầm cặp snapshot, dán nhãn lùi 1 ngày cho toàn bộ dữ liệu cũ. Xác
+// nhận bằng cách so khớp: số recompute cho ngày D khớp TUYỆT ĐỐI với số gốc đã lưu cho ngày D-1, ở cả
+// 4/4 kênh bị đổi số — khớp kiểu này không thể là trùng hợp. Số in ra ở dry-run hôm đó KHÔNG dùng
+// được. Đừng gỡ khoá dưới cho tới khi hiểu rõ + xác nhận lại cách tính.
 //
 // Đợt 22-24/08/2026 cụ thể KHÔNG dùng script này để sửa — thay vào đó dùng
-// scripts/reset-display-api.mjs xoá sạch rồi để code mới dựng lại từ đầu (đơn giản, không đoán gì).
-// Script này VẪN GIỮ LẠI, chỉ khoá — hữu ích cho sau này nếu phát sinh nhu cầu backfill trên dữ liệu
-// đã nhất quán quy ước ngày (viết bởi code MỚI), lúc đó bug lệch ngày ở trên không còn áp dụng.
+// scripts/reset-display-api.mjs xoá sạch rồi để code mới dựng lại từ đầu (đơn giản, không đoán gì;
+// chạy thật 24/08/2026 thành công 6/6 kênh). Script này VẪN GIỮ LẠI, chỉ khoá — hữu ích cho sau này
+// nếu phát sinh nhu cầu backfill trên dữ liệu đã nhất quán quy ước ngày (viết bởi code MỚI, toàn bộ
+// dữ liệu display_api từ 24/08/2026 trở đi), lúc đó bug lệch ngày ở trên không còn áp dụng — nhưng
+// vẫn nên tự xác nhận lại (so khớp kiểu D vs D-1 như trên) trước khi tin, đừng chỉ dựa vào ngày tháng.
 if (process.argv.includes("--confirm")) {
-  console.error("\n⚠️  --confirm đang bị khoá — xem comment đầu file + docs/PROGRESS.md trước khi mở lại.\n");
+  console.error(
+    "\n⚠️  --confirm đang bị khoá — đọc comment đầu file (giải thích đầy đủ nguyên nhân + cách tự xác nhận lại) trước khi mở lại.\n",
+  );
   process.exit(1);
 }
 const CONFIRM = false;

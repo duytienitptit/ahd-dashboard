@@ -27,8 +27,8 @@ Thêm nữa, TikTok có **Sandbox mode**: tạo được tới 5 sandbox mỗi a
 **10 tài khoản TikTok** — 8 kênh lọt gọn vào 1 sandbox, **không cần chờ duyệt app** để bắt đầu.
 Thời gian duyệt chính thức (nếu cần) khoảng 1-2 tuần cho hồ sơ sạch, so với Business API lâu hơn nhiều.
 
-> ⬜ **Cần kiểm chứng thực tế:** sandbox có cho gọi `user.info.stats` + `video.list` đầy đủ không,
-> hay chỉ giới hạn ở luồng đăng bài. Đây là việc nên làm sớm nhất — xem [TASKS.md](TASKS.md) M0.
+> ✅ **Đã kiểm chứng thực tế (M0, 20/08/2026):** sandbox gọi được đầy đủ `user.info.stats` +
+> `video.list`, không chỉ giới hạn ở luồng đăng bài — xem [DISPLAY_API.md](DISPLAY_API.md).
 
 ## Vấn đề chưa nguồn nào giải quyết trọn vẹn: "view trong kỳ"
 

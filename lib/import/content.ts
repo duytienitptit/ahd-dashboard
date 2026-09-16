@@ -11,7 +11,7 @@ export type ContentRow = {
   postedAt: string | null;
   /** Cumulative-as-of-export totals from "Total views/likes/comments/shares" — feeds a
    *  `video_snapshot` row dated at the export, the same shape lib/tiktok/sync.ts writes from
-   *  Display API. Added for M4's hashtag-effectiveness table (docs/TASKS.md); M3a parsed this file
+   *  Display API. Added for M4's hashtag-effectiveness table; M3a parsed this file
    *  for title/link only, since nothing needed the counts yet. */
   viewCount: number | null;
   likeCount: number | null;

@@ -37,7 +37,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/kp
   }
 }
 
-// DELETE /api/kpi-cycles/:id — M. Not in docs/TASKS.md's original M5 list — added because PATCH
+// DELETE /api/kpi-cycles/:id — M. Not part of the original M5 scope — added because PATCH
 // can't fix a cycle created against the wrong channel (channelId is immutable), and the DB's
 // EXCLUDE constraint locks that date range until the row is gone. Only a `draft` cycle can be
 // deleted (deleteKpiCycle → assertEditable). Logged to audit_log here, not inside deleteKpiCycle —

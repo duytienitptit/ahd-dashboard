@@ -17,7 +17,7 @@ const STATUS_BADGE = {
 
 /**
  * "KPI kỳ này" — M5, restores the card M4 deliberately left out (`kpi_cycle` had no rows yet, so a
- * mockup-shaped progress card would have shown fake numbers — docs/TASKS.md M4 notes). Placed as its
+ * mockup-shaped progress card would have shown fake numbers). Placed as its
  * own full-width row, right after the 4 `StatTile`s and before `TrendChart`
  * (app/(app)/channels/[id]/page.tsx), not squeezed into the trend-chart/`NewViewerRatioCard` sidebar
  * row — that row's layout is unrelated M4 work, left untouched.

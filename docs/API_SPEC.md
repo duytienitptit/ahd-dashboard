@@ -273,8 +273,8 @@ data vừa được xác nhận đủ điều kiện, không phải một field 
 `lib/import/plan-import.ts`/`run-import.ts` chỉ quan tâm cửa sổ chốt (2 ngày trễ), không biết gì về
 `kpi_cycle`. Về lý thuyết một import muộn hoặc sửa lại vẫn có thể ghi đè ngày đã "khoá vĩnh viễn" mà
 không qua audit_log nào — trái với CLAUDE.md ("status = final → khoá số liệu"). Chưa xảy ra thật (chưa
-có cycle nào final trước 26/08/2026) nhưng cần chặn trước khi dùng thật cho tính thưởng. Xem
-[TASKS.md](TASKS.md) mục M6.
+có cycle nào final tính tới 16/09/2026) nhưng cần chặn trước khi dùng thật cho tính thưởng — đặc biệt
+liên quan ngay bây giờ vì kỳ KPI đầu tiên đã đủ điều kiện chốt sổ (xem CLAUDE.md mục "Trạng thái").
 
 ---
 
@@ -340,8 +340,8 @@ thuộc về kênh khác `:id`, trả `400` và không ghi gì. Chạy cả khi 
 đã báo lỗi. Bằng chứng: `@handle` trong `video_link` của `Content.csv`, hoặc handle nhúng trong tên
 file zip. Không đọc ra handle nào (file bị rename, không có `Content.csv`) thì **cho qua** — chỉ chặn
 khi chứng minh được. Chi tiết + lý do (đã hỏng dữ liệu thật 2 lần):
-[lib/import/channel-guard.ts](../lib/import/channel-guard.ts), [PROGRESS.md](PROGRESS.md) mục "Import
-nhầm kênh".
+[lib/import/channel-guard.ts](../lib/import/channel-guard.ts); tóm tắt sự cố ở
+[CLAUDE.md](../CLAUDE.md) mục "Trạng thái" ("Import nhầm kênh").
 
 **Chặn riêng, kiểm trước cả cửa sổ chốt (26/08/2026):** ngày nào đã nằm trong 1 `kpi_cycle`
 `status = final` thì **luôn** bị bỏ qua, bất kể cửa sổ chốt cho phép hay không — `data_snapshot`
@@ -448,10 +448,10 @@ tổng của một kỳ trộn nguồn là tổng của hai đơn vị đo, và 
 Cố tình **không** đo bằng "số kênh đã đối chiếu đủ kỳ": Studio trễ 2 ngày cố định nên ngày mới nhất
 luôn là `display_api`, chỉ số đó sẽ đứng ở 0/9 vĩnh viễn. Nguồn: `aggregateSourceCoverage()` trong
 `lib/dashboard.ts`. Quyết định chọn badge thay vì tách 2 tab Display/Studio: xem
-[PROGRESS.md](PROGRESS.md) mục "Badge độ phủ nguồn".
+[CLAUDE.md](../CLAUDE.md) mục "Trạng thái" ("Badge độ phủ nguồn").
 
 `trend` trả **cả 3 mức chia** `day` (14 ngày gần nhất, thêm 08/09/2026), `week` (8 tuần gần nhất) và
-`month` (6 tháng gần nhất, thêm 21/08/2026 — docs/TASKS.md Đợt 2 "so tháng 7 với tháng 8") — client
+`month` (6 tháng gần nhất, thêm 21/08/2026 — "so tháng 7 với tháng 8") — client
 chuyển đổi không cần gọi lại API, giống hệt cách 3 metric (views/followers/videos) đã bundle sẵn từ
 M4. Mỗi điểm `{label, value}` có **`value: null`** khi không một ngày nào trong khoảng đó có số đo
 thật (khác `0` — số đo được và đúng là 0). Client phải vẽ đứt đoạn ở điểm `null`, không được vẽ như

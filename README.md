@@ -82,7 +82,7 @@ npm run dev
 | `lib/crypto/` | Mã hoá token at-rest (AES-256-GCM) |
 | `supabase/migrations/` | Schema, RLS, view chọn nguồn `v_channel_daily` |
 | `scripts/` | Seed + dry-run schema |
-| `docs/` | Spec sản phẩm, ERD, API, format CSV, task list |
+| `docs/` | Spec sản phẩm, ERD, API, format CSV, bàn giao |
 | `design/` | Mockup gốc 10 màn hình MVP |
 
 `proxy.ts` ở gốc (Next 16 đổi tên từ `middleware.ts`) làm mới session cookie và chặn route khi chưa

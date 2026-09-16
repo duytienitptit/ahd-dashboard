@@ -5,8 +5,8 @@ import { requireEnv } from "@/lib/env";
 // OAuth for the Display API connection specifically — not part of TikTokDataProvider (provider.ts),
 // since a vendor-scraping fallback wouldn't have a per-channel consent flow at all.
 //
-// Every call here mirrors tools/m0-display-api-probe/probe.mjs's `tokenRequest`, already run
-// against the real sandbox (docs/DISPLAY_API.md bẫy #6-8: https-only non-localhost redirect URI,
+// Every call here mirrors the token-request logic manually verified against the real sandbox during
+// M0, before this file existed (docs/DISPLAY_API.md bẫy #6-8: https-only non-localhost redirect URI,
 // HTTP 200-with-error-code responses, URL-decoding `code`).
 
 const AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/";

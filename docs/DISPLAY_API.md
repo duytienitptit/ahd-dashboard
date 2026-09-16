@@ -4,8 +4,8 @@ Nguồn dữ liệu hằng ngày cho 3 chỉ số nóng. Chiến lược tổng 
 
 > ✅ **Cập nhật 20/08/2026 (M0 + M3b):** phần lớn tài liệu này đã chạy thật trên sandbox (3 tài khoản,
 > kể cả 2 kênh thật) — xem các dòng "Đã kiểm chứng" bên dưới. Code app thật (`lib/tiktok/`) port trực
-> tiếp từ script kiểm chứng M0 (`tools/m0-display-api-probe/probe.mjs`), không viết lại từ đầu. Còn
-> đúng 1 mục 🔬 chưa đo được (mục 5 bên dưới) — cần Manager OAuth thật qua `/connections` trước.
+> tiếp từ script kiểm chứng M0 đã chạy thật trên sandbox, không viết lại từ đầu. Còn đúng 1 mục 🔬
+> chưa đo được (mục 5 bên dưới) — cần Manager OAuth thật qua `/connections` trước.
 
 ## Endpoint và trường dữ liệu
 
@@ -319,8 +319,8 @@ with third parties, never used for ads. Owners can revoke access anytime.
    xem `app/api/oauth/callback/route.ts`. Tài khoản TikTok chưa có video nào (không có `share_url` để
    đối chiếu — chính là điểm mù duy nhất guard không tự xác minh được) vẫn lưu token nhưng
    `channel_oauth.account_verified = false`, và `lib/tiktok/sync.ts` **từ chối sync** cho tới khi có
-   người xác nhận tay qua `POST /api/channels/:id/oauth/verify`. Chi tiết dọn dữ liệu sai:
-   [PROGRESS.md](PROGRESS.md) mục "Đợt 1 sửa dữ liệu".
+   người xác nhận tay qua `POST /api/channels/:id/oauth/verify`. Dữ liệu sai phát sinh từ bug này trên
+   production đã được dọn tay một lần, không còn tồn tại trong DB hiện tại.
 
    **Bài học vận hành**: trước khi bấm "Kết nối" cho một kênh thật, kiểm tra trình duyệt đang đăng
    nhập TikTok bằng đúng tài khoản của kênh đó — đừng dựa hoàn toàn vào guard, nó chỉ là lưới an
@@ -361,7 +361,7 @@ with third parties, never used for ads. Owners can revoke access anytime.
     `video_views` = tổng view **luỹ kế trọn đời** của cả kênh vào đúng 1 ngày** (kiểm chứng bằng data
     thật: kênh `nong.nghiep.xanh.17` sẽ ghi ra ~1.199.034, trong khi view/ngày thật chỉ 85k-175k —
     sai khoảng 10 lần). Phát hiện lúc review lại code M3b (20/08/2026), không phải lúc code lần đầu —
-    thuật toán port đúng từ `probe.mjs`, nhưng probe luôn có sẵn 2 snapshot để so, còn app thì lần
+    thuật toán port đúng từ script kiểm chứng M0, nhưng script đó luôn có sẵn 2 snapshot để so, còn app thì lần
     chạy đầu tiên không có. **Sửa:** `lib/tiktok/sync.ts` phát hiện bootstrap (channel_oauth
     `last_sync_at` rỗng) → ghi `video_views = null` (không phải 0 — "chưa biết" khác "biết là 0"),
     vẫn ghi `video_snapshot` để làm baseline cho lần sync kế tiếp.
@@ -453,8 +453,9 @@ with third parties, never used for ads. Owners can revoke access anytime.
 
 ## Việc cần kiểm chứng (M0)
 
-> Bộ kiểm chứng đã viết sẵn: [`tools/m0-display-api-probe/`](../tools/m0-display-api-probe/README.md)
-> — Node thuần, không phụ thuộc app, tự xuất báo cáo điền sẵn checklist dưới đây.
+> ✅ Đã kiểm chứng thực tế xong (20/08/2026) bằng một script Node thuần chạy ngoài app (không còn giữ
+> trong repo — mục đích một lần, kết quả đã đúc kết đầy đủ vào tài liệu này) — kết quả tự động điền
+> vào checklist dưới đây.
 
 - [ ] Sandbox có gọi được `user.info.stats` + `video.list` không
 - [ ] `video/list` có trả `view_count` qua `fields` không, hay phải dùng `video/query`

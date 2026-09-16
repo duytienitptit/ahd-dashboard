@@ -1,6 +1,6 @@
 // Integration test for the parsing + planning pipeline against the real Studio exports in `data/`
 // (60 real days, 2 channels — see data/README.md). No Supabase involved: plan-import.ts is pure, so
-// this is the cheapest way to satisfy TASKS.md M3a's "test bằng data thật" requirement.
+// this is the cheapest way to satisfy M3a's "test bằng data thật" requirement.
 //
 // `data/` is intentionally not committed (see .gitignore) — skip instead of failing on a machine
 // that doesn't have it.
@@ -163,7 +163,7 @@ describe("planStudioImport (synthetic)", () => {
     expect(plan.skippedRecentDates).toEqual(["2026-08-24", "2026-08-25"]);
   });
 
-  // 26/08/2026, theo yêu cầu — the gap flagged in M6's own TASKS.md note: nothing stopped an import
+  // 26/08/2026, theo yêu cầu — the gap flagged during M6: nothing stopped an import
   // from silently overwriting a date a Manager had already finalized.
   it("skips locked (final-cycle) dates even when they'd otherwise be well inside the settle window", () => {
     const dates = ["2026-08-10", "2026-08-11", "2026-08-12"];

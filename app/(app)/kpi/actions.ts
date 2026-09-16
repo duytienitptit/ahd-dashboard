@@ -116,7 +116,7 @@ export async function updateKpiCycleAction(
 }
 
 /**
- * Not in docs/TASKS.md's original M5 list — added because `channelId`/`followersAtStart` are
+ * Not part of the original M5 scope — added because `channelId`/`followersAtStart` are
  * immutable once created, so a cycle made against the wrong channel has no other way back (lib/kpi.ts's
  * `deleteKpiCycle` doc comment). Only `draft` cycles can be deleted (`assertEditable`). Used inline on
  * `/kpi` via `ConfirmDeleteForm` — redirects back to `/kpi` regardless (same pattern
@@ -157,7 +157,7 @@ export async function deleteKpiCycleAction(
  *
  * No `redirect()`, unlike every other action in this file — stays on `/kpi/[id]/finalize` so
  * `revalidatePath` re-renders it into its own "đã chốt sổ" read-only branch in place, satisfying
- * docs/TASKS.md's "UI: xem lại lịch sử các kỳ đã chốt" with the same page rather than a second one.
+ * the "xem lại lịch sử các kỳ đã chốt" requirement with the same page rather than a second one.
  */
 // useActionState's callback shape requires both trailing params; this action needs neither (no
 // prior state to merge, nothing in the form beyond the checkbox, which is a client-only gate — see
